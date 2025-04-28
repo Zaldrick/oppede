@@ -141,55 +141,6 @@ export class GameScene extends Phaser.Scene {
     this.socket.on('playersUpdate', (players) => {
       this.latestPlayersData = players;
     });
-
-    // Écoute des interactions diffusées par le serveur
-    this.socket.on('interactionMessage', (data) => {
-      // Si le message concerne le joueur local (en émetteur ou cible)
-      if (data.from === this.myId || data.to === this.myId) {
-        this.displayMessage(
-          data.from === this.myId
-            ? `Vous avez interagi avec le joueur ${data.to}`
-            : `Le joueur ${data.from} a interagi avec vous`
-        );
-      }
-    });
-
-
-// Dans la méthode create() de GameScene, après avoir lancé le reste de l'interface
-const gameWidth = this.cameras.main.width;
-const gameHeight = this.cameras.main.height;
-
-// Crée un bouton rond avec un fond gris (0x808080) de rayon 30 situé en bas à droite.
-// Les 60 pixels de marge garantissent qu'il ne colle pas au bord.
-this.interactButton = this.add
-  .circle(gameWidth - 400, gameHeight - 400, 100, 0x808080)
-  .setInteractive()
-  .on('pointerdown', () => {
-    // Ici, vous pouvez appeler votre fonction d'interaction, par exemple :
-    // On recherche le joueur distant le plus proche et on émet l'événement.
-    let targetId = this.getNearestRemotePlayer();
-    if (targetId) {
-      this.socket.emit('interaction', {
-        from: this.myId,
-        to: targetId,
-        message: "Action réalisée"
-      });
-      this.displayMessage(`Vous avez interagi avec le joueur ${targetId}`);
-    } else {
-      this.displayMessage("Aucun joueur à proximité pour l'interaction");
-    }
-  });
-this.interactButton.setScrollFactor(0);
-
-// Ajoute le texte "A" centré dans le bouton
-this.interactButtonText = this.add
-  .text(gameWidth - 400, gameHeight - 400, "A", {
-    font: "60px Arial",
-    fill: "#ffffff",
-    align: "center"
-  })
-  .setOrigin(0.5);
-this.interactButtonText.setScrollFactor(0);
   }
 
   update() {
@@ -260,16 +211,7 @@ this.interactButtonText.setScrollFactor(0);
         if (!this.otherPlayers[id]) {
           let newSprite = this.physics.add.sprite(data.x, data.y, "player");
           newSprite.setCollideWorldBounds(true);
-          newSprite.setImmovable(true);
           newSprite.currentAnim = data.anim || ""; // Initialiser l'animation
-          newSprite.setInteractive();
-          // Ajouter le sprite au groupe des joueurs distants pour la collision
-          this.remotePlayersGroup.add(newSprite);
-          // Gestion de l'interaction par pointer (clic/touch)
-          newSprite.on('pointerdown', () => {
-            this.openInteractionMenu(id, newSprite);
-          });
-  
           this.otherPlayers[id] = newSprite;
 
           // Démarrer l'animation si spécifiée
@@ -331,30 +273,20 @@ this.interactButtonText.setScrollFactor(0);
     // ou enregistrer l'interaction dans votre logique de jeu.
   }
 
-    // Méthode pour trouver le joueur distant le plus proche du joueur local.
-    getNearestRemotePlayer() {
-      let nearestId = null;
-      let minDistance = Number.MAX_VALUE;
-      Object.keys(this.otherPlayers).forEach((id) => {
-        let remote = this.otherPlayers[id];
-        let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestId = id;
-        }
-      });
-      // Par exemple, on n'interagit que si le joueur distant est à moins de 300 pixels.
-      return (minDistance < 300) ? nearestId : null;
-    }
-    
-  // Fonction d'affichage d'un message temporaire
-  displayMessage(text) {
-    let style = { font: "18px Arial", fill: "#ffffff", backgroundColor: "#000000", padding: { x: 10, y: 5 } };
-    let messageText = this.add.text(430, 50, text, style).setOrigin(0.5);
-    // Faire en sorte que le texte soit visible quelques secondes puis disparaisse
+  // Fonction d'ouverture du menu d'interaction pour un joueur distant
+  openInteractionMenu(remoteId, remotePlayer) {
+    console.log(`Ouvrir le menu d'interaction pour le joueur ${remoteId}`);
+    // Ici, vous pouvez faire apparaître une interface (par ex. un panneau ou des boutons)
+    // avec plusieurs actions (ex., "envoyer un message", "commander un échange", "attaquer", etc.)
+    // Vous pouvez utiliser des objets Phaser pour créer ce menu et gérer les actions.
+
+    // Exemple de code rapide pour afficher un texte en jeu:
+    let style = { font: "16px Arial", fill: "#ffffff", backgroundColor: "#000000" };
+    let menuText = this.add.text(remotePlayer.x, remotePlayer.y - 50, "Menu d'action", style);
+
+    // Vous pouvez faire en sorte que ce menu disparaisse après quelques secondes ou en cliquant ailleurs
     this.time.delayedCall(3000, () => {
-      messageText.destroy();
+      menuText.destroy();
     });
   }
-
 }

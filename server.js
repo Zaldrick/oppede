@@ -35,6 +35,14 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Gestion de l'interaction entre joueurs
+  socket.on('interaction', (data) => {
+    console.log(`Interaction de ${data.from} vers ${data.to} : ${data.message}`);
+    // Pour une première version, on diffuse simplement l'événement à tous.
+    // Vous pouvez également diffuser uniquement vers la cible si nécessaire.
+    io.emit('interactionMessage', data);
+  });
+
   // Déconnexion
   socket.on('disconnect', () => {
     console.log(`Joueur déconnecté : ${socket.id}`);
