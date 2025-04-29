@@ -109,8 +109,13 @@ export class GameScene extends Phaser.Scene {
     this.socket.on('connect', this.handleSocketConnect, this);
     this.socket.on('playersUpdate', this.handlePlayersUpdate, this);
   
-    // Nouveau type d'interaction : défier ou faire signe
-    this.socket.on('interactionFeedback', this.handleInteractionFeedback, this);
+    this.socket.on('interactionFeedback', (data) => {
+      if (data.type === 'emitter') {
+        this.displayMessage(`Vous avez fait signe au joueur ${data.to}`);
+      } else if (data.type === 'receiver') {
+        this.displayMessage(`Le joueur ${data.from} vous fait signe !`);
+      }
+    });
   }
 
   createUI() {
