@@ -121,16 +121,44 @@ export class GameScene extends Phaser.Scene {
   createUI() {
     const gameWidth = this.cameras.main.width;
     const gameHeight = this.cameras.main.height;
-    this.interactButton = this.add.circle(gameWidth - 400, gameHeight - 400, 100, 0x808080)
+  
+    // Bouton A
+    this.buttonA = this.add.circle(gameWidth - 200, gameHeight - 150, 50, 0x808080)
       .setInteractive()
-      .on('pointerdown', this.handleInteractButton, this);
-    this.interactButton.setScrollFactor(0);
-    this.interactButtonText = this.add.text(gameWidth - 400, gameHeight - 400, "A", {
-      font: "60px Arial",
+      .on('pointerdown', this.handleButtonA, this);
+    this.buttonAText = this.add.text(gameWidth - 200, gameHeight - 150, "A", {
+      font: "30px Arial",
       fill: "#ffffff",
       align: "center"
     }).setOrigin(0.5);
-    this.interactButtonText.setScrollFactor(0);
+  
+    // Bouton B
+    this.buttonB = this.add.circle(gameWidth - 300, gameHeight - 200, 50, 0x808080)
+      .setInteractive()
+      .on('pointerdown', this.handleButtonB, this);
+    this.buttonBText = this.add.text(gameWidth - 300, gameHeight - 200, "B", {
+      font: "30px Arial",
+      fill: "#ffffff",
+      align: "center"
+    }).setOrigin(0.5);
+  
+    // Bouton Start
+    this.startButton = this.add.rectangle(gameWidth / 2, gameHeight - 50, 200, 50, 0x808080)
+      .setInteractive()
+      .on('pointerdown', this.handleStartButton, this);
+    this.startButtonText = this.add.text(gameWidth / 2, gameHeight - 50, "Start", {
+      font: "24px Arial",
+      fill: "#ffffff",
+      align: "center"
+    }).setOrigin(0.5);
+  
+    // Ajuster les boutons pour qu'ils ne défilent pas avec la caméra
+    this.buttonA.setScrollFactor(0);
+    this.buttonAText.setScrollFactor(0);
+    this.buttonB.setScrollFactor(0);
+    this.buttonBText.setScrollFactor(0);
+    this.startButton.setScrollFactor(0);
+    this.startButtonText.setScrollFactor(0);
   }
 
   handlePlayerMovement() {
@@ -304,6 +332,48 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  handleButtonB() {
+    if (this.interactionMenu) {
+      this.interactionMenu.destroy();
+      this.interactionMenu = null;
+    } else if (this.startMenu) {
+      this.startMenu.destroy();
+      this.startMenu = null;
+    }
+  }
+
+  handleStartButton() {
+    if (this.interactionMenu) return; // Ne rien faire si un menu d'interaction est ouvert
+  
+    // Détruire un menu existant avant d'en créer un nouveau
+    if (this.startMenu) {
+      this.startMenu.destroy();
+    }
+  
+    this.startMenu = this.add.container(this.cameras.main.width / 2, this.cameras.main.height / 2);
+  
+    const background = this.add.rectangle(0, 0, 300, 200, 0x000000, 0.8).setOrigin(0.5);
+    this.startMenu.add(background);
+  
+    const options = ["Inventaire", "Profil", "Message", "Retour"];
+    options.forEach((option, index) => {
+      const optionText = this.add.text(0, -75 + index * 50, option, {
+        font: "18px Arial",
+        fill: "#ffffff"
+      }).setOrigin(0.5).setInteractive();
+  
+      optionText.on('pointerdown', () => {
+        if (option === "Retour") {
+          this.startMenu.destroy();
+          this.startMenu = null;
+        } else {
+          this.displayMessage(`Option sélectionnée : ${option}`);
+        }
+      });
+  
+      this.startMenu.add(optionText);
+    });
+  }
 
   showInteractionMenu(targetId) {
     // Supprime un menu existant s'il est déjà ouvert
