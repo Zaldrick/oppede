@@ -43,7 +43,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   loadAssets() {
-    this.load.image("background", "/assets/fond.jpg");
+    this.load.image("background", "/assets/interieur.png"); // Update background image
     this.load.spritesheet("player", "/assets/joueur.png", {
       frameWidth: 48,
       frameHeight: 48,
@@ -51,9 +51,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupWorld() {
-    this.add.image(CONFIG.worldBounds.width / 2, CONFIG.worldBounds.height / 2, "background");
-    this.physics.world.setBounds(0, 0, CONFIG.worldBounds.width, CONFIG.worldBounds.height);
-    this.cameras.main.setBounds(0, 0, CONFIG.worldBounds.width, CONFIG.worldBounds.height);
+    const worldWidth = 1536; // Match the new image size
+    const worldHeight = 2160; // Match the new image size
+    this.add.image(worldWidth / 2, worldHeight / 2, "background");
+    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
   }
 
   createPlayer() {
@@ -78,88 +80,94 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupCamera() {
+    this.zoomFactor = Math.min(this.scale.width / 768, this.scale.height / 1080) * 1.75; // Adjust zoom factor
+    this.cameras.main.setZoom(this.zoomFactor); // Apply zoom
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
   }
 
   setupControls() {
     this.cursors = this.input.keyboard.createCursorKeys();
-    const joystickX = this.scale.width * 0.15;
-    const joystickY = this.scale.height * 0.85;
-    const joystickRadius = Math.min(this.scale.width, this.scale.height) * CONFIG.joystick.radiusFactor;
-    const thumbRadius = joystickRadius * CONFIG.joystick.thumbRadiusFactor;
-    this.joystick = this.plugins.get("rexVirtualJoystick").add(this, {
-      x: joystickX,
-      y: joystickY,
-      radius: joystickRadius,
-      base: this.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor),
-      thumb: this.add.circle(0, 0, thumbRadius, CONFIG.joystick.thumbColor),
-    });
-    this.joystick.on("update", this.handleJoystickUpdate, this);
     this.scale.on("resize", this.handleResize, this);
-    this.input.once("pointerup", this.handlePointerUp, this);
-    window.addEventListener("orientationchange", this.handleOrientationChange);
+    //this.input.once("pointerup", this.handlePointerUp, this);
+    //window.addEventListener("orientationchange", this.handleOrientationChange);
   }
 
   setupSocket() {
-    this.socket = io('http://localhost:5000');
+    this.socket = io('https://9771-89-82-23-250.ngrok-free.app/');
     this.otherPlayers = {};
     this.latestPlayersData = {};
-  
-    // Événements socket existants
-    this.socket.on('connect', this.handleSocketConnect, this);
-    this.socket.on('playersUpdate', this.handlePlayersUpdate, this);
-  
-    this.socket.on('interactionFeedback', (data) => {
-      if (data.type === 'emitter') {
-        this.displayMessage(`Vous avez fait signe au joueur ${data.to}`);
-      } else if (data.type === 'receiver') {
-        this.displayMessage(`Le joueur ${data.from} vous fait signe !`);
-      }
+
+    this.socket.on('connect', () => {
+        if (this.socket && this.socket.id) {
+            this.myId = this.socket.id;
+            this.socket.emit('newPlayer', {
+                x: this.player.x,
+                y: this.player.y,
+                character: 'default'
+            });
+        }
     });
-  }
+
+    this.socket.on('playersUpdate', (players) => {
+        this.latestPlayersData = players;
+    });
+}
 
   createUI() {
-    const gameWidth = this.cameras.main.width;
-    const gameHeight = this.cameras.main.height;
-  
-    // Bouton A
-    this.buttonA = this.add.circle(gameWidth - 200, gameHeight - 150, 50, 0x808080)
-      .setInteractive()
-      .on('pointerdown', this.handleButtonA, this);
-    this.buttonAText = this.add.text(gameWidth - 200, gameHeight - 150, "A", {
-      font: "30px Arial",
-      fill: "#ffffff",
-      align: "center"
+    const gameWidth = this.scale.width;
+    const gameHeight = this.scale.height;
+
+    // Joystick (bottom-left corner)
+    const joystickRadius = gameWidth * 0.12 / this.zoomFactor; // Adjust for zoom
+    this.joystick = this.plugins.get("rexVirtualJoystick").add(this, {
+        x: gameWidth * 0.13,
+        y: gameHeight * 0.82,
+        radius: joystickRadius,
+        base: this.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor),
+        thumb: this.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor),
+    });
+    this.joystick.setScrollFactor(0);
+
+    // Bouton A (bottom-right corner, slightly above B)
+    const buttonARadius = gameWidth * 0.07 / this.zoomFactor;
+    this.buttonA = this.add.circle(gameWidth * 0.92, gameHeight * 0.79, buttonARadius, 0x808080)
+        .setInteractive()
+        .on('pointerdown', () => this.handleButtonA());
+    this.buttonAText = this.add.text(gameWidth * 0.92, gameHeight * 0.79, "A", {
+        font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
+        fill: "#ffffff",
+        align: "center"
     }).setOrigin(0.5);
-  
-    // Bouton B
-    this.buttonB = this.add.circle(gameWidth - 300, gameHeight - 200, 50, 0x808080)
-      .setInteractive()
-      .on('pointerdown', this.handleButtonB, this);
-    this.buttonBText = this.add.text(gameWidth - 300, gameHeight - 200, "B", {
-      font: "30px Arial",
-      fill: "#ffffff",
-      align: "center"
-    }).setOrigin(0.5);
-  
-    // Bouton Start
-    this.startButton = this.add.rectangle(gameWidth / 2, gameHeight - 50, 200, 50, 0x808080)
-      .setInteractive()
-      .on('pointerdown', this.handleStartButton, this);
-    this.startButtonText = this.add.text(gameWidth / 2, gameHeight - 50, "Start", {
-      font: "24px Arial",
-      fill: "#ffffff",
-      align: "center"
-    }).setOrigin(0.5);
-  
-    // Ajuster les boutons pour qu'ils ne défilent pas avec la caméra
     this.buttonA.setScrollFactor(0);
     this.buttonAText.setScrollFactor(0);
+
+    // Bouton B (bottom-right corner, below A)
+    const buttonBRadius = gameWidth * 0.07 / this.zoomFactor;
+    this.buttonB = this.add.circle(gameWidth * 0.75, gameHeight * 0.85, buttonBRadius, 0x808080)
+        .setInteractive()
+        .on('pointerdown', () => this.handleButtonB());
+    this.buttonBText = this.add.text(gameWidth * 0.75, gameHeight * 0.85, "B", {
+        font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
+        fill: "#ffffff",
+        align: "center"
+    }).setOrigin(0.5);
     this.buttonB.setScrollFactor(0);
     this.buttonBText.setScrollFactor(0);
+
+    // Bouton Start (center-bottom, slightly above the bottom edge)
+    const startButtonWidth = gameWidth * 0.23 / this.zoomFactor;
+    const startButtonHeight = gameHeight * 0.05 / this.zoomFactor;
+    this.startButton = this.add.rectangle(gameWidth * 0.5, gameHeight * 0.90, startButtonWidth, startButtonHeight, 0x808080)
+        .setInteractive()
+        .on('pointerdown', () => this.handleStartButton());
+    this.startButtonText = this.add.text(gameWidth * 0.5, gameHeight * 0.90, "Start", {
+        font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
+        fill: "#ffffff",
+        align: "center"
+    }).setOrigin(0.5);
     this.startButton.setScrollFactor(0);
     this.startButtonText.setScrollFactor(0);
-  }
+}
 
   handlePlayerMovement() {
     let newAnim = "";
@@ -212,61 +220,62 @@ export class GameScene extends Phaser.Scene {
 
   updateRemotePlayers() {
     if (this.latestPlayersData) {
-      Object.keys(this.latestPlayersData).forEach((id) => {
-        if (id === this.myId) return;
-        const data = this.latestPlayersData[id];
-        if (!this.otherPlayers[id]) {
-          let newSprite = this.physics.add.sprite(data.x, data.y, "player");
-          newSprite.setCollideWorldBounds(true);
-          newSprite.setImmovable(true);
-          newSprite.currentAnim = data.anim || "";
-          newSprite.setInteractive();
-          this.remotePlayersGroup.add(newSprite);
-          newSprite.on('pointerdown', () => {
-            this.openInteractionMenu(id, newSprite);
-          });
-          this.otherPlayers[id] = newSprite;
-          if (data.anim) {
-            newSprite.anims.play(data.anim, true);
-          }
-        } else {
-          const lerpFactor = 0.2;
-          let targetX = data.x;
-          let targetY = data.y;
-          let newX = Phaser.Math.Linear(this.otherPlayers[id].x, targetX, lerpFactor);
-          let newY = Phaser.Math.Linear(this.otherPlayers[id].y, targetY, lerpFactor);
-          if (Math.abs(newX - targetX) < 1) {
-            this.otherPlayers[id].x = targetX;
-          } else {
-            this.otherPlayers[id].x = newX;
-          }
-          if (Math.abs(newY - targetY) < 1) {
-            this.otherPlayers[id].y = targetY;
-          } else {
-            this.otherPlayers[id].y = newY;
-          }
-          if (data.anim) {
-            if (this.otherPlayers[id].currentAnim !== data.anim) {
-              this.otherPlayers[id].anims.play(data.anim, true);
-              this.otherPlayers[id].currentAnim = data.anim;
+        Object.keys(this.latestPlayersData).forEach((id) => {
+            if (id === this.myId) return;
+            const data = this.latestPlayersData[id];
+            if (!this.otherPlayers[id]) {
+                let newSprite = this.physics.add.sprite(data.x, data.y, "player");
+                newSprite.setCollideWorldBounds(true);
+                newSprite.setImmovable(true);
+                newSprite.currentAnim = data.anim || "";
+                newSprite.setInteractive();
+                this.remotePlayersGroup.add(newSprite);
+                newSprite.on('pointerdown', () => {
+                    this.showInteractionMenu(id, newSprite);
+                });
+                this.otherPlayers[id] = newSprite;
+                if (data.anim) {
+                    newSprite.anims.play(data.anim, true);
+                }
+            } else {
+                const lerpFactor = 0.2;
+                let targetX = data.x;
+                let targetY = data.y;
+                let newX = Phaser.Math.Linear(this.otherPlayers[id].x, targetX, lerpFactor);
+                let newY = Phaser.Math.Linear(this.otherPlayers[id].y, targetY, lerpFactor);
+                if (Math.abs(newX - targetX) < 1) {
+                    this.otherPlayers[id].x = targetX;
+                } else {
+                    this.otherPlayers[id].x = newX;
+                }
+                if (Math.abs(newY - targetY) < 1) {
+                    this.otherPlayers[id].y = targetY;
+                } else {
+                    this.otherPlayers[id].y = newY;
+                }
+                if (data.anim) {
+                    if (this.otherPlayers[id].currentAnim !== data.anim) {
+                        this.otherPlayers[id].anims.play(data.anim, true);
+                        this.otherPlayers[id].currentAnim = data.anim;
+                    }
+                } else {
+                    if (this.otherPlayers[id].anims.isPlaying) {
+                        this.otherPlayers[id].anims.stop();
+                    }
+                    this.otherPlayers[id].currentAnim = "";
+                }
             }
-          } else {
-            if (this.otherPlayers[id].anims.isPlaying) {
-              this.otherPlayers[id].anims.stop();
+        });
+
+        Object.keys(this.otherPlayers).forEach((id) => {
+            if (!this.latestPlayersData[id]) {
+                this.otherPlayers[id].destroy();
+                delete this.otherPlayers[id];
             }
-            this.otherPlayers[id].currentAnim = "";
-          }
-        }
-      });
-      Object.keys(this.otherPlayers).forEach((id) => {
-        if (!this.latestPlayersData[id]) {
-          this.otherPlayers[id].destroy();
-          delete this.otherPlayers[id];
-        }
-      });
+        });
     }
-  }
-  
+}
+
   handleCollision(localPlayer, remotePlayer) {
     console.log("Collision détectée entre le joueur local et un joueur distant.");
   }
@@ -283,7 +292,7 @@ export class GameScene extends Phaser.Scene {
     const newJoystickX = gameSize.width * 0.15;
     const newJoystickY = gameSize.height * 0.85;
     this.joystick.setPosition(newJoystickX, newJoystickY);
-  }
+   }
 
   handlePointerUp() {
     if (!this.scale.isFullscreen) {
@@ -316,21 +325,89 @@ export class GameScene extends Phaser.Scene {
   handleInteractionFeedback(data) {
     if (data.from === this.myId || data.to === this.myId) {
       const message = (data.action === "defier")
-        ? `Le joueur ${data.from} vous a défié !`
-        : `Le joueur ${data.from} vous fait signe !`;
+        ? `Le joueur ${data.from}\n vous a défié !`
+        : `Le joueur ${data.from}\n vous fait signe !`;
   
       this.displayMessage(message);
     }
   }
 
-  handleInteractButton() {
+  handleButtonA = () => {
     let targetId = this.getNearestRemotePlayer();
     if (targetId) {
-      this.showInteractionMenu(targetId);
+        this.showInteractionMenu(targetId);
     } else {
-      this.displayMessage("Aucun joueur à proximité pour l'interaction");
+        this.displayMessage("Aucun joueur à proximité\n pour l'interaction");
     }
-  }
+}
+
+showInteractionMenu = (targetId) => {
+    // Destroy an existing interaction menu if it is already open
+    if (this.interactionMenu) {
+        this.interactionMenu.destroy();
+        this.interactionMenu = null;
+    }
+
+    // Create a container for the interaction menu
+    const menuX = this.player.x + 100; // Position relative to the player
+    const menuY = this.player.y - 100;
+
+    this.interactionMenu = this.add.container(menuX, menuY);
+
+    // Add a background rectangle
+    const background = this.add.rectangle(0, 0, 160, 125, 0x000000, 0.8).setOrigin(0.5);
+    this.interactionMenu.add(background);
+
+    // Display the target player's ID
+    const title = this.add.text(0, -80, `Joueur: ${targetId}`, {
+        font: "20px Arial",
+        fill: "#ffffff",
+    }).setOrigin(0.5);
+    this.interactionMenu.add(title);
+
+    // Create menu options
+    const option1 = this.add.text(0, -35, "Défier", {
+        font: "18px Arial",
+        fill: "#ffffff",
+        backgroundColor: "#333333",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+    const option2 = this.add.text(0, 5, "Faire signe", {
+        font: "18px Arial",
+        fill: "#ffffff",
+        backgroundColor: "#333333",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+    const option3 = this.add.text(0, 45, "Retour", {
+        font: "18px Arial",
+        fill: "#ffffff",
+        backgroundColor: "#333333",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+
+    // Add options to the container
+    this.interactionMenu.add(option1);
+    this.interactionMenu.add(option2);
+    this.interactionMenu.add(option3);
+
+    // Add events for each option
+    option1.on("pointerdown", () => {
+        this.displayMessage(`Vous avez défié \nle joueur ${targetId}`);
+        this.interactionMenu.destroy();
+        this.interactionMenu = null; // Ensure proper cleanup
+    });
+
+    option2.on("pointerdown", () => {
+        this.displayMessage(`Vous avez fait signe \nau joueur ${targetId}`);
+        this.interactionMenu.destroy();
+        this.interactionMenu = null; // Ensure proper cleanup
+    });
+
+    option3.on("pointerdown", () => {
+        this.interactionMenu.destroy();
+        this.interactionMenu = null; // Ensure proper cleanup
+    });
+}
 
   handleButtonB() {
     if (this.interactionMenu) {
@@ -343,113 +420,99 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleStartButton() {
-    if (this.interactionMenu) return; // Ne rien faire si un menu d'interaction est ouvert
-  
-    // Détruire un menu existant avant d'en créer un nouveau
-    if (this.startMenu) {
-      this.startMenu.destroy();
-    }
-  
-    this.startMenu = this.add.container(this.cameras.main.width / 2, this.cameras.main.height / 2);
-  
-    const background = this.add.rectangle(0, 0, 300, 200, 0x000000, 0.8).setOrigin(0.5);
-    this.startMenu.add(background);
-  
-    const options = ["Inventaire", "Profil", "Message", "Retour"];
-    options.forEach((option, index) => {
-      const optionText = this.add.text(0, -75 + index * 50, option, {
-        font: "18px Arial",
-        fill: "#ffffff"
-      }).setOrigin(0.5).setInteractive();
-  
-      optionText.on('pointerdown', () => {
-        if (option === "Retour") {
-          this.startMenu.destroy();
-          this.startMenu = null;
-        } else {
-          this.displayMessage(`Option sélectionnée : ${option}`);
-        }
-      });
-  
-      this.startMenu.add(optionText);
-    });
-  }
-
-  showInteractionMenu(targetId) {
-    // Supprime un menu existant s'il est déjà ouvert
+    // Ensure any open interaction menu is properly destroyed
     if (this.interactionMenu) {
-      this.interactionMenu.destroy();
+        this.interactionMenu.destroy();
+        this.interactionMenu = null;
     }
 
-    // Crée un conteneur pour le mini-menu
-    const menuX = this.player.x + 100; // Position par rapport au joueur
-    const menuY = this.player.y - 100;
+    // Destroy an existing start menu before creating a new one
+    if (this.startMenu) {
+        this.startMenu.destroy();
+    }
 
-    this.interactionMenu = this.add.container(menuX, menuY);
+    const playerX = this.player.x; // Player's current X position
+    const playerY = this.player.y; // Player's current Y position
+    const gameWidth = this.scale.width;
+    const gameHeight = this.scale.height;
 
-    // Ajoute un rectangle de fond
-    const background = this.add.rectangle(0, 0, 200, 150, 0x000000, 0.8)
-      .setOrigin(0.5);
-    this.interactionMenu.add(background);
+    // Create the start menu container relative to the player's position, slightly lower
+    this.startMenu = this.add.container(playerX, playerY - gameHeight * 0.15);
 
-    // Affiche l'ID du joueur cible
-    const title = this.add.text(0, -50, `Joueur: ${targetId}`, {
-      font: "18px Arial",
-      fill: "#ffffff",
-    }).setOrigin(0.5);
-    this.interactionMenu.add(title);
+    // Background rectangle
+    const background = this.add.rectangle(0, 0, gameWidth * 0.8, gameHeight * 0.6, 0x000000, 0.8).setOrigin(0.5);
+    this.startMenu.add(background);
 
-    // Crée les options du menu
-    const option1 = this.add.text(0, -10, "Défier", {
-      font: "16px Arial",
-      fill: "#ffffff",
-      backgroundColor: "#333333",
-      padding: { x: 10, y: 5 },
-    }).setOrigin(0.5).setInteractive();
-    const option2 = this.add.text(0, 30, "Faire signe", {
-      font: "16px Arial",
-      fill: "#ffffff",
-      backgroundColor: "#333333",
-      padding: { x: 10, y: 5 },
-    }).setOrigin(0.5).setInteractive();
-    const option3 = this.add.text(0, 70, "Retour", {
-      font: "16px Arial",
-      fill: "#ffffff",
-      backgroundColor: "#333333",
-      padding: { x: 10, y: 5 },
-    }).setOrigin(0.5).setInteractive();
+    // Menu options
+    const options = [
+        { label: "Inventaire", action: () => this.openInventory() },
+        { label: "Profil", action: () => this.openProfile() },
+        { label: "Message", action: () => this.openMessages() },
+        { label: "Retour", action: () => this.closeMenu() }
+    ];
 
-    // Ajoute les options au conteneur
-    this.interactionMenu.add(option1);
-    this.interactionMenu.add(option2);
-    this.interactionMenu.add(option3);
+    options.forEach((option, index) => {
+        const optionY = -gameHeight * 0.2 + index * (gameHeight * 0.14);
 
-    // Ajoute les événements pour chaque option
-    option1.on("pointerdown", () => {
-      this.socket.emit('interaction', {
-        from: this.myId,
-        to: targetId,
-        message: "Défier le joueur",
-      });
-      this.displayMessage(`Vous avez défié le joueur ${targetId}`);
-      this.interactionMenu.destroy();
+        // Create a clickable background rectangle for each option
+        const optionBackground = this.add.rectangle(0, optionY, gameWidth * 0.7, gameHeight * 0.1, 0x333333, 0.8)
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true });
+
+        optionBackground.on('pointerdown', () => {
+            console.log(`Menu option clicked: ${option.label}`); // Log when an option is clicked
+            option.action(); // Trigger the associated action
+        });
+
+        // Add the text on top of the rectangle
+        const optionText = this.add.text(0, optionY, option.label, {
+            font: `${gameWidth * 0.08}px Arial`,
+            fill: "#ffffff",
+            align: "center"
+        }).setOrigin(0.5);
+
+        this.startMenu.add(optionBackground);
+        this.startMenu.add(optionText);
     });
 
-    option2.on("pointerdown", () => {
-      this.socket.emit('interaction', {
-        from: this.myId,
-        to: targetId,
-        message: "Faire signe au joueur",
-      });
-      this.displayMessage(`Vous avez fait signe au joueur ${targetId}`);
-      this.interactionMenu.destroy();
-    });
+    // Ensure the menu moves with the camera
+    this.startMenu.setScrollFactor(1);
+}
 
-    option3.on("pointerdown", () => {
-      this.interactionMenu.destroy();
-    });
-  }
+closeMenu = () => {
+    if (this.startMenu) {
+        this.startMenu.destroy();
+        this.startMenu = null;
+    }
+}
 
+openInventory = () => {
+    this.displayMessage("Ouverture de l'inventaire...");
+    // Add logic to open the inventory
+    this.closeMenu();
+}
+
+openProfile = () => {
+    this.displayMessage("Ouverture du profil...");
+    // Add logic to open the profile
+    this.closeMenu();
+}
+
+openMessages = () => {    
+  this.displayMessage("Messages ...");
+  // Add logic to open the profile
+  this.closeMenu();
+}
+
+sendMessage = (message) => {
+    if (this.socket) {
+        // Emit the message to the server
+        this.socket.emit("chatMessage", { sender: this.myId, message });
+
+        // Display your own message locally
+        this.displayMessage(`You: ${message}`);
+    }
+}
 
   getNearestRemotePlayer() {
     let nearestId = null;
@@ -462,14 +525,30 @@ export class GameScene extends Phaser.Scene {
         nearestId = id;
       }
     });
-    return (minDistance < 300) ? nearestId : null;
+    return (minDistance < 100) ? nearestId : null;
   }
 
   displayMessage(text) {
-    let style = { font: "18px Arial", fill: "#ffffff", backgroundColor: "#000000", padding: { x: 10, y: 5 } };
-    let messageText = this.add.text(430, 50, text, style).setOrigin(0.5);
+    const gameWidth = this.scale.width;
+    const gameHeight = this.scale.height;
+
+    // Style for the message
+    const style = {
+        font: `${gameWidth * 0.05}px Arial`,
+        fill: "#ffffff",
+        backgroundColor: "#000000",
+        padding: { x: 20, y: 10 },
+        align: "center"
+    };
+
+    // Create the message text
+    const messageText = this.add.text(gameWidth * 0.5, gameHeight * 0.1, text, style)
+        .setOrigin(0.5)
+        .setScrollFactor(0);
+
+    // Automatically destroy the message after 3 seconds
     this.time.delayedCall(3000, () => {
-      messageText.destroy();
+        messageText.destroy();
     });
   }
 }
