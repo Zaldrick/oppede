@@ -35,12 +35,24 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Gestion de l'interaction entre joueurs
   socket.on('interaction', (data) => {
     console.log(`Interaction de ${data.from} vers ${data.to} : ${data.message}`);
-    // Pour une première version, on diffuse simplement l'événement à tous.
-    // Vous pouvez également diffuser uniquement vers la cible si nécessaire.
-    io.emit('interactionMessage', data);
+  
+    // Envoyer un message à l'émetteur (data.from)
+    socket.emit('interactionFeedback', {
+      from: data.from,
+      to: data.to,
+      action: data.message,
+      type: 'emitter', // Identifie le message comme émetteur
+    });
+  
+    // Envoyer un message au récepteur (data.to)
+    socket.to(data.to).emit('interactionFeedback', {
+      from: data.from,
+      to: data.to,
+      action: data.message,
+      type: 'receiver', // Identifie le message comme récepteur
+    });
   });
 
   // Déconnexion
