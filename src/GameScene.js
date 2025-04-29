@@ -104,9 +104,13 @@ export class GameScene extends Phaser.Scene {
     this.socket = io('http://localhost:5000');
     this.otherPlayers = {};
     this.latestPlayersData = {};
+  
+    // Événements socket existants
     this.socket.on('connect', this.handleSocketConnect, this);
     this.socket.on('playersUpdate', this.handlePlayersUpdate, this);
-    this.socket.on('interactionMessage', this.handleInteractionMessage, this);
+  
+    // Nouveau type d'interaction : défier ou faire signe
+    this.socket.on('interactionFeedback', this.handleInteractionFeedback, this);
   }
 
   createUI() {
@@ -276,29 +280,101 @@ export class GameScene extends Phaser.Scene {
     this.latestPlayersData = players;
   }
 
-  handleInteractionMessage(data) {
+  handleInteractionFeedback(data) {
     if (data.from === this.myId || data.to === this.myId) {
-      this.displayMessage(
-        data.from === this.myId
-          ? `Vous avez interagi avec le joueur ${data.to}`
-          : `Le joueur ${data.from} a interagi avec vous`
-      );
+      const message = (data.action === "defier")
+        ? `Le joueur ${data.from} vous a défié !`
+        : `Le joueur ${data.from} vous fait signe !`;
+  
+      this.displayMessage(message);
     }
   }
 
   handleInteractButton() {
     let targetId = this.getNearestRemotePlayer();
     if (targetId) {
-      this.socket.emit('interaction', {
-        from: this.myId,
-        to: targetId,
-        message: "Action réalisée"
-      });
-      this.displayMessage(`Vous avez interagi avec le joueur ${targetId}`);
+      this.showInteractionMenu(targetId);
     } else {
       this.displayMessage("Aucun joueur à proximité pour l'interaction");
     }
   }
+
+
+  showInteractionMenu(targetId) {
+    // Supprime un menu existant s'il est déjà ouvert
+    if (this.interactionMenu) {
+      this.interactionMenu.destroy();
+    }
+
+    // Crée un conteneur pour le mini-menu
+    const menuX = this.player.x + 100; // Position par rapport au joueur
+    const menuY = this.player.y - 100;
+
+    this.interactionMenu = this.add.container(menuX, menuY);
+
+    // Ajoute un rectangle de fond
+    const background = this.add.rectangle(0, 0, 200, 150, 0x000000, 0.8)
+      .setOrigin(0.5);
+    this.interactionMenu.add(background);
+
+    // Affiche l'ID du joueur cible
+    const title = this.add.text(0, -50, `Joueur: ${targetId}`, {
+      font: "18px Arial",
+      fill: "#ffffff",
+    }).setOrigin(0.5);
+    this.interactionMenu.add(title);
+
+    // Crée les options du menu
+    const option1 = this.add.text(0, -10, "Défier", {
+      font: "16px Arial",
+      fill: "#ffffff",
+      backgroundColor: "#333333",
+      padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+    const option2 = this.add.text(0, 30, "Faire signe", {
+      font: "16px Arial",
+      fill: "#ffffff",
+      backgroundColor: "#333333",
+      padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+    const option3 = this.add.text(0, 70, "Retour", {
+      font: "16px Arial",
+      fill: "#ffffff",
+      backgroundColor: "#333333",
+      padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+
+    // Ajoute les options au conteneur
+    this.interactionMenu.add(option1);
+    this.interactionMenu.add(option2);
+    this.interactionMenu.add(option3);
+
+    // Ajoute les événements pour chaque option
+    option1.on("pointerdown", () => {
+      this.socket.emit('interaction', {
+        from: this.myId,
+        to: targetId,
+        message: "Défier le joueur",
+      });
+      this.displayMessage(`Vous avez défié le joueur ${targetId}`);
+      this.interactionMenu.destroy();
+    });
+
+    option2.on("pointerdown", () => {
+      this.socket.emit('interaction', {
+        from: this.myId,
+        to: targetId,
+        message: "Faire signe au joueur",
+      });
+      this.displayMessage(`Vous avez fait signe au joueur ${targetId}`);
+      this.interactionMenu.destroy();
+    });
+
+    option3.on("pointerdown", () => {
+      this.interactionMenu.destroy();
+    });
+  }
+
 
   getNearestRemotePlayer() {
     let nearestId = null;
