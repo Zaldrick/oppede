@@ -1,202 +1,132 @@
 import Phaser from "phaser";
 import io from 'socket.io-client';
 
+const CONFIG = {
+  maxSpeed: 200,
+  worldBounds: { width: 860, height: 430 },
+  joystick: {
+    baseColor: 0x888888,
+    thumbColor: 0xffffff,
+    radiusFactor: 0.1,
+    thumbRadiusFactor: 0.5,
+  },
+  animations: [
+    { key: "walk-down", start: 0, end: 2 },
+    { key: "walk-left", start: 3, end: 5 },
+    { key: "walk-right", start: 6, end: 8 },
+    { key: "walk-up", start: 9, end: 11 },
+  ],
+};
+
 export class GameScene extends Phaser.Scene {
   constructor() {
     super("GameScene");
   }
 
   preload() {
-    // Chargement du fond et du sprite sheet du joueur.
-    this.load.image("background", "/assets/fond.jpg");
-    this.load.spritesheet("player", "/assets/joueur.png", {
-      frameWidth: 48,  // Ajustez selon votre sprite sheet
-      frameHeight: 48, // Ajustez selon votre sprite sheet
-    });
+    this.loadAssets();
   }
 
   create() {
-    const maxSpeed = 200; // par exemple, 200 pixels par seconde
+    this.setupWorld();
+    this.createPlayer();
+    this.createAnimations();
+    this.setupCamera();
+    this.setupControls();
+    this.setupSocket();
+    this.createUI();
+  }
+
+  update() {
+    this.handlePlayerMovement();
+    this.updateRemotePlayers();
+  }
+
+  loadAssets() {
+    this.load.image("background", "/assets/fond.jpg");
+    this.load.spritesheet("player", "/assets/joueur.png", {
+      frameWidth: 48,
+      frameHeight: 48,
+    });
+  }
+
+  setupWorld() {
+    this.add.image(CONFIG.worldBounds.width / 2, CONFIG.worldBounds.height / 2, "background");
+    this.physics.world.setBounds(0, 0, CONFIG.worldBounds.width, CONFIG.worldBounds.height);
+    this.cameras.main.setBounds(0, 0, CONFIG.worldBounds.width, CONFIG.worldBounds.height);
+  }
+
+  createPlayer() {
     const centerX = this.scale.width / 2;
     const centerY = this.scale.height / 2;
-
-    // Positionnement du background au centre du monde.
-    // Les dimensions du monde sont définies plus loin.
-    this.add.image(860 / 2, 430 / 2, "background");
-
-    // Définition des limites du monde (1600x1200)
-    this.physics.world.setBounds(0, 0, 860, 430);
-    this.cameras.main.setBounds(0, 0, 860, 430);
-
-    // Création du joueur au centre de l'écran.
     this.player = this.physics.add.sprite(centerX, centerY, "player");
     this.player.setCollideWorldBounds(true);
-    this.player.body.setMaxVelocity(maxSpeed, maxSpeed);
-    this.player.setBounce(0);
-    // Groupe pour regrouper les sprites des joueurs distants
+    this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
     this.remotePlayersGroup = this.physics.add.group();
-    // Ajout d'un collider entre le joueur local et le groupe des joueurs distants
     this.physics.add.collider(this.player, this.remotePlayersGroup, this.handleCollision, null, this);
+  }
 
-    // Création des animations pour les déplacements.
-    // Ces plages d'indices (frames 0–3, 4–7, etc.) sont à adapter à votre sprite sheet.
-    this.anims.create({
-      key: "walk-down",
-      frames: this.anims.generateFrameNumbers("player", { start: 0, end: 2 }),
-      frameRate: 8,
-      repeat: -1,
+  createAnimations() {
+    CONFIG.animations.forEach(anim => {
+      this.anims.create({
+        key: anim.key,
+        frames: this.anims.generateFrameNumbers("player", { start: anim.start, end: anim.end }),
+        frameRate: 8,
+        repeat: -1,
+      });
     });
-    this.anims.create({
-      key: "walk-left",
-      frames: this.anims.generateFrameNumbers("player", { start: 3, end: 5 }),
-      frameRate: 8,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "walk-right",
-      frames: this.anims.generateFrameNumbers("player", { start: 6, end: 8 }),
-      frameRate: 8,
-      repeat: -1,
-    });
-    this.anims.create({
-      key: "walk-up",
-      frames: this.anims.generateFrameNumbers("player", { start: 9, end: 11 }),
-      frameRate: 8,
-      repeat: -1,
-    });
+  }
 
-    // La caméra suit le joueur.
+  setupCamera() {
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+  }
 
-    // Création du clavier pour le contrôle.
+  setupControls() {
     this.cursors = this.input.keyboard.createCursorKeys();
-
-    // Calcul dynamique pour le joystick
     const joystickX = this.scale.width * 0.15;
     const joystickY = this.scale.height * 0.85;
-    const joystickRadius = Math.min(this.scale.width, this.scale.height) * 0.1;
-    const thumbRadius = joystickRadius * 0.5;
-
-    // Création du joystick via le plugin Rex Virtual Joystick.
+    const joystickRadius = Math.min(this.scale.width, this.scale.height) * CONFIG.joystick.radiusFactor;
+    const thumbRadius = joystickRadius * CONFIG.joystick.thumbRadiusFactor;
     this.joystick = this.plugins.get("rexVirtualJoystick").add(this, {
       x: joystickX,
       y: joystickY,
       radius: joystickRadius,
-      base: this.add.circle(0, 0, joystickRadius, 0x888888),
-      thumb: this.add.circle(0, 0, thumbRadius, 0xffffff)
+      base: this.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor),
+      thumb: this.add.circle(0, 0, thumbRadius, CONFIG.joystick.thumbColor),
     });
+    this.joystick.on("update", this.handleJoystickUpdate, this);
+    this.scale.on("resize", this.handleResize, this);
+    this.input.once("pointerup", this.handlePointerUp, this);
+    window.addEventListener("orientationchange", this.handleOrientationChange);
+  }
 
-    // Callback du joystick pour appliquer un déplacement.
-    // Le multiplicateur de force est ici réglé à 10 (ajustez-le selon vos besoins).
-    this.joystick.on("update", () => {
-      // Conversion en radians et normalisation de l'angle
-      const rawAngleRad = Phaser.Math.DegToRad(this.joystick.angle);
-      const normalizedAngle = Phaser.Math.Angle.Wrap(rawAngleRad);
-      const force = this.joystick.force * 2; // Ajustez le multiplicateur selon vos besoins
-      // Appliquer la vélocité avec l'angle normalisé
-      this.player.setVelocityX(Math.cos(normalizedAngle) * force);
-      this.player.setVelocityY(Math.sin(normalizedAngle) * force);
-    });
-
-    // Ajuste dynamiquement la position du joystick lors du redimensionnement.
-    this.scale.on("resize", (gameSize) => {
-      const newJoystickX = gameSize.width * 0.15;
-      const newJoystickY = gameSize.height * 0.85;
-      this.joystick.setPosition(newJoystickX, newJoystickY);
-    });
-
-    // Lancement du mode plein écran dès que l'utilisateur touche l'écran.
-    this.input.once("pointerup", () => {
-      if (!this.scale.isFullscreen) {
-        this.scale.startFullscreen();
-      }
-    });
-
-    // Gestion de l'orientation pour l'expérience mobile.
-    window.addEventListener("orientationchange", () => {
-      if (window.orientation === 90 || window.orientation === -90) {
-        console.log("Mode paysage");
-      } else {
-        alert("Pour une meilleure expérience, veuillez tourner votre téléphone en mode paysage !");
-      }
-    });
-
-
-    // Configuration du socket et initialisation de variables
+  setupSocket() {
     this.socket = io('http://localhost:5000');
     this.otherPlayers = {};
     this.latestPlayersData = {};
-    // Lors de la connexion, on enregistre notre id et on informe le serveur
-    this.socket.on('connect', () => {
-      this.myId = this.socket.id;
-      console.log("Connecté avec id:", this.myId);
-      this.socket.emit('newPlayer', {
-        x: this.player.x,
-        y: this.player.y,
-        character: 'default'
-      });
-    });
-
-    // Écouter la diffusion d'état de tous les joueurs
-    this.socket.on('playersUpdate', (players) => {
-      this.latestPlayersData = players;
-    });
-
-    // Écoute des interactions diffusées par le serveur
-    this.socket.on('interactionMessage', (data) => {
-      // Si le message concerne le joueur local (en émetteur ou cible)
-      if (data.from === this.myId || data.to === this.myId) {
-        this.displayMessage(
-          data.from === this.myId
-            ? `Vous avez interagi avec le joueur ${data.to}`
-            : `Le joueur ${data.from} a interagi avec vous`
-        );
-      }
-    });
-
-
-// Dans la méthode create() de GameScene, après avoir lancé le reste de l'interface
-const gameWidth = this.cameras.main.width;
-const gameHeight = this.cameras.main.height;
-
-// Crée un bouton rond avec un fond gris (0x808080) de rayon 30 situé en bas à droite.
-// Les 60 pixels de marge garantissent qu'il ne colle pas au bord.
-this.interactButton = this.add
-  .circle(gameWidth - 400, gameHeight - 400, 100, 0x808080)
-  .setInteractive()
-  .on('pointerdown', () => {
-    // Ici, vous pouvez appeler votre fonction d'interaction, par exemple :
-    // On recherche le joueur distant le plus proche et on émet l'événement.
-    let targetId = this.getNearestRemotePlayer();
-    if (targetId) {
-      this.socket.emit('interaction', {
-        from: this.myId,
-        to: targetId,
-        message: "Action réalisée"
-      });
-      this.displayMessage(`Vous avez interagi avec le joueur ${targetId}`);
-    } else {
-      this.displayMessage("Aucun joueur à proximité pour l'interaction");
-    }
-  });
-this.interactButton.setScrollFactor(0);
-
-// Ajoute le texte "A" centré dans le bouton
-this.interactButtonText = this.add
-  .text(gameWidth - 400, gameHeight - 400, "A", {
-    font: "60px Arial",
-    fill: "#ffffff",
-    align: "center"
-  })
-  .setOrigin(0.5);
-this.interactButtonText.setScrollFactor(0);
+    this.socket.on('connect', this.handleSocketConnect, this);
+    this.socket.on('playersUpdate', this.handlePlayersUpdate, this);
+    this.socket.on('interactionMessage', this.handleInteractionMessage, this);
   }
 
-  update() {
+  createUI() {
+    const gameWidth = this.cameras.main.width;
+    const gameHeight = this.cameras.main.height;
+    this.interactButton = this.add.circle(gameWidth - 400, gameHeight - 400, 100, 0x808080)
+      .setInteractive()
+      .on('pointerdown', this.handleInteractButton, this);
+    this.interactButton.setScrollFactor(0);
+    this.interactButtonText = this.add.text(gameWidth - 400, gameHeight - 400, "A", {
+      font: "60px Arial",
+      fill: "#ffffff",
+      align: "center"
+    }).setOrigin(0.5);
+    this.interactButtonText.setScrollFactor(0);
+  }
+
+  handlePlayerMovement() {
     let newAnim = "";
     let keyboardActive = false;
-
-    // Contrôle clavier (prioritaire)
     if (this.cursors.left.isDown) {
       keyboardActive = true;
       newAnim = "walk-left";
@@ -214,11 +144,8 @@ this.interactButtonText.setScrollFactor(0);
       newAnim = "walk-down";
       this.player.setVelocity(0, 200);
     }
-
-    // Si aucune touche n'est pressée, on se base sur le joystick
     if (!keyboardActive && this.joystick && this.joystick.force > 0) {
       const angle = this.joystick.angle;
-      // Déterminer l'animation en fonction de l'angle du joystick
       if (angle > -45 && angle <= 45) {
         newAnim = "walk-right";
       } else if (angle > 45 && angle <= 135) {
@@ -228,10 +155,9 @@ this.interactButtonText.setScrollFactor(0);
       } else if (angle > -135 && angle <= -45) {
         newAnim = "walk-up";
       }
-      // Note : la callback du joystick (définie dans create()) ajuste déjà la vélocité.
+      this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
+      this.player.setVelocityY(Math.sin(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
     }
-
-    // Si aucun input n'est présent, on arrête le déplacement et l'animation
     if (newAnim === "") {
       this.player.setVelocity(0);
       if (this.player.anims.isPlaying) {
@@ -239,74 +165,55 @@ this.interactButtonText.setScrollFactor(0);
       }
       this.currentAnim = "";
     } else if (newAnim !== this.currentAnim) {
-      // Change l'animation uniquement si elle change
       this.player.anims.play(newAnim, true);
       this.currentAnim = newAnim;
     }
-
-    // Émettre la position actuelle du joueur vers le serveur
     if (this.socket && this.myId) {
       this.socket.emit('playerMove', { x: this.player.x, y: this.player.y, anim: this.currentAnim });
     }
+  }
 
-    // Mise à jour des autres joueurs à partir des dernières données reçues
+  updateRemotePlayers() {
     if (this.latestPlayersData) {
       Object.keys(this.latestPlayersData).forEach((id) => {
-        if (id === this.myId) return;  // Ignore notre propre joueur
-
+        if (id === this.myId) return;
         const data = this.latestPlayersData[id];
-
-        // Si le sprite du joueur n'existe pas encore, on le crée
         if (!this.otherPlayers[id]) {
           let newSprite = this.physics.add.sprite(data.x, data.y, "player");
           newSprite.setCollideWorldBounds(true);
           newSprite.setImmovable(true);
-          newSprite.currentAnim = data.anim || ""; // Initialiser l'animation
+          newSprite.currentAnim = data.anim || "";
           newSprite.setInteractive();
-          // Ajouter le sprite au groupe des joueurs distants pour la collision
           this.remotePlayersGroup.add(newSprite);
-          // Gestion de l'interaction par pointer (clic/touch)
           newSprite.on('pointerdown', () => {
             this.openInteractionMenu(id, newSprite);
           });
-  
           this.otherPlayers[id] = newSprite;
-
-          // Démarrer l'animation si spécifiée
           if (data.anim) {
             newSprite.anims.play(data.anim, true);
           }
         } else {
-          // Interpolation pour lisser le mouvement
           const lerpFactor = 0.2;
           let targetX = data.x;
           let targetY = data.y;
-
           let newX = Phaser.Math.Linear(this.otherPlayers[id].x, targetX, lerpFactor);
           let newY = Phaser.Math.Linear(this.otherPlayers[id].y, targetY, lerpFactor);
-
-          // Si la différence est minime, on attribue directement la position cible
           if (Math.abs(newX - targetX) < 1) {
             this.otherPlayers[id].x = targetX;
           } else {
             this.otherPlayers[id].x = newX;
           }
-
           if (Math.abs(newY - targetY) < 1) {
             this.otherPlayers[id].y = targetY;
           } else {
             this.otherPlayers[id].y = newY;
           }
-
-          // Gestion de l'animation pour le joueur distant
           if (data.anim) {
-            // Si l'animation reçue est différente de celle qui est jouée, lancez-la
             if (this.otherPlayers[id].currentAnim !== data.anim) {
               this.otherPlayers[id].anims.play(data.anim, true);
               this.otherPlayers[id].currentAnim = data.anim;
             }
           } else {
-            // S'il n'y a pas d'animation (joueur immobile), stoppez l'animation si elle est en cours
             if (this.otherPlayers[id].anims.isPlaying) {
               this.otherPlayers[id].anims.stop();
             }
@@ -314,8 +221,6 @@ this.interactButtonText.setScrollFactor(0);
           }
         }
       });
-
-      // Détruire les sprites des joueurs déconnectés
       Object.keys(this.otherPlayers).forEach((id) => {
         if (!this.latestPlayersData[id]) {
           this.otherPlayers[id].destroy();
@@ -324,37 +229,96 @@ this.interactButtonText.setScrollFactor(0);
       });
     }
   }
-  // Fonction de gestion de collision (pour le joueur local et les joueurs distants)
+  
   handleCollision(localPlayer, remotePlayer) {
     console.log("Collision détectée entre le joueur local et un joueur distant.");
-    // Par exemple, on pourrait ramener le joueur local en arrière, ou déclencher une animation,
-    // ou enregistrer l'interaction dans votre logique de jeu.
   }
 
-    // Méthode pour trouver le joueur distant le plus proche du joueur local.
-    getNearestRemotePlayer() {
-      let nearestId = null;
-      let minDistance = Number.MAX_VALUE;
-      Object.keys(this.otherPlayers).forEach((id) => {
-        let remote = this.otherPlayers[id];
-        let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestId = id;
-        }
-      });
-      // Par exemple, on n'interagit que si le joueur distant est à moins de 300 pixels.
-      return (minDistance < 300) ? nearestId : null;
+  handleJoystickUpdate() {
+    const rawAngleRad = Phaser.Math.DegToRad(this.joystick.angle);
+    const normalizedAngle = Phaser.Math.Angle.Wrap(rawAngleRad);
+    const force = this.joystick.force * 2;
+    this.player.setVelocityX(Math.cos(normalizedAngle) * force);
+    this.player.setVelocityY(Math.sin(normalizedAngle) * force);
+  }
+
+  handleResize(gameSize) {
+    const newJoystickX = gameSize.width * 0.15;
+    const newJoystickY = gameSize.height * 0.85;
+    this.joystick.setPosition(newJoystickX, newJoystickY);
+  }
+
+  handlePointerUp() {
+    if (!this.scale.isFullscreen) {
+      this.scale.startFullscreen();
     }
-    
-  // Fonction d'affichage d'un message temporaire
+  }
+
+  handleOrientationChange() {
+    if (window.orientation === 90 || window.orientation === -90) {
+      console.log("Mode paysage");
+    } else {
+      alert("Pour une meilleure expérience, veuillez tourner votre téléphone en mode paysage !");
+    }
+  }
+
+  handleSocketConnect() {
+    this.myId = this.socket.id;
+    console.log("Connecté avec id:", this.myId);
+    this.socket.emit('newPlayer', {
+      x: this.player.x,
+      y: this.player.y,
+      character: 'default'
+    });
+  }
+
+  handlePlayersUpdate(players) {
+    this.latestPlayersData = players;
+  }
+
+  handleInteractionMessage(data) {
+    if (data.from === this.myId || data.to === this.myId) {
+      this.displayMessage(
+        data.from === this.myId
+          ? `Vous avez interagi avec le joueur ${data.to}`
+          : `Le joueur ${data.from} a interagi avec vous`
+      );
+    }
+  }
+
+  handleInteractButton() {
+    let targetId = this.getNearestRemotePlayer();
+    if (targetId) {
+      this.socket.emit('interaction', {
+        from: this.myId,
+        to: targetId,
+        message: "Action réalisée"
+      });
+      this.displayMessage(`Vous avez interagi avec le joueur ${targetId}`);
+    } else {
+      this.displayMessage("Aucun joueur à proximité pour l'interaction");
+    }
+  }
+
+  getNearestRemotePlayer() {
+    let nearestId = null;
+    let minDistance = Number.MAX_VALUE;
+    Object.keys(this.otherPlayers).forEach((id) => {
+      let remote = this.otherPlayers[id];
+      let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestId = id;
+      }
+    });
+    return (minDistance < 300) ? nearestId : null;
+  }
+
   displayMessage(text) {
     let style = { font: "18px Arial", fill: "#ffffff", backgroundColor: "#000000", padding: { x: 10, y: 5 } };
     let messageText = this.add.text(430, 50, text, style).setOrigin(0.5);
-    // Faire en sorte que le texte soit visible quelques secondes puis disparaisse
     this.time.delayedCall(3000, () => {
       messageText.destroy();
     });
   }
-
 }
