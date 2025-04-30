@@ -45,7 +45,7 @@ const Game = () => {
         phaserGameRef.current = new Phaser.Game(config); // Store the Phaser game instance
 
         // Initialize WebSocket connection
-        socketRef.current = io("https://9771-89-82-23-250.ngrok-free.app/");
+        socketRef.current = io("https://a1ff-89-82-23-250.ngrok-free.app");
 
         // Debug WebSocket connection
         socketRef.current.on("connect", () => {

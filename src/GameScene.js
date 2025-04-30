@@ -93,7 +93,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupSocket() {
-    this.socket = io('https://9771-89-82-23-250.ngrok-free.app/');
+    this.socket = io('https://a1ff-89-82-23-250.ngrok-free.app'); // Updated ngrok URL
     this.otherPlayers = {};
     this.latestPlayersData = {};
 
@@ -323,14 +323,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleInteractionFeedback(data) {
+    console.log("handleInteractionFeedback called with data:", data); // Debug log
+
     if (data.from === this.myId || data.to === this.myId) {
-      const message = (data.action === "defier")
-        ? `Le joueur ${data.from}\n vous a défié !`
-        : `Le joueur ${data.from}\n vous fait signe !`;
-  
-      this.displayMessage(message);
+        const message = (data.action === "defier")
+            ? `Le joueur ${data.from}\n vous a défié !`
+            : `Le joueur ${data.from}\n vous fait signe !`;
+
+        this.displayMessage(message);
     }
-  }
+}
 
   handleButtonA = () => {
     let targetId = this.getNearestRemotePlayer();

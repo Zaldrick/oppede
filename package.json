@@ -16,7 +16,7 @@
     "react-scripts": "5.0.1",
     "socket.io-client": "^4.8.1",
     "web-vitals": "^2.1.4",
-    "proxy": "http://localhost:5000"    
+    "proxy": "https://a1ff-89-82-23-250.ngrok-free.app"
   },
   "scripts": {
     "start": "react-scripts start",
