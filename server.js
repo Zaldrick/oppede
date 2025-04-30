@@ -3,7 +3,7 @@ const app = express();
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer, {
   cors: {
-    origin: ["http://localhost:3000", "https://fc15-89-82-23-250.ngrok-free.app", "https://a1ff-89-82-23-250.ngrok-free.app/"], // Add both ngrok URLs
+    origin: ["http://localhost:3000", "https://fc15-89-82-23-250.ngrok-free.app", "https://a1ff-89-82-23-250.ngrok-free.app"], // Add both ngrok URLs
     methods: ["GET", "POST"]
   }
 });
