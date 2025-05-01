@@ -3,7 +3,7 @@ const app = express();
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer, {
   cors: {
-    origin: ["http://localhost:3000", "https://fc15-89-82-23-250.ngrok-free.app", "https://a1ff-89-82-23-250.ngrok-free.app"], // Add both ngrok URLs
+    origin: ["http://localhost:3000", "https://fc15-89-82-23-250.ngrok-free.app"], // Ajoutez ici toutes les origines nécessaires
     methods: ["GET", "POST"]
   }
 });
@@ -13,8 +13,15 @@ const PORT = process.env.PORT || 5000;
 app.use(express.static('public'));
 
 let players = {};
+let chatMessages = []; // Stocker les messages de chat
 
 io.on('connection', (socket) => {
+  console.log(`Client connecté : ${socket.id}`);
+
+  socket.on('connect_error', (err) => {
+    console.error('Erreur de connexion Socket.IO :', err.message);
+  });
+
   // Réception d'un nouveau joueur
   socket.on('newPlayer', (data) => {
     players[socket.id] = {
@@ -25,35 +32,54 @@ io.on('connection', (socket) => {
     console.log(`Joueur connecté : ${socket.id} (Total: ${Object.keys(players).length})`);
   });
 
-  // Mise à jour des mouvements du joueur
+  // Mise à jour des mouvements du joueur (limitation de fréquence)
   socket.on('playerMove', (data) => {
     if (players[socket.id]) {
       players[socket.id].x = data.x;
       players[socket.id].y = data.y;
-      // Mémoriser l'animation envoyée par le client
       players[socket.id].anim = data.anim;
     }
   });
 
+  // Gestion des interactions entre joueurs
   socket.on('interaction', (data) => {
     console.log(`Interaction de ${data.from} vers ${data.to} : ${data.message}`);
-  
-    // Envoyer un message à l'émetteur (data.from)
     socket.emit('interactionFeedback', {
       from: data.from,
       to: data.to,
       action: data.message,
-      type: 'emitter', // Identifie le message comme émetteur
+      type: 'emitter',
     });
-  
-    // Envoyer un message au récepteur (data.to)
     socket.to(data.to).emit('interactionFeedback', {
       from: data.from,
       to: data.to,
       action: data.message,
-      type: 'receiver', // Identifie le message comme récepteur
+      type: 'receiver',
     });
   });
+
+  // Gestion de l'événement 'chatMessage'
+  socket.on('chatMessage', (data, callback) => {
+    console.log(`Tentative de réception de 'chatMessage' de ${socket.id}`);
+
+    if (!data || !data.message || typeof data.message !== 'string') {
+      console.warn(`Message invalide reçu de ${socket.id}:`, data);
+      if (callback) callback({ status: 'error', message: 'Message invalide' });
+      return;
+    }
+
+    const message = { id: socket.id, message: data.message };
+    chatMessages.push(message); // Ajouter le message à l'historique
+    io.emit('chatMessage', message); // Diffuser le message à tous les clients
+    console.log(`Message reçu et diffusé : ${data.message}`);
+
+    if (callback) {
+      callback({ status: 'ok', message: 'Message reçu par le serveur' });
+    }
+  });
+
+  // Envoyer l'historique des messages au nouveau client
+  socket.emit('chatHistory', chatMessages);
 
   // Déconnexion
   socket.on('disconnect', () => {
