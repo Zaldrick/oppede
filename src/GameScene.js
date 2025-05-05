@@ -98,6 +98,9 @@ export class GameScene extends Phaser.Scene {
     this.setupControls();
     this.setupSocket();
     this.createUI();
+
+    // Periodically update the player's position in the database
+    this.positionUpdateInterval = setInterval(() => this.updatePlayer(), 5000);
 }
 
   update() {
@@ -815,6 +818,37 @@ sendMessage = (message) => {
     // Envoyer le pseudo sélectionné au backend ou effectuer une action
   }
 
+  async updatePlayer() {
+    if (!this.player || !this.registry.get("playerData")) {
+        console.warn("Player or player data is not initialized. Skipping position update.");
+        return;
+    }
+
+    const playerPseudo = this.registry.get("playerData").pseudo;
+    const posX = this.player.x;
+    const posY = this.player.y;
+
+    // Log the request body for debugging
+    console.log("Sending position update:", { pseudo: playerPseudo, posX, posY });
+
+    try {
+        const response = await fetch('http://localhost:5000/api/players/update-position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pseudo: playerPseudo, posX, posY }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to update player position. HTTP status: ${response.status}, Response: ${errorText}`);
+        }
+
+        console.log(`Player position updated in the database: { pseudo: ${playerPseudo}, posX: ${posX}, posY: ${posY} }`);
+    } catch (error) {
+        console.error("Error updating player position:", error);
+    }
+}
+
   async updatePlayerPosition(pseudo, posX, posY) {
       await fetch('/api/players/update-position', {
           method: 'POST',
@@ -828,6 +862,13 @@ sendMessage = (message) => {
             this.updatePlayerPosition(this.player.pseudo, this.player.x, this.player.y);
         }
     }, 5000);
+  }
+
+  shutdown() {
+    // Clear the interval when the scene is shut down to avoid memory leaks
+    if (this.positionUpdateInterval) {
+        clearInterval(this.positionUpdateInterval);
+    }
   }
 
 }

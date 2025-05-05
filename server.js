@@ -120,19 +120,41 @@ app.get('/api/players/:pseudo', async (req, res) => {
 });
 
 
+// Middleware to parse JSON request bodies
+app.use(express.json());
+
 app.post('/api/players/update-position', async (req, res) => {
-    const { pseudo, posX, posY } = req.body;
+    try {
+        const { pseudo, posX, posY } = req.body;
 
-    const db = await connectToDatabase();
-    const players = db.collection('players');
+        // Validate the request body
+        if (!pseudo || posX === undefined || posY === undefined) {
+            console.error("Invalid request body:", req.body);
+            return res.status(400).json({ error: 'Invalid request. Missing pseudo, posX, or posY.' });
+        }
 
-    await players.updateOne(
-        { pseudo },
-        { $set: { posX, posY, updatedAt: new Date() } }
-    );
+        const db = await connectToDatabase();
+        const players = db.collection('players');
 
-    res.json({ success: true });
+        // Update the player's position in the database
+        const result = await players.updateOne(
+            { pseudo },
+            { $set: { posX, posY, updatedAt: new Date() } }
+        );
+
+        if (result.matchedCount === 0) {
+            console.warn(`Player not found: ${pseudo}`);
+            return res.status(404).json({ error: 'Player not found' });
+        }
+
+        console.log(`Player position updated: { pseudo: ${pseudo}, posX: ${posX}, posY: ${posY} }`);
+        res.json({ success: true, message: 'Player position updated successfully.' });
+    } catch (error) {
+        console.error('Error updating player position:', error);
+        res.status(500).json({ error: 'Failed to update player position' });
+    }
 });
+
 let players = {};
 let chatMessages = []; // Stocker les messages de chat
 
