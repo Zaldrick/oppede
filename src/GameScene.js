@@ -23,20 +23,67 @@ export class GameScene extends Phaser.Scene {
     super("GameScene");
   }
 
-  preload() {
+  async preload() {
     this.loadAssets();
-  }
+
+    // Fetch player pseudo from the registry
+    const playerPseudo = this.registry.get("playerPseudo");
+
+    if (!playerPseudo) {
+        console.error("Player pseudo is not defined in the registry!");
+        return; // Exit preload if pseudo is undefined
+    }
+
+    console.log("Preloading player pseudo:", playerPseudo);
+
+    try {
+        // Fetch player data from MongoDB
+        const response = await fetch(`http://localhost:5000/api/players/${playerPseudo}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Player data for ${playerPseudo} fetched from MongoDB:`, data);
+
+        // Store player data in the registry
+        this.registry.set("playerData", data);
+
+        // Set the player's initial position
+        this.playerPosition = { x: data.posX || 0, y: data.posY || 0 };
+
+        // Dynamically load the player's appearance from the public/apparences/ directory
+        const appearancePath = `/assets/apparences/${playerPseudo}.png`;
+        this.load.spritesheet("playerAppearance", appearancePath, {
+            frameWidth: 48, // Ensure this matches the frame size of the spritesheet
+            frameHeight: 48,
+        });
+    } catch (error) {
+        console.error("Error fetching player data:", error);
+    }
+}
 
   create() {
-    this.setupWorld();
-    this.loadPlayers();
-    this.createPlayer();
-    this.createAnimations();
-    this.setupCamera();
-    this.setupControls();
-    this.setupSocket();
-    this.createUI();
-  }
+    // Wait for all assets to be loaded before creating the player
+    this.load.on('complete', () => {
+        const playerData = this.registry.get("playerData");
+        if (!playerData) {
+            console.error("Player data is not defined in the registry!");
+            return;
+        }
+
+        this.setupWorld();
+        this.loadPlayers();
+        this.createPlayer();
+        this.createAnimations();
+        this.setupCamera();
+        this.setupControls();
+        this.setupSocket();
+        this.createUI();
+    });
+
+    this.load.start(); // Start loading any dynamically added assets
+}
 
   update() {
     this.handlePlayerMovement();
@@ -44,11 +91,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   loadAssets() {
-    this.load.image("background", "/assets/interieur.png"); // Update background image
+    this.load.image("background", "/assets/interieur.png"); // Preload background image
     this.load.spritesheet("player", "/assets/apparences/mehdi.png", {
       frameWidth: 48,
       frameHeight: 48,
-    });
+    }); // Preload default player spritesheet
   }
 
   setupWorld() {
@@ -60,20 +107,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   createPlayer() {
-    const centerX = this.scale.width / 2;
-    const centerY = this.scale.height / 2;
-    this.player = this.physics.add.sprite(centerX, centerY, "player");
+    const playerData = this.registry.get("playerData");
+    if (!playerData) {
+        console.error("Player data is not defined in the registry!");
+        return;
+    }
+
+    const textureKey = "playerAppearance"; // Use the dynamically loaded appearance
+
+    // Use the player's position fetched from MongoDB
+    const { x, y } = this.playerPosition || { x: 0, y: 0 };
+    this.player = this.physics.add.sprite(x, y, textureKey);
+
+    console.log("Creating player at position:", { x, y });
+    console.log("Creating player with appearance:", textureKey);
+
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
     this.remotePlayersGroup = this.physics.add.group();
     this.physics.add.collider(this.player, this.remotePlayersGroup, this.handleCollision, null, this);
+
+    this.createAnimations(textureKey); // Pass the texture key to create animations
   }
 
-  createAnimations() {
+  createAnimations(textureKey) {
     CONFIG.animations.forEach(anim => {
       this.anims.create({
         key: anim.key,
-        frames: this.anims.generateFrameNumbers("player", { start: anim.start, end: anim.end }),
+        frames: this.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end }),
         frameRate: 8,
         repeat: -1,
       });
@@ -704,38 +765,49 @@ sendMessage = (message) => {
         messageText.destroy();
     });
   }
-async function loadPlayers() {
-    const response = await fetch('/api/players');
-    const players = await response.json();
+  
+  async loadPlayers() {
+      try {
+          const response = await fetch('/api/players');
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const players = await response.json();
 
-    const dropdown = document.getElementById('player-dropdown');
-    dropdown.innerHTML = ''; // Réinitialiser le contenu
+          // Log the retrieved players to the console
+          console.log('Players retrieved from /api/players:', players);
 
-    players.forEach(player => {
-        const option = document.createElement('option');
-        option.value = player.pseudo;
-        option.textContent = player.pseudo;
-        dropdown.appendChild(option);
-    });
-}
+          players.forEach(player => {
+              console.log(`Player pseudo: ${player.pseudo}`); // Log each player's pseudo
+              const option = document.createElement('option');
+              option.value = player.pseudo;
+              option.textContent = player.pseudo;
+          });
+      } catch (error) {
+          console.error('Error loading players:', error);
+      }
+  }
 
-  function selectPlayer() {
+  selectPlayer() {
     const selectedPlayer = document.getElementById('player-dropdown').value;
     console.log('Joueur sélectionné :', selectedPlayer);
 
     // Envoyer le pseudo sélectionné au backend ou effectuer une action
-}
+  }
 
-async function updatePlayerPosition(pseudo, posX, posY) {
-    await fetch('/api/players/update-position', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pseudo, posX, posY })
-    });
-}
-setInterval(() => {
-    updatePlayerPosition(this.player.pseudo, this.player.x,, this.player.y);
-}, 5000);
-  
-  
+  async updatePlayerPosition(pseudo, posX, posY) {
+      await fetch('/api/players/update-position', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pseudo, posX, posY })
+      });
+
+
+    setInterval(() => {
+        if (this.player && this.player.pseudo) {
+            this.updatePlayerPosition(this.player.pseudo, this.player.x, this.player.y);
+        }
+    }, 5000);
+  }
+
 }

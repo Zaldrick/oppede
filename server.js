@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors'); // Ensure CORS is imported
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose'); // Assurez-vous que mongoose est importé
 const app = express();
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer, {
@@ -12,6 +13,47 @@ const io = require('socket.io')(httpServer, {
   }
 });
 const PORT = process.env.PORT || 5000;
+
+// MongoDB connection function
+const connectToDatabase = async () => {
+  try {
+    const connection = await mongoose.connect('mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('Connected to MongoDB successfully!');
+    return connection.connection.db; // Retourne l'objet de la base de données
+  } catch (error) {
+    console.error('Error connecting to MongoDB:', error);
+    throw error; // Relance l'erreur pour la gestion des erreurs
+  }
+};
+
+
+
+app.get('/api/players', async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+    if (!db) {
+      console.error('Database connection failed');
+      return res.status(500).json({ error: 'Database connection failed', players: [] });
+    }
+    const players = db.collection('players');
+    const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
+
+    // Log the raw query result
+    console.log('Raw query result from MongoDB:', playerList);
+
+    // Log the pseudo values to the console
+    playerList.forEach(player => console.log(`Pseudo: ${player.pseudo}`));
+
+    res.json(playerList);
+  } catch (error) {
+    console.error('Error fetching players:', error);
+    res.status(500).json({ error: 'Failed to fetch players', players: [] });
+  }
+});
+
 
 // Configure CORS options
 const corsOptions = {
@@ -57,24 +99,24 @@ app.get('/assets/apparences', (req, res) => {
 });
 
 app.get('/api/players/:pseudo', async (req, res) => {
-    const { pseudo } = req.params;
-    const db = await connectToDatabase();
-    const players = db.collection('players');
-    const player = await players.findOne({ pseudo });
+    try {
+        const { pseudo } = req.params; // Extract pseudo from the request parameters
+        const db = await connectToDatabase();
+        const players = db.collection('players');
 
-    if (!player) {
-        return res.status(404).json({ error: 'Joueur non trouvé' });
+        // Find the player document by pseudo
+        const player = await players.findOne({ pseudo });
+
+        if (!player) {
+            return res.status(404).json({ error: 'Player not found' });
+        }
+
+        console.log(`Player data for ${pseudo} fetched from MongoDB:`, player); // Log the fetched data
+        res.json(player); // Return all player data
+    } catch (error) {
+        console.error('Error fetching player data:', error);
+        res.status(500).json({ error: 'Failed to fetch player data' });
     }
-
-    res.json({
-        id:player.id,
-        pseudo:player.pseudo,
-        dailyTeam: player.dailyTeam,
-        dailyScore: player.dailyScore,
-        totalScore: player.totalScore,
-        posX: player.posX,
-        posY: player.posY
-    });
 });
 
 
@@ -195,4 +237,25 @@ setInterval(() => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+app.get('/api/players/position/:pseudo', async (req, res) => {
+    try {
+        const { pseudo } = req.params; // Extract pseudo from the request parameters
+        const db = await connectToDatabase();
+        const players = db.collection('players');
+        
+        // Find the player document by pseudo
+        const player = await players.findOne({ pseudo }, { projection: { posX: 1, posY: 1 } });
+
+        if (!player) {
+            return res.status(404).json({ error: 'Player not found' });
+        }
+
+        console.log(`Position for player ${pseudo} fetched from MongoDB:`, player); // Log the fetched position
+        res.json({ x: player.posX, y: player.posY }); // Return the position
+    } catch (error) {
+        console.error('Error fetching player position:', error);
+        res.status(500).json({ error: 'Failed to fetch player position' });
+    }
 });

@@ -10,9 +10,14 @@ const Game = () => {
     const phaserGameRef = useRef(null); // Store the Phaser game instance
     const socketRef = useRef(null); // Store the WebSocket connection
     const { messages, sendMessage } = useChat();
+    const [pseudo, setPseudo] = useState(""); // State for pseudo
+    const [isPseudoSet, setIsPseudoSet] = useState(false); // State to check if pseudo is set
+    const [pseudoError, setPseudoError] = useState(""); // State for pseudo validation error
+    const [appearance, setAppearance] = useState(""); // State for player appearance
+
     useEffect(() => {
-        if (phaserGameRef.current) {
-            return; // Prevent recreating the game multiple times
+        if (phaserGameRef.current || !isPseudoSet) {
+            return; // Prevent recreating the game multiple times or if pseudo is not set
         }
 
         const config = {
@@ -40,6 +45,12 @@ const Game = () => {
                     },
                 ],
             },
+            callbacks: {
+                preBoot: (game) => {
+                    game.registry.set("playerPseudo", pseudo); // Pass pseudo to the game
+                    game.registry.set("playerAppearance", appearance); // Pass appearance to the game
+                },
+            },
         };
 
         phaserGameRef.current = new Phaser.Game(config); // Store the Phaser game instance
@@ -50,7 +61,51 @@ const Game = () => {
                 socketRef.current.disconnect();
             }
         };
-    }, []);
+    }, [isPseudoSet, appearance]);
+
+    const handlePseudoSubmit = async () => {
+        if (pseudo.trim()) {
+            try {
+                const response = await fetch(`/api/players/${pseudo.trim()}`);
+                if (response.ok) {
+                    setAppearance(`/public/assets/apparences/${pseudo.trim()}.png`); // Set appearance based on pseudo
+                    setIsPseudoSet(true);
+                } else {
+                    setPseudoError("Cette personne n'est pas en vacances ou alors tu sais pas écrire ton prénom");
+                }
+            } catch (error) {
+                console.error("Error validating pseudo:", error);
+                setPseudoError("C'est full bugué dsl");
+            }
+        } else {
+            setPseudoError("Ecrit un truc batard");
+        }
+    };
+
+    if (!isPseudoSet) {
+        return (
+            <div id="pseudo-container" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+                <h1>Qui joue ?</h1>
+                <input
+                    type="text"
+                    value={pseudo}
+                    onChange={(e) => {
+                        setPseudo(e.target.value);
+                        setPseudoError(""); // Clear error on input change
+                    }}
+                    placeholder="Ton prénom"
+                    style={{ padding: "10px", fontSize: "16px", marginBottom: "10px" }}
+                />
+                {pseudoError && <p style={{ color: "red", marginBottom: "10px" }}>{pseudoError}</p>}
+                <button
+                    onClick={handlePseudoSubmit}
+                    style={{ padding: "10px 20px", fontSize: "16px", cursor: "pointer" }}
+                >
+                    Démarrer
+                </button>
+            </div>
+        );
+    }
 
     return (
       <div id="app-container">
@@ -58,6 +113,6 @@ const Game = () => {
         <Chat messages={messages} onSendMessage={sendMessage} />
       </div>
     );
-  };
-  
+};
+
 export default Game;
