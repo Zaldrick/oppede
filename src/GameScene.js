@@ -26,6 +26,9 @@ export class GameScene extends Phaser.Scene {
   async preload() {
     this.loadAssets();
 
+    // Initialize cursors early to avoid "Cursors are not initialized!" error
+    this.cursors = this.input.keyboard.createCursorKeys();
+
     // Fetch player pseudo from the registry
     const playerPseudo = this.registry.get("playerPseudo");
 
@@ -36,56 +39,73 @@ export class GameScene extends Phaser.Scene {
 
     console.log("Preloading player pseudo:", playerPseudo);
 
-    try {
-        // Fetch player data from MongoDB
-        const response = await fetch(`http://localhost:5000/api/players/${playerPseudo}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+    // Use a Promise to handle asynchronous operations
+    this.preloadPromise = new Promise(async (resolve, reject) => {
+        try {
+            // Fetch player data from MongoDB
+            const response = await fetch(`http://localhost:5000/api/players/${playerPseudo}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log(`Player data for ${playerPseudo} fetched from MongoDB:`, data);
+
+            // Store player data in the registry
+            this.registry.set("playerData", data);
+
+            // Set the player's initial position
+            this.playerPosition = { x: data.posX || 0, y: data.posY || 0 };
+
+            // Dynamically load the player's appearance from the public/apparences/ directory
+            const appearancePath = `/assets/apparences/${playerPseudo}.png`;
+            this.load.spritesheet("playerAppearance", appearancePath, {
+                frameWidth: 48, // Ensure this matches the frame size of the spritesheet
+                frameHeight: 48,
+            });
+
+            // Wait for assets to finish loading
+            this.load.once('complete', resolve);
+            this.load.start();
+        } catch (error) {
+            console.error("Error fetching player data:", error);
+            reject(error);
         }
-
-        const data = await response.json();
-        console.log(`Player data for ${playerPseudo} fetched from MongoDB:`, data);
-
-        // Store player data in the registry
-        this.registry.set("playerData", data);
-
-        // Set the player's initial position
-        this.playerPosition = { x: data.posX || 0, y: data.posY || 0 };
-
-        // Dynamically load the player's appearance from the public/apparences/ directory
-        const appearancePath = `/assets/apparences/${playerPseudo}.png`;
-        this.load.spritesheet("playerAppearance", appearancePath, {
-            frameWidth: 48, // Ensure this matches the frame size of the spritesheet
-            frameHeight: 48,
-        });
-    } catch (error) {
-        console.error("Error fetching player data:", error);
-    }
+    });
 }
 
-  create() {
-    // Wait for all assets to be loaded before creating the player
-    this.load.on('complete', () => {
-        const playerData = this.registry.get("playerData");
-        if (!playerData) {
-            console.error("Player data is not defined in the registry!");
-            return;
-        }
+  async create() {
+    // Wait for the preloadPromise to resolve before proceeding
+    try {
+        await this.preloadPromise;
+    } catch (error) {
+        console.error("Error during preload. Aborting game initialization.");
+        return; // Exit if preload failed
+    }
 
-        this.setupWorld();
-        this.loadPlayers();
-        this.createPlayer();
-        this.createAnimations();
-        this.setupCamera();
-        this.setupControls();
-        this.setupSocket();
-        this.createUI();
-    });
+    const playerData = this.registry.get("playerData");
+    if (!playerData) {
+        console.error("Player data is not defined in the registry! Aborting game initialization.");
+        return; // Exit if player data is missing
+    }
 
-    this.load.start(); // Start loading any dynamically added assets
+    // Initialize the game world and player only after all data is ready
+    this.setupWorld();
+    this.loadPlayers();
+    this.createPlayer();
+    this.createAnimations();
+    this.setupCamera();
+    this.setupControls();
+    this.setupSocket();
+    this.createUI();
 }
 
   update() {
+    // Ensure player and cursors are initialized before handling movement
+    if (!this.player || !this.cursors) {
+        return;
+    }
+
     this.handlePlayerMovement();
     this.updateRemotePlayers();
   }
@@ -148,7 +168,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupControls() {
-    this.cursors = this.input.keyboard.createCursorKeys();
     this.scale.on("resize", this.handleResize, this);
     //this.input.once("pointerup", this.handlePointerUp, this);
     //window.addEventListener("orientationchange", this.handleOrientationChange);
@@ -252,19 +271,20 @@ export class GameScene extends Phaser.Scene {
   handlePlayerMovement() {
     let newAnim = "";
     let keyboardActive = false;
-    if (this.cursors.left.isDown) {
+
+    if (this.cursors.left?.isDown) {
       keyboardActive = true;
       newAnim = "walk-left";
       this.player.setVelocity(-200, 0);
-    } else if (this.cursors.right.isDown) {
+    } else if (this.cursors.right?.isDown) {
       keyboardActive = true;
       newAnim = "walk-right";
       this.player.setVelocity(200, 0);
-    } else if (this.cursors.up.isDown) {
+    } else if (this.cursors.up?.isDown) {
       keyboardActive = true;
       newAnim = "walk-up";
       this.player.setVelocity(0, -200);
-    } else if (this.cursors.down.isDown) {
+    } else if (this.cursors.down?.isDown) {
       keyboardActive = true;
       newAnim = "walk-down";
       this.player.setVelocity(0, 200);
