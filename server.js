@@ -11,7 +11,27 @@ const PORT = process.env.PORT || 5000;
 
 // Servir les fichiers statiques depuis le dossier "public"
 app.use(express.static('public'));
+// Route pour récupérer les joueurs disponibles
+    app.get('/api/players', async (req, res) => {
+    const db = await connectToDatabase();
+    const players = db.collection('players');
 
+    const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
+    res.json(playerList);
+});
+app.post('/api/players/update-position', async (req, res) => {
+    const { pseudo, posX, posY } = req.body;
+
+    const db = await connectToDatabase();
+    const players = db.collection('players');
+
+    await players.updateOne(
+        { pseudo },
+        { $set: { posX, posY, updatedAt: new Date() } }
+    );
+
+    res.json({ success: true });
+});
 let players = {};
 
 io.on('connection', (socket) => {
