@@ -847,21 +847,6 @@ sendMessage = (message) => {
     } catch (error) {
         console.error("Error updating player position:", error);
     }
-}
-
-  async updatePlayerPosition(pseudo, posX, posY) {
-      await fetch('/api/players/update-position', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pseudo, posX, posY })
-      });
-
-
-    setInterval(() => {
-        if (this.player && this.player.pseudo) {
-            this.updatePlayerPosition(this.player.pseudo, this.player.x, this.player.y);
-        }
-    }, 5000);
   }
 
   shutdown() {
