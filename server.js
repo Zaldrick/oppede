@@ -30,7 +30,12 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from the "public" directory with CORS enabled
-app.use('/public', cors(), express.static('public'));
+app.use('/public', cors(corsOptions), express.static('public'));
+// Route pour récupérer les joueurs disponibles
+    app.get('/api/players', async (req, res) => {
+    const db = await connectToDatabase();
+    const players = db.collection('players');
+
 
 // Route for apparences
 app.get('/assets/apparences', (req, res) => {
@@ -47,6 +52,45 @@ app.get('/assets/apparences', (req, res) => {
   });
 });
 
+    const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
+    res.json(playerList);
+});
+
+app.get('/api/players/:pseudo', async (req, res) => {
+    const { pseudo } = req.params;
+    const db = await connectToDatabase();
+    const players = db.collection('players');
+    const player = await players.findOne({ pseudo });
+
+    if (!player) {
+        return res.status(404).json({ error: 'Joueur non trouvé' });
+    }
+
+    res.json({
+        id:player.id,
+        pseudo:player.pseudo,
+        dailyTeam: player.dailyTeam,
+        dailyScore: player.dailyScore,
+        totalScore: player.totalScore,
+        posX: player.posX,
+        posY: player.posY
+    });
+});
+
+
+app.post('/api/players/update-position', async (req, res) => {
+    const { pseudo, posX, posY } = req.body;
+
+    const db = await connectToDatabase();
+    const players = db.collection('players');
+
+    await players.updateOne(
+        { pseudo },
+        { $set: { posX, posY, updatedAt: new Date() } }
+    );
+
+    res.json({ success: true });
+});
 let players = {};
 let chatMessages = []; // Stocker les messages de chat
 
