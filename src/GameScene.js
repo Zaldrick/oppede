@@ -29,6 +29,7 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.setupWorld();
+    this.loadPlayers();
     this.createPlayer();
     this.createAnimations();
     this.setupCamera();
@@ -553,4 +554,38 @@ sendMessage = (message) => {
         messageText.destroy();
     });
   }
+async function loadPlayers() {
+    const response = await fetch('/api/players');
+    const players = await response.json();
+
+    const dropdown = document.getElementById('player-dropdown');
+    dropdown.innerHTML = ''; // Réinitialiser le contenu
+
+    players.forEach(player => {
+        const option = document.createElement('option');
+        option.value = player.pseudo;
+        option.textContent = player.pseudo;
+        dropdown.appendChild(option);
+    });
+}
+
+  function selectPlayer() {
+    const selectedPlayer = document.getElementById('player-dropdown').value;
+    console.log('Joueur sélectionné :', selectedPlayer);
+
+    // Envoyer le pseudo sélectionné au backend ou effectuer une action
+}
+
+async function updatePlayerPosition(pseudo, posX, posY) {
+    await fetch('/api/players/update-position', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pseudo, posX, posY })
+    });
+}
+setInterval(() => {
+    updatePlayerPosition(this.player.pseudo, this.player.x,, this.player.y);
+}, 5000);
+  
+  
 }
