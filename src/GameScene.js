@@ -44,7 +44,7 @@ export class GameScene extends Phaser.Scene {
 
   loadAssets() {
     this.load.image("background", "/assets/interieur.png"); // Update background image
-    this.load.spritesheet("player", "/assets/joueur.png", {
+    this.load.spritesheet("player", "/assets/apparences/mehdi.png", {
       frameWidth: 48,
       frameHeight: 48,
     });
@@ -93,7 +93,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupSocket() {
-    this.socket = io('https://a1ff-89-82-23-250.ngrok-free.app'); // Updated ngrok URL
+    this.socket = io('localhost:5000'); // Updated ngrok URL 5000
     this.otherPlayers = {};
     this.latestPlayersData = {};
 
@@ -103,13 +103,31 @@ export class GameScene extends Phaser.Scene {
             this.socket.emit('newPlayer', {
                 x: this.player.x,
                 y: this.player.y,
-                character: 'default'
+                character: 'default',
+                pseudo: 'Player' // Default pseudo
             });
         }
     });
 
     this.socket.on('playersUpdate', (players) => {
         this.latestPlayersData = players;
+    });
+
+    this.socket.on("interaction", (data) => {
+        if (data.to === this.myId) {
+            const message = (data.action === "defier")
+                ? `Le joueur ${data.from}\n vous a défié !`
+                : `Le joueur ${data.from}\n vous fait signe !`;
+            this.displayMessage(message);
+        }
+    });
+
+    this.socket.on("appearanceUpdate", (data) => {
+        if (data.id === this.myId) {
+            this.player.setTexture(data.character);
+        } else if (this.otherPlayers[data.id]) {
+            this.otherPlayers[data.id].setTexture(data.character);
+        }
     });
 }
 
@@ -395,12 +413,18 @@ showInteractionMenu = (targetId) => {
     // Add events for each option
     option1.on("pointerdown", () => {
         this.displayMessage(`Vous avez défié \nle joueur ${targetId}`);
+        if (this.socket) {
+            this.socket.emit("interaction", { from: this.myId, to: targetId, action: "defier" });
+        }
         this.interactionMenu.destroy();
         this.interactionMenu = null; // Ensure proper cleanup
     });
 
     option2.on("pointerdown", () => {
         this.displayMessage(`Vous avez fait signe \nau joueur ${targetId}`);
+        if (this.socket) {
+            this.socket.emit("interaction", { from: this.myId, to: targetId, action: "faireSigne" });
+        }
         this.interactionMenu.destroy();
         this.interactionMenu = null; // Ensure proper cleanup
     });
@@ -495,9 +519,135 @@ openInventory = () => {
 }
 
 openProfile = () => {
-    this.displayMessage("Ouverture du profil...");
-    // Add logic to open the profile
-    this.closeMenu();
+    // Ensure the main menu is closed when opening the profile menu
+    if (this.startMenu) {
+        this.startMenu.destroy();
+        this.startMenu = null;
+    }
+
+    if (this.profileMenu) {
+        this.profileMenu.destroy();
+    }
+
+    const gameWidth = this.scale.width;
+    const gameHeight = this.scale.height;
+
+    this.profileMenu = this.add.container(gameWidth / 2, gameHeight / 2);
+
+    // Background
+    const background = this.add.rectangle(0, 0, gameWidth * 0.8, gameHeight * 0.6, 0x000000, 0.8).setOrigin(0.5);
+    this.profileMenu.add(background);
+
+    // Display current pseudo
+    const currentPseudoText = this.add.text(0, -gameHeight * 0.3, `Current Pseudo: ${this.currentPseudo || "Player"}`, {
+        font: "18px Arial",
+        fill: "#ffffff",
+    }).setOrigin(0.5);
+    this.profileMenu.add(currentPseudoText);
+
+    // Input for pseudo with placeholder "Nouveau Pseudo"
+    const pseudoInput = this.add.dom(gameWidth / 2, gameHeight / 2 - 50).createFromHTML(`
+        <input type="text" id="pseudo-input" placeholder="Nouveau Pseudo" style="width: 200px; padding: 5px;" />
+    `);
+    pseudoInput.setOrigin(0.5); // Center the input field
+    pseudoInput.setScrollFactor(0); // Ensure it stays in place
+    this.add.existing(pseudoInput); // Add to the scene
+
+    const pseudoButton = this.add.text(0, -gameHeight * 0.1, "Change Pseudo", {
+        font: "18px Arial",
+        fill: "#ffffff",
+        backgroundColor: "#333333",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+
+    pseudoButton.on("pointerdown", () => {
+        const inputElement = document.getElementById("pseudo-input");
+        const newPseudo = inputElement ? inputElement.value.trim() : null;
+        if (newPseudo && this.socket) {
+            this.socket.emit("updatePseudo", { id: this.myId, pseudo: newPseudo });
+            this.currentPseudo = newPseudo; // Update locally
+            currentPseudoText.setText(`Current Pseudo: ${newPseudo}`); // Update displayed pseudo
+            this.displayMessage(`Pseudo updated to: ${newPseudo}`);
+        }
+    });
+    this.profileMenu.add(pseudoButton);
+
+    // Appearance options
+    let currentAppearanceIndex = 0;
+    let appearances = [];
+    const appearanceImage = this.add.image(0, 50, "player").setOrigin(0.5).setScale(1.5);
+    this.profileMenu.add(appearanceImage);
+
+    const loadAppearance = (index) => {
+        if (appearances.length > 0) {
+            const appearance = appearances[index];
+            console.log(`Loading appearance: ${appearance}`); // Log the appearance being loaded
+            appearanceImage.setTexture(appearance);
+            this.socket.emit("updateAppearance", { id: this.myId, character: appearance });
+        }
+    };
+
+    const leftArrow = this.add.text(-gameWidth * 0.3, 50, "<", {
+        font: "24px Arial",
+        fill: "#ffffff",
+    }).setOrigin(0.5).setInteractive();
+
+    const rightArrow = this.add.text(gameWidth * 0.3, 50, ">", {
+        font: "24px Arial",
+        fill: "#ffffff",
+    }).setOrigin(0.5).setInteractive();
+
+    leftArrow.on("pointerdown", () => {
+        if (appearances.length > 0) {
+            currentAppearanceIndex = (currentAppearanceIndex - 1 + appearances.length) % appearances.length;
+            console.log(`Left arrow clicked. New index: ${currentAppearanceIndex}`); // Log the index
+            loadAppearance(currentAppearanceIndex);
+        }
+    });
+
+    rightArrow.on("pointerdown", () => {
+        if (appearances.length > 0) {
+            currentAppearanceIndex = (currentAppearanceIndex + 1) % appearances.length;
+            console.log(`Right arrow clicked. New index: ${currentAppearanceIndex}`); // Log the index
+            loadAppearance(currentAppearanceIndex);
+        }
+    });
+
+    this.profileMenu.add(leftArrow);
+    this.profileMenu.add(rightArrow);
+
+    fetch('http://localhost:5000/assets/apparences')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(files => {
+            console.log(`Fetched appearances: ${files}`);
+            appearances = files;
+            if (appearances.length > 0) {
+                loadAppearance(currentAppearanceIndex);
+            }
+        })
+        .catch(err => {
+            console.error("Error fetching appearances:", err);
+            this.displayMessage("Erreur lors du chargement des apparences.");
+        });
+
+    // Return button
+    const returnButton = this.add.text(0, gameHeight * 0.2, "Return", {
+        font: "18px Arial",
+        fill: "#ffffff",
+        backgroundColor: "#333333",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+
+    returnButton.on("pointerdown", () => {
+        this.profileMenu.destroy();
+        this.profileMenu = null;
+    });
+    this.profileMenu.add(returnButton);
 }
 
 openMessages = () => {    
@@ -512,7 +662,7 @@ sendMessage = (message) => {
         this.socket.emit("chatMessage", { sender: this.myId, message });
 
         // Display your own message locally
-        this.displayMessage(`You: ${message}`);
+        this.displayMessage(`Vous: ${message}`);
     }
 }
 

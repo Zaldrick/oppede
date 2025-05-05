@@ -52,8 +52,8 @@
   </form>
 
   <script>
-  const socket = io('https://a1ff-89-82-23-250.ngrok-free.app'); // Connexion au backend principal
-
+//  const socket = io('https://182d-89-82-23-250.ngrok-free.app'); // Connexion au backend principal
+const socket = io('localhost:5000'); // Connexion au backend principal
   socket.on('connect', () => {
     console.log('Connecté au serveur avec l\'ID :', socket.id);
   });

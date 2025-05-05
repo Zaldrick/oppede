@@ -7,7 +7,7 @@ const useChat = () => {
 
   useEffect(() => {
     // Initialize WebSocket connection
-    socketRef.current = io("https://a1ff-89-82-23-250.ngrok-free.app");
+    socketRef.current = io("localhost:5000"); //5000
 
     socketRef.current.on("connect", () => {
       console.log("Connected to WebSocket server:", socketRef.current.id);

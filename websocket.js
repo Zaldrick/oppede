@@ -5,7 +5,8 @@ let players = {};
 function setupWebSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: ["http://localhost:3000","http://localhost:5000", "https://fc15-89-82-23-250.ngrok-free.app", "https://a1ff-89-82-23-250.ngrok-free.app"],
+            origin: ["http://localhost:3000","http://localhost:5000"], 
+//                "https://fc15-89-82-23-250.ngrok-free.app", "https://a1ff-89-82-23-250.ngrok-free.app"],
             methods: ["GET", "POST"],
         },
     });
@@ -46,6 +47,28 @@ function setupWebSocket(server) {
             if (callback) {
                 callback({ status: "ok", received: true });
             }
+        });
+
+        // Handle player challenges
+        socket.on("challengePlayer", ({ from, to }, callback) => {
+            if (!players[to]) {
+                callback({ status: "error", message: "Player not found" });
+                return;
+            }
+
+            // Notify the challenged player
+            io.to(to).emit("challengeReceived", { from });
+
+            // Set a timeout for the response
+            const timeout = setTimeout(() => {
+                io.to(from).emit("challengeResponse", { to, accepted: false, reason: "timeout" });
+            }, 10000); // 10 seconds
+
+            // Listen for the response
+            socket.on("challengeResponse", ({ accepted }) => {
+                clearTimeout(timeout); // Clear the timeout
+                io.to(from).emit("challengeResponse", { to, accepted });
+            });
         });
 
         // Handle player disconnect
