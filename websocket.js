@@ -5,7 +5,7 @@ let players = {};
 function setupWebSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: ["http://localhost:3000","http://localhost:5000"], 
+            origin: ["http://localhost:4000","http://localhost:5000"], 
 //                "https://fc15-89-82-23-250.ngrok-free.app", "https://a1ff-89-82-23-250.ngrok-free.app"],
             methods: ["GET", "POST"],
         },

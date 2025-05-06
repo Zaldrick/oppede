@@ -7,7 +7,7 @@ const app = express();
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer, {
   cors: {
-    origin: ["http://localhost:3000"],
+    origin: ["http://localhost:4000"],
       //, "https://1194-89-82-23-250.ngrok-free.app"], // Add your frontend's origin here
     methods: ["GET", "POST"]
   }
@@ -57,7 +57,7 @@ app.get('/api/players', async (req, res) => {
 
 // Configure CORS options
 const corsOptions = {
-  origin: "http://localhost:3000", // Allow requests from the React app
+  origin: "http://localhost:4000", // Allow requests from the React app
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
@@ -89,7 +89,7 @@ app.get('/assets/apparences', (req, res) => {
     }
     // Filter to include only image files (e.g., .png, .jpg)
     const imageFiles = files.filter(file => /\.(png|jpg|jpeg|gif)$/i.test(file));
-    res.set('Access-Control-Allow-Origin', 'http://localhost:3000'); // Add CORS header
+    res.set('Access-Control-Allow-Origin', 'http://localhost:4000'); // Add CORS header
     res.json(imageFiles);
   });
 });
