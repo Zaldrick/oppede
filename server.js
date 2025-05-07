@@ -1,10 +1,11 @@
+console.log('NODE_ENV:', process.env.NODE_ENV); // Log pour vérifier NODE_ENV
 if (process.env.NODE_ENV === 'production') {
   require('dotenv').config({ path: '.env.production' }); // Charger les variables d'environnement de production
 } else {
   require('dotenv').config(); // Charger les variables d'environnement par défaut
 }
 
-console.log('Loaded FRONTEND_URL:', process.env.FRONTEND_URL); // Log pour vérifier la valeur
+console.log('Loaded FRONTEND_URL:', process.env.FRONTEND_URL); // Log pour vérifier FRONTEND_URL
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -23,7 +24,7 @@ const io = require('socket.io')(httpServer, {
 
 // Configure CORS options
 const corsOptions = {
-  origin: process.env.FRONTEND_URL,
+  origin: [process.env.FRONTEND_URL,"http://warband.fr"],
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
