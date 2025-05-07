@@ -1,4 +1,5 @@
 require('dotenv').config(); // Charger les variables d'environnement
+console.log('Loaded FRONTEND_URL:', process.env.FRONTEND_URL); // Log pour vérifier la valeur
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
