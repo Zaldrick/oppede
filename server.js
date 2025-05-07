@@ -13,6 +13,8 @@ const path = require('path');
 const mongoose = require('mongoose');
 const app = express();
 const httpServer = require('http').createServer(app);
+const https = require('https');
+
 const PORT = process.env.BACKEND_PORT; // Port par défaut pour le serveur backend
 const io = require('socket.io')(httpServer, {
   cors: {
@@ -21,6 +23,15 @@ const io = require('socket.io')(httpServer, {
     credentials: true, // Autoriser les cookies si nécessaire
   },
 });
+
+// Options pour le certificat SSL
+const sslOptions = {
+  key: fs.readFileSync('/etc/letsencrypt/live/warband.fr/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/warband.fr/fullchain.pem'),
+};
+
+// Création du serveur HTTPS
+const httpsServer = https.createServer(sslOptions, app);
 
 // Configure CORS options
 const corsOptions = {
@@ -263,6 +274,10 @@ setInterval(() => {
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+httpsServer.listen(5000, () => {
+  console.log('Server running in HTTPS mode on port 5000');
 });
 
 app.get('/api/players/position/:pseudo', async (req, res) => {
