@@ -7,7 +7,7 @@ const useChat = () => {
 
   useEffect(() => {
     // Initialize WebSocket connection
-    socketRef.current = io(process.env.REACT_APP_SOCKET_URL); //5000
+    socketRef.current = io(process.env.REACT_APP_SOCKET_URL);
 
     socketRef.current.on("connect", () => {
       console.log("Connected to WebSocket server:", socketRef.current.id);

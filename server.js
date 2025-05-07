@@ -1,16 +1,15 @@
 const express = require('express');
-const cors = require('cors'); // Ensure CORS is imported
+const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose'); // Assurez-vous que mongoose est importé
+const mongoose = require('mongoose');
 const app = express();
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer, {
   cors: {
-    origin: ["http://localhost:4000"],
-      //, "https://1194-89-82-23-250.ngrok-free.app"], // Add your frontend's origin here
-    methods: ["GET", "POST"]
-  }
+    origin: [process.env.FRONTEND_URL || "http://localhost:4000"], // Use environment variable for frontend URL
+    methods: ["GET", "POST"],
+  },
 });
 const PORT = process.env.PORT || 5000;
 
@@ -22,10 +21,10 @@ const connectToDatabase = async () => {
       useUnifiedTopology: true,
     });
     console.log('Connected to MongoDB successfully!');
-    return connection.connection.db; // Retourne l'objet de la base de données
+    return connection.connection.db;
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
-    throw error; // Relance l'erreur pour la gestion des erreurs
+    throw error;
   }
 };
 
@@ -57,7 +56,7 @@ app.get('/api/players', async (req, res) => {
 
 // Configure CORS options
 const corsOptions = {
-  origin: "http://localhost:4000", // Allow requests from the React app
+  origin: [process.env.FRONTEND_URL || "http://localhost:4000", process.env.BACKEND_URL || `http://localhost:${PORT}`],
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
@@ -89,8 +88,7 @@ app.get('/assets/apparences', (req, res) => {
     }
     // Filter to include only image files (e.g., .png, .jpg)
     const imageFiles = files.filter(file => /\.(png|jpg|jpeg|gif)$/i.test(file));
-    res.set('Access-Control-Allow-Origin', 'http://localhost:4000'); // Add CORS header
-    res.json(imageFiles);
+        res.json(imageFiles);
   });
 });
 
