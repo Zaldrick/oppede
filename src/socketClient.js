@@ -9,7 +9,7 @@ const useSocketClient = (url) => {
 
   useEffect(() => {
     if (!socketRef.current) {
-      socketRef.current = io(url);
+      socketRef.current = io(process.env.REACT_APP_SOCKET_URL);
 
       socketRef.current.on("connect", () => {
         console.log("Connected to WebSocket server:", socketRef.current.id);

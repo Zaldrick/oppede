@@ -66,7 +66,7 @@ const Game = () => {
     const handlePseudoSubmit = async () => {
         if (pseudo.trim()) {
             try {
-                const response = await fetch(`/api/players/${pseudo.trim()}`);
+                const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${pseudo.trim()}`);
                 if (response.ok) {
                     setAppearance(`/public/assets/apparences/${pseudo.trim()}.png`); // Set appearance based on pseudo
                     setIsPseudoSet(true);

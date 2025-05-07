@@ -43,7 +43,7 @@ export class GameScene extends Phaser.Scene {
     this.preloadPromise = new Promise(async (resolve, reject) => {
         try {
             // Fetch player data from MongoDB
-            const response = await fetch(`http://localhost:5000/api/players/${playerPseudo}`);
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${playerPseudo}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -177,7 +177,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupSocket() {
-    this.socket = io('localhost:5000'); // Updated ngrok URL 5000
+    this.socket = io(process.env.REACT_APP_SOCKET_URL);
     this.otherPlayers = {};
     this.latestPlayersData = {};
 
@@ -832,7 +832,7 @@ sendMessage = (message) => {
     console.log("Sending position update:", { pseudo: playerPseudo, posX, posY });
 
     try {
-        const response = await fetch('http://localhost:5000/api/players/update-position', {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/update-position`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ pseudo: playerPseudo, posX, posY }),
