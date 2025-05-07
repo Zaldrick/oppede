@@ -24,7 +24,7 @@ const io = require('socket.io')(httpServer, {
 
 // Configure CORS options
 const corsOptions = {
-  origin: [process.env.FRONTEND_URL,"http://warband.fr"],
+  origin: [process.env.FRONTEND_URL,"https://warband.fr"],
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
