@@ -115,7 +115,7 @@ export class GameScene extends Phaser.Scene {
 
   loadAssets() {
     this.load.image("background", "/assets/interieur.png"); // Preload background image
-    this.load.spritesheet("player", "/assets/apparences/mehdi.png", {
+    this.load.spritesheet("player", "/assets/apparences/Mehdi.png", {
       frameWidth: 48,
       frameHeight: 48,
     }); // Preload default player spritesheet
@@ -772,7 +772,8 @@ sendMessage = (message) => {
   
   async loadPlayers() {
       try {
-          const response = await fetch('/api/players');
+
+          const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players`);
           if (!response.ok) {
               throw new Error(`HTTP error! status: ${response.status}`);
           }
