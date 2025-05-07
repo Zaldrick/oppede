@@ -12,36 +12,44 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const app = express();
-const httpServer = require('http').createServer(app);
+const http = require('http');
 const https = require('https');
 
-const PORT = process.env.BACKEND_PORT; // Port par défaut pour le serveur backend
-const io = require('socket.io')(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL, // Autoriser l'origine publique
-    methods: ["GET", "POST"],
-    credentials: true, // Autoriser les cookies si nécessaire
-  },
-});
-
-// Options pour le certificat SSL
-const sslOptions = {
-  key: fs.readFileSync('/etc/letsencrypt/live/warband.fr/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/warband.fr/fullchain.pem'),
-};
-
-// Création du serveur HTTPS
-const httpsServer = https.createServer(sslOptions, app);
+const PORT = process.env.BACKEND_PORT || 3000; // Default port for backend
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Configure CORS options
 const corsOptions = {
-  origin: [process.env.FRONTEND_URL,"https://warband.fr"],
+  origin: [process.env.FRONTEND_URL, "https://warband.fr"],
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
 
 // Enable CORS for all routes
 app.use(cors(corsOptions));
+
+// Create HTTP or HTTPS server based on the environment
+let server;
+if (isProduction) {
+  const sslOptions = {
+    key: fs.readFileSync('/etc/letsencrypt/live/warband.fr/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/warband.fr/fullchain.pem'),
+  };
+  server = https.createServer(sslOptions, app);
+  console.log('Running in production mode with HTTPS');
+} else {
+  server = http.createServer(app);
+  console.log('Running in development mode with HTTP');
+}
+
+// Initialize Socket.IO
+const io = require('socket.io')(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL, // Allow public origin
+    methods: ["GET", "POST"],
+    credentials: true, // Allow cookies if needed
+  },
+});
 
 // MongoDB connection function
 const connectToDatabase = async () => {
@@ -272,12 +280,8 @@ setInterval(() => {
   io.emit('playersUpdate', players);
 }, 50);
 
-httpServer.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-});
-
-httpsServer.listen(5000, () => {
-  console.log('Server running in HTTPS mode on port 5000');
 });
 
 app.get('/api/players/position/:pseudo', async (req, res) => {
