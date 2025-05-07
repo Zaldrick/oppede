@@ -53,10 +53,21 @@ if (isProduction) {
   console.log('Running in development mode with HTTP');
 }
 
-// Initialize Socket.IO
+// Initialize Socket.IO with dynamic CORS
 const io = require('socket.io')(server, {
   cors: {
-    origin: process.env.FRONTEND_URL, // Allow public origin
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        process.env.FRONTEND_URL, // e.g., https://warband.fr
+        "https://warband.fr",
+        "https://www.warband.fr", // Allow both with and without www
+      ];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true); // Allow the request
+      } else {
+        callback(new Error("Not allowed by CORS")); // Reject the request
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true, // Allow cookies if needed
   },
