@@ -18,13 +18,20 @@ const https = require('https');
 const PORT = process.env.BACKEND_PORT || 3000; // Default port for backend
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Configure CORS options
+// Configure CORS options dynamically
 const corsOptions = {
-  origin: [
-    process.env.FRONTEND_URL, // e.g., https://warband.fr
-    "https://warband.fr",
-    "https://www.warband.fr", // Allow both with and without www
-  ],
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      process.env.FRONTEND_URL, // e.g., https://warband.fr
+      "https://warband.fr",
+      "https://www.warband.fr", // Allow both with and without www
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true); // Allow the request
+    } else {
+      callback(new Error("Not allowed by CORS")); // Reject the request
+    }
+  },
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
