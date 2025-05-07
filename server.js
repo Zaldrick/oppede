@@ -1,3 +1,4 @@
+require('dotenv').config(); // Charger les variables d'environnement
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -5,14 +6,24 @@ const path = require('path');
 const mongoose = require('mongoose');
 const app = express();
 const httpServer = require('http').createServer(app);
+const PORT = process.env.BACKEND_PORT; // Port par défaut pour le serveur backend
 const io = require('socket.io')(httpServer, {
   cors: {
-    origin: [process.env.FRONTEND_URL || "http://localhost:4000", "http://51.68.226.216:4000"], // Autoriser l'origine publique
+    origin: process.env.FRONTEND_URL, // Autoriser l'origine publique
     methods: ["GET", "POST"],
     credentials: true, // Autoriser les cookies si nécessaire
   },
 });
-const PORT = process.env.PORT || 5000;
+
+// Configure CORS options
+const corsOptions = {
+  origin: process.env.FRONTEND_URL,
+  methods: ["GET", "POST"],
+  credentials: true, // Allow cookies if needed
+};
+
+// Enable CORS for all routes
+app.use(cors(corsOptions));
 
 // MongoDB connection function
 const connectToDatabase = async () => {
@@ -29,6 +40,17 @@ const connectToDatabase = async () => {
   }
 };
 
+// Log all incoming requests for debugging
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
+
+app.use('/public', cors(corsOptions), express.static('public'));
+// Route pour récupérer les joueurs disponibles
+    app.get('/api/players', async (req, res) => {
+    const db = await connectToDatabase();
+    const players = db.collection('players');
 
 
 app.get('/api/players', async (req, res) => {
@@ -53,30 +75,6 @@ app.get('/api/players', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch players', players: [] });
   }
 });
-
-
-// Configure CORS options
-const corsOptions = {
-  origin: [process.env.FRONTEND_URL || "http://localhost:4000"],
-  methods: ["GET", "POST"],
-  credentials: true, // Allow cookies if needed
-};
-
-// Enable CORS for all routes
-app.use(cors(corsOptions));
-
-// Log all incoming requests for debugging
-app.use((req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.url}`);
-  next();
-});
-
-// Serve static files from the "public" directory with CORS enabled
-app.use('/public', cors(corsOptions), express.static('public'));
-// Route pour récupérer les joueurs disponibles
-    app.get('/api/players', async (req, res) => {
-    const db = await connectToDatabase();
-    const players = db.collection('players');
 
 
 // Route for apparences
@@ -279,12 +277,4 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
         console.error('Error fetching player position:', error);
         res.status(500).json({ error: 'Failed to fetch player position' });
     }
-});
-
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "http://51.68.226.216:4000");
-  res.header("Access-Control-Allow-Methods", "GET, POST");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  res.header("Access-Control-Allow-Credentials", "true");
-  next();
 });

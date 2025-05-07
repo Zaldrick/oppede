@@ -2,7 +2,6 @@ import { GameScene } from "./GameScene";
 import Phaser from "phaser";
 import VirtualJoystickPlugin from "phaser3-rex-plugins/plugins/virtualjoystick-plugin.js";
 import React, { useEffect, useRef, useState } from "react";
-import io from "socket.io-client";
 import Chat from "./Chat";
 import useChat from "./useChat";
 
@@ -55,13 +54,15 @@ const Game = () => {
 
         phaserGameRef.current = new Phaser.Game(config); // Store the Phaser game instance
 
+        const socket = socketRef.current; // Copiez la valeur de socketRef.current dans une variable locale
+
         return () => {
             // Clean up WebSocket connection on unmount
-            if (socketRef.current) {
-                socketRef.current.disconnect();
+            if (socket) {
+                socket.disconnect();
             }
         };
-    }, [isPseudoSet, appearance]);
+    }, [isPseudoSet, appearance, pseudo]); // Ajoutez 'pseudo' comme dépendance
 
     const handlePseudoSubmit = async () => {
         if (pseudo.trim()) {

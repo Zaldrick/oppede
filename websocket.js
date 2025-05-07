@@ -1,11 +1,11 @@
 const { Server } = require("socket.io");
-
+require('dotenv').config(); // Charger les variables d'environnement
 let players = {};
 
 function setupWebSocket(server) {
     const io = new Server(server, {
         cors: {
-            origin: ["http://localhost:4000", "http://51.68.226.216:4000"],
+            origin:process.env.FRONTEND_URL,
             methods: ["GET", "POST"],
         },
     });

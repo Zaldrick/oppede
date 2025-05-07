@@ -701,25 +701,6 @@ openProfile = () => {
     this.profileMenu.add(leftArrow);
     this.profileMenu.add(rightArrow);
 
-    fetch('http://localhost:5000/assets/apparences')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(files => {
-            console.log(`Fetched appearances: ${files}`);
-            appearances = files;
-            if (appearances.length > 0) {
-                loadAppearance(currentAppearanceIndex);
-            }
-        })
-        .catch(err => {
-            console.error("Error fetching appearances:", err);
-            this.displayMessage("Erreur lors du chargement des apparences.");
-        });
-
     // Return button
     const returnButton = this.add.text(0, gameHeight * 0.2, "Return", {
         font: "18px Arial",
