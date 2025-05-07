@@ -7,8 +7,9 @@ const app = express();
 const httpServer = require('http').createServer(app);
 const io = require('socket.io')(httpServer, {
   cors: {
-    origin: [process.env.FRONTEND_URL || "http://localhost:4000"], // Use environment variable for frontend URL
+    origin: [process.env.FRONTEND_URL || "http://localhost:4000", "http://51.68.226.216:4000"], // Autoriser l'origine publique
     methods: ["GET", "POST"],
+    credentials: true, // Autoriser les cookies si nécessaire
   },
 });
 const PORT = process.env.PORT || 5000;
@@ -56,7 +57,7 @@ app.get('/api/players', async (req, res) => {
 
 // Configure CORS options
 const corsOptions = {
-  origin: [process.env.FRONTEND_URL || "http://localhost:4000", process.env.BACKEND_URL || `http://localhost:${PORT}`],
+  origin: [process.env.FRONTEND_URL || "http://localhost:4000"],
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
@@ -278,4 +279,12 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
         console.error('Error fetching player position:', error);
         res.status(500).json({ error: 'Failed to fetch player position' });
     }
+});
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "http://51.68.226.216:4000");
+  res.header("Access-Control-Allow-Methods", "GET, POST");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
 });
