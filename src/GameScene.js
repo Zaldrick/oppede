@@ -21,6 +21,7 @@ const CONFIG = {
 export class GameScene extends Phaser.Scene {
   constructor() {
     super("GameScene");
+    this.inventory = []; // Initialise un inventaire vide pour le joueur
   }
 
   async preload() {
@@ -33,44 +34,56 @@ export class GameScene extends Phaser.Scene {
     const playerPseudo = this.registry.get("playerPseudo");
 
     if (!playerPseudo) {
-        console.error("Player pseudo is not defined in the registry!");
-        return; // Exit preload if pseudo is undefined
+      console.error("Player pseudo is not defined in the registry!");
+      return; // Exit preload if pseudo is undefined
     }
 
     console.log("Preloading player pseudo:", playerPseudo);
 
     // Use a Promise to handle asynchronous operations
     this.preloadPromise = new Promise(async (resolve, reject) => {
-        try {
-            // Fetch player data from MongoDB
-            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${playerPseudo}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log(`Player data for ${playerPseudo} fetched from MongoDB:`, data);
-
-            // Store player data in the registry
-            this.registry.set("playerData", data);
-
-            // Set the player's initial position
-            this.playerPosition = { x: data.posX || 0, y: data.posY || 0 };
-
-            // Dynamically load the player's appearance from the public/apparences/ directory
-            const appearancePath = `/assets/apparences/${playerPseudo}.png`;
-            this.load.spritesheet("playerAppearance", appearancePath, {
-                frameWidth: 48, // Ensure this matches the frame size of the spritesheet
-                frameHeight: 48,
-            });
-
-            // Wait for assets to finish loading
-            this.load.once('complete', resolve);
-            this.load.start();
-        } catch (error) {
-            console.error("Error fetching player data:", error);
-            reject(error);
+      try {
+        // Fetch player data from MongoDB
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${playerPseudo}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        const data = await response.json();
+        console.log(`Player data for ${playerPseudo} fetched from MongoDB:`, data);
+
+        // Store player data in the registry
+        this.registry.set("playerData", data);
+
+        // Set the player's initial position
+        this.playerPosition = { x: data.posX || 0, y: data.posY || 0 };
+
+        // Fetch inventory data for the player
+        const inventoryResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/inventory/${data._id}`);
+        if (!inventoryResponse.ok) {
+          throw new Error(`HTTP error! status: ${inventoryResponse.status}`);
+        }
+
+        const inventoryData = await inventoryResponse.json();
+        console.log(`Inventory data for player ${playerPseudo}:`, inventoryData);
+
+        // Store inventory data in the scene
+        this.inventory = inventoryData;
+
+        // Dynamically load the player's appearance from the public/apparences/ directory
+        const appearancePath = `/assets/apparences/${playerPseudo}.png`;
+        this.load.spritesheet("playerAppearance", appearancePath, {
+          frameWidth: 48, // Ensure this matches the frame size of the spritesheet
+          frameHeight: 48,
+        });
+
+        // Wait for assets to finish loading
+        this.load.once('complete', resolve);
+        this.load.start();
+      } catch (error) {
+        console.error("Error fetching player or inventory data:", error);
+        reject(error);
+      }
     });
 }
 
@@ -838,4 +851,38 @@ sendMessage = (message) => {
     }
   }
 
+  addItemToInventory(item) {
+    const existingItem = this.inventory.find(i => i.nom === item.nom);
+    if (existingItem) {
+      existingItem.quantité += item.quantité; // Augmente la quantité si l'objet existe déjà
+    } else {
+      this.inventory.push(item); // Ajoute un nouvel objet
+    }
+    console.log("Inventaire mis à jour :", this.inventory);
+  }
+
+  removeItemFromInventory(itemName, quantity) {
+    const itemIndex = this.inventory.findIndex(i => i.nom === itemName);
+    if (itemIndex !== -1) {
+      this.inventory[itemIndex].quantité -= quantity;
+      if (this.inventory[itemIndex].quantité <= 0) {
+        this.inventory.splice(itemIndex, 1); // Supprime l'objet si la quantité est 0
+      }
+      console.log("Inventaire mis à jour :", this.inventory);
+    } else {
+      console.warn(`Objet ${itemName} non trouvé dans l'inventaire.`);
+    }
+  }
+
+  displayInventory() {
+    console.log("Inventaire actuel :", this.inventory);
+    // Ajoute ici une logique pour afficher l'inventaire dans l'UI
+  }
+
+  // Exemple d'utilisation
+  handleStartButton() {
+    // ...existing code...
+    this.addItemToInventory({ nom: "Potion", image: "potion.png", is_echangeable: true, prix: 10, quantité: 1 });
+    this.displayInventory();
+  }
 }

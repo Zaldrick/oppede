@@ -326,3 +326,23 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch player position' });
     }
 });
+
+app.get('/api/inventory/:playerId', async (req, res) => {
+  try {
+    const { playerId } = req.params; // Récupère l'ID du joueur depuis les paramètres
+    const db = await connectToDatabase();
+    const inventoryCollection = db.collection('inventory');
+
+    // Recherche l'inventaire du joueur par son ID
+    const inventory = await inventoryCollection.find({ player_id: new mongoose.Types.ObjectId(playerId) }).toArray();
+
+    if (!inventory || inventory.length === 0) {
+      return res.status(404).json({ error: 'Inventory not found' });
+    }
+
+    res.json(inventory); // Retourne l'inventaire
+  } catch (error) {
+    console.error('Error fetching inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
+});
