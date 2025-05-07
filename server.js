@@ -1,4 +1,9 @@
-require('dotenv').config(); // Charger les variables d'environnement
+if (process.env.NODE_ENV === 'production') {
+  require('dotenv').config({ path: '.env.production' }); // Charger les variables d'environnement de production
+} else {
+  require('dotenv').config(); // Charger les variables d'environnement par défaut
+}
+
 console.log('Loaded FRONTEND_URL:', process.env.FRONTEND_URL); // Log pour vérifier la valeur
 const express = require('express');
 const cors = require('cors');
