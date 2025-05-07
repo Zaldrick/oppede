@@ -20,7 +20,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Configure CORS options
 const corsOptions = {
-  origin: [process.env.FRONTEND_URL, "https://warband.fr"],
+  origin: [
+    process.env.FRONTEND_URL, // e.g., https://warband.fr
+    "https://warband.fr",
+    "https://www.warband.fr", // Allow both with and without www
+  ],
   methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
