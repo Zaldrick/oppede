@@ -38,8 +38,6 @@ export class GameScene extends Phaser.Scene {
       return; // Exit preload if pseudo is undefined
     }
 
-    console.log("Preloading player pseudo:", playerPseudo);
-
     // Use a Promise to handle asynchronous operations
     this.preloadPromise = new Promise(async (resolve, reject) => {
       try {
@@ -50,7 +48,6 @@ export class GameScene extends Phaser.Scene {
         }
 
         const data = await response.json();
-        console.log(`Player data for ${playerPseudo} fetched from MongoDB:`, data);
 
         // Store player data in the registry
         this.registry.set("playerData", data);
@@ -155,9 +152,6 @@ export class GameScene extends Phaser.Scene {
     const { x, y } = this.playerPosition || { x: 0, y: 0 };
     this.player = this.physics.add.sprite(x, y, textureKey);
 
-    console.log("Creating player at position:", { x, y });
-    console.log("Creating player with appearance:", textureKey);
-
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
     this.remotePlayersGroup = this.physics.add.group();
@@ -193,7 +187,7 @@ export class GameScene extends Phaser.Scene {
     this.socket = io(process.env.REACT_APP_SOCKET_URL);
     this.otherPlayers = {};
     this.latestPlayersData = {};
-
+    console.log("pseudo : ", this.registry.get("playerPseudo")) 
     this.socket.on('connect', () => {
         if (this.socket && this.socket.id) {
             this.myId = this.socket.id;
@@ -201,7 +195,7 @@ export class GameScene extends Phaser.Scene {
                 x: this.player.x,
                 y: this.player.y,
                 character: 'default',
-                pseudo: 'Player' // Default pseudo
+                pseudo: this.registry.get("playerPseudo") || "Player" // Utilise le pseudo du joueur
             });
         }
     });
@@ -226,6 +220,10 @@ export class GameScene extends Phaser.Scene {
             this.otherPlayers[data.id].setTexture(data.character);
         }
     });
+
+    this.socket.on('chatMessage', (data) => {
+      console.log(`Message reçu de ${data.pseudo}: ${data.message}`);
+  });
 }
 
   createUI() {
@@ -611,9 +609,133 @@ closeMenu = () => {
 }
 
 openInventory = () => {
-    this.displayMessage("Ouverture de l'inventaire...");
-    // Add logic to open the inventory
+    // Ensure any open menu is closed before opening the inventory
     this.closeMenu();
+
+    // Destroy an existing inventory menu if it exists
+    if (this.inventoryMenu) {
+        this.inventoryMenu.destroy();
+    }
+
+    const playerX = this.player.x; // Player's current X position
+    const playerY = this.player.y; // Player's current Y position
+    const gameWidth = this.scale.width;
+    const gameHeight = this.scale.height;
+
+    // Create the inventory menu container relative to the player's position, slightly lower
+    this.inventoryMenu = this.add.container(playerX, playerY - gameHeight * 0.15);
+
+    // Background
+    const background = this.add.rectangle(0, 0, gameWidth * 0.8, gameHeight * 0.6, 0x000000, 0.8).setOrigin(0.5);
+    this.inventoryMenu.add(background);
+
+    // Title
+    const title = this.add.text(0, -gameHeight * 0.28, "Inventaire", {
+        font: `${gameWidth * 0.05}px Arial`,
+        fill: "#ffffff",
+    }).setOrigin(0.5);
+    this.inventoryMenu.add(title);
+
+    // Grid settings
+    const gridCols = 5; // Number of columns
+    const gridRows = 5; // Number of rows
+    const cellSize = gameWidth * 0.12; // Size of each cell
+    const startX = -((gridCols - 1) * cellSize) / 2; // Starting X position
+    const startY = -((gridRows - 1) * cellSize) / 2 + gameHeight * 0.05; // Starting Y position
+
+    // Create a container for item details
+    const detailsContainer = this.add.container(0, -gameHeight * 0.1);
+    this.inventoryMenu.add(detailsContainer);
+
+    // Populate the grid with inventory items
+    for (let row = 0; row < gridRows; row++) {
+        for (let col = 0; col < gridCols; col++) {
+            const x = startX + col * cellSize;
+            const y = startY + row * cellSize;
+
+            // Add a background for each cell
+            const cellBackground = this.add.rectangle(x, y, cellSize * 0.9, cellSize * 0.9, 0x333333, 0.8)
+                .setOrigin(0.5);
+            this.inventoryMenu.add(cellBackground);
+
+            // Calculate the index of the item in the inventory
+            const index = row * gridCols + col;
+            const item = this.inventory[index];
+
+            if (item) {
+                // Use the correct property names from the database
+                const iconPath = `/assets/items/${item.image}`;
+                if (!this.textures.exists(iconPath)) {
+                  this.load.image(iconPath, iconPath);
+                  this.load.once('complete', () => {
+                      const icon = this.add.image(x, y, iconPath).setOrigin(0.5).setDisplaySize(cellSize * 0.8, cellSize * 0.8);
+                      this.inventoryMenu.add(icon);
+
+
+                                  // Add click event to display item details
+                icon.setInteractive().on("pointerdown", () => {
+                  detailsContainer.removeAll(true); // Clear previous details
+
+                  // Display item image
+                  const detailImage = this.add.image(-gameWidth * 0.25, -gameHeight * 0.06, iconPath)
+                      .setOrigin(0.5)
+                      .setDisplaySize(gameWidth * 0.22, gameWidth * 0.22);
+                  detailsContainer.add(detailImage);
+
+                  // Display item details (name, quantity, price, exchangeability)
+                  const detailText = this.add.text(
+                      -gameWidth * 0.1,
+                      -gameHeight * 0.1,
+                      `Nom: ${item.nom}\nQuantité: ${item.quantité}\nPrix: ${item.prix}`,
+                      {
+                          font: `${gameWidth * 0.04}px Arial`,
+                          fill: "#ffffff",
+                          align: "left",
+                      }
+                  ).setOrigin(0, 0);
+                  detailsContainer.add(detailText);
+
+                  // Display exchangeability
+                  const exchangeText = this.add.text(
+                      -gameWidth * 0.1,
+                      -gameHeight * 0.03,
+                      `Echanger avec ...`,
+                      {
+                          font: `${gameWidth * 0.05}px Arial`,
+                          fill: item.is_echangeable ? "#ffffff" : "#888888", // Gray if not exchangeable
+                      }
+                  ).setOrigin(0, 0);
+                  detailsContainer.add(exchangeText);
+              });
+            });
+            this.load.start();
+              } else {
+                  const icon = this.add.image(x, y, iconPath).setOrigin(0.5).setDisplaySize(cellSize * 0.8, cellSize * 0.8);
+                  this.inventoryMenu.add(icon);
+              }
+                // Quantity text
+                const quantityText = this.add.text(x - cellSize * 0.3, y + cellSize * 0.3, item.quantité || 1, {
+                  font: `${gameWidth * 0.03}px Arial`,
+                  fill: "#ffffff",
+              }).setOrigin(0.5);
+              this.inventoryMenu.add(quantityText);
+            }
+        }
+    }
+
+    // Close button
+    const closeButton = this.add.text(0, gameHeight * 0.25, "Fermer", {
+        font: `${gameWidth * 0.04}px Arial`,
+        fill: "#ffffff",
+        backgroundColor: "#333333",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
+
+    closeButton.on("pointerdown", () => {
+        this.inventoryMenu.destroy();
+        this.inventoryMenu = null;
+    });
+    this.inventoryMenu.add(closeButton);
 }
 
 openProfile = () => {
@@ -735,19 +857,11 @@ openMessages = () => {
   this.closeMenu();
 }
 
-sendMessage = (message) => {
-    if (this.socket) {
-        // Emit the message to the server
-        this.socket.emit("chatMessage", { sender: this.myId, message });
-
-        // Display your own message locally
-        this.displayMessage(`Vous: ${message}`);
-    }
-}
 
   getNearestRemotePlayer() {
     let nearestId = null;
     let minDistance = Number.MAX_VALUE;
+    console.log("Recherche de joueurs"); // Debug log
     Object.keys(this.otherPlayers).forEach((id) => {
       let remote = this.otherPlayers[id];
       let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
@@ -796,7 +910,6 @@ sendMessage = (message) => {
           console.log('Players retrieved from /api/players:', players);
 
           players.forEach(player => {
-              console.log(`Player pseudo: ${player.pseudo}`); // Log each player's pseudo
               const option = document.createElement('option');
               option.value = player.pseudo;
               option.textContent = player.pseudo;
@@ -823,8 +936,6 @@ sendMessage = (message) => {
     const posX = this.player.x;
     const posY = this.player.y;
 
-    // Log the request body for debugging
-    console.log("Sending position update:", { pseudo: playerPseudo, posX, posY });
 
     try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/update-position`, {
@@ -838,7 +949,6 @@ sendMessage = (message) => {
             throw new Error(`Failed to update player position. HTTP status: ${response.status}, Response: ${errorText}`);
         }
 
-        console.log(`Player position updated in the database: { pseudo: ${playerPseudo}, posX: ${posX}, posY: ${posY} }`);
     } catch (error) {
         console.error("Error updating player position:", error);
     }
@@ -874,15 +984,7 @@ sendMessage = (message) => {
     }
   }
 
-  displayInventory() {
-    console.log("Inventaire actuel :", this.inventory);
-    // Ajoute ici une logique pour afficher l'inventaire dans l'UI
-  }
 
-  // Exemple d'utilisation
-  handleStartButton() {
-    // ...existing code...
-    this.addItemToInventory({ nom: "Potion", image: "potion.png", is_echangeable: true, prix: 10, quantité: 1 });
-    this.displayInventory();
-  }
+
+  
 }

@@ -23,7 +23,7 @@ const useChat = () => {
 
     // Listen for incoming chat messages
     socketRef.current.on("chatMessage", (data) => {
-      setMessages((prevMessages) => [...prevMessages, { sender: data.id, message: data.message }]);
+      setMessages((prevMessages) => [...prevMessages, { sender: data.pseudo, message: data.message }]);
     });
 
     return () => {
@@ -35,8 +35,9 @@ const useChat = () => {
   }, []);
 
   const sendMessage = (message) => {
-    const messageData = { message };
-
+    const playerPseudo = localStorage.getItem("playerPseudo"); // Récupère le pseudo du joueur
+    const messageData = { pseudo: playerPseudo, message };
+    console.log("pseudoChat:", playerPseudo);
     socketRef.current.emit("chatMessage", messageData, (ack) => {
       if (ack && ack.status === "ok") {
         console.log("Server acknowledged chatMessage:", ack);

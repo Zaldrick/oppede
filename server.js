@@ -11,6 +11,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const { MongoClient, ObjectId } = require('mongodb'); // Add ObjectId here
 const app = express();
 const http = require('http');
 const https = require('https');
@@ -329,18 +330,45 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
 
 app.get('/api/inventory/:playerId', async (req, res) => {
   try {
-    const { playerId } = req.params; // Récupère l'ID du joueur depuis les paramètres
+    const { playerId } = req.params; // Extract playerId from the request parameters
     const db = await connectToDatabase();
     const inventoryCollection = db.collection('inventory');
 
-    // Recherche l'inventaire du joueur par son ID
-    const inventory = await inventoryCollection.find({ player_id: new mongoose.Types.ObjectId(playerId) }).toArray();
+    // Use aggregation to join inventory with items
+    const inventory = await inventoryCollection.aggregate([
+      {
+        $match: { player_id: new ObjectId(playerId) }, // Match inventory by player_id
+      },
+      {
+        $lookup: {
+          from: 'items', // Join with the items collection
+          localField: 'item_id', // Field in inventory
+          foreignField: '_id', // Field in items
+          as: 'itemDetails', // Output array field
+        },
+      },
+      {
+        $unwind: '$itemDetails', // Flatten the itemDetails array
+      },
+      {
+        $project: {
+          _id: 1,
+          player_id: 1,
+          item_id: 1,
+          quantité: 1,
+          nom: '$itemDetails.nom', // Include item details
+          image: '$itemDetails.image',
+          is_echangeable: '$itemDetails.is_echangeable',
+          prix: '$itemDetails.prix',
+        },
+      },
+    ]).toArray();
 
     if (!inventory || inventory.length === 0) {
       return res.status(404).json({ error: 'Inventory not found' });
     }
 
-    res.json(inventory); // Retourne l'inventaire
+    res.json(inventory); // Return the enriched inventory
   } catch (error) {
     console.error('Error fetching inventory:', error);
     res.status(500).json({ error: 'Failed to fetch inventory' });
