@@ -131,8 +131,8 @@ export class GameScene extends Phaser.Scene {
   createPlayer() {
     const playerData = PlayerService.getPlayerData();
     if (!playerData) {
-      console.error("Player data is not defined!");
-      return;
+        console.error("Player data is not defined!");
+        return;
     }
 
     const textureKey = "playerAppearance"; // Use the dynamically loaded appearance
@@ -143,11 +143,16 @@ export class GameScene extends Phaser.Scene {
 
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
-    this.remotePlayersGroup = this.physics.add.group();
-    this.physics.add.collider(this.player, this.remotePlayersGroup, this.handleCollision, null, this);
+    this.player.setImmovable(true); // Empêche le joueur local d'être poussé
+    this.remotePlayersGroup = this.physics.add.group({
+        immovable: true, // Empêche les joueurs distants d'être poussés
+    });
+
+    // Ajoutez une gestion des collisions
+    this.physics.add.collider(this.player, this.remotePlayersGroup);
 
     this.createAnimations(textureKey); // Pass the texture key to create animations
-  }
+}
 
   createAnimations(textureKey) {
     CONFIG.animations.forEach(anim => {
@@ -326,47 +331,23 @@ export class GameScene extends Phaser.Scene {
         Object.keys(this.latestPlayersData).forEach((id) => {
             if (id === this.myId) return;
             const data = this.latestPlayersData[id];
+            const textureKey = `appearance-${data.pseudo}`;
+
             if (!this.otherPlayers[id]) {
-                let newSprite = this.physics.add.sprite(data.x, data.y, "player");
-                newSprite.setCollideWorldBounds(true);
-                newSprite.setImmovable(true);
-                newSprite.currentAnim = data.anim || "";
-                newSprite.setInteractive();
-                this.remotePlayersGroup.add(newSprite);
-                newSprite.on('pointerdown', () => {
-                    this.showInteractionMenu(id, newSprite);
-                });
-                this.otherPlayers[id] = newSprite;
-                if (data.anim) {
-                    newSprite.anims.play(data.anim, true);
+                if (!this.textures.exists(textureKey)) {
+                    this.load.spritesheet(textureKey, `/assets/apparences/${data.pseudo}.png`, {
+                        frameWidth: 48, // Assurez-vous que cela correspond à la taille des frames
+                        frameHeight: 48,
+                    });
+                    this.load.once('complete', () => {
+                        this.createRemotePlayer(id, data, textureKey);
+                    });
+                    this.load.start();
+                } else {
+                    this.createRemotePlayer(id, data, textureKey);
                 }
             } else {
-                const lerpFactor = 0.2;
-                let targetX = data.x;
-                let targetY = data.y;
-                let newX = Phaser.Math.Linear(this.otherPlayers[id].x, targetX, lerpFactor);
-                let newY = Phaser.Math.Linear(this.otherPlayers[id].y, targetY, lerpFactor);
-                if (Math.abs(newX - targetX) < 1) {
-                    this.otherPlayers[id].x = targetX;
-                } else {
-                    this.otherPlayers[id].x = newX;
-                }
-                if (Math.abs(newY - targetY) < 1) {
-                    this.otherPlayers[id].y = targetY;
-                } else {
-                    this.otherPlayers[id].y = newY;
-                }
-                if (data.anim) {
-                    if (this.otherPlayers[id].currentAnim !== data.anim) {
-                        this.otherPlayers[id].anims.play(data.anim, true);
-                        this.otherPlayers[id].currentAnim = data.anim;
-                    }
-                } else {
-                    if (this.otherPlayers[id].anims.isPlaying) {
-                        this.otherPlayers[id].anims.stop();
-                    }
-                    this.otherPlayers[id].currentAnim = "";
-                }
+                this.updateRemotePlayerPosition(id, data, textureKey);
             }
         });
 
@@ -379,7 +360,69 @@ export class GameScene extends Phaser.Scene {
     }
 }
 
+createRemotePlayer(id, data, textureKey) {
+    // Supprimez tout sprite existant pour éviter les résidus
+    if (this.otherPlayers[id]) {
+        this.otherPlayers[id].destroy();
+        delete this.otherPlayers[id];
+    }
+
+    const newSprite = this.physics.add.sprite(data.x, data.y, textureKey);
+    newSprite.setCollideWorldBounds(true);
+    newSprite.setImmovable(true); // Empêche le joueur distant d'être poussé
+    newSprite.currentAnim = data.anim || "";
+    newSprite.setInteractive();
+    this.remotePlayersGroup.add(newSprite);
+    this.otherPlayers[id] = newSprite;
+
+    // Configure animations pour ce joueur
+    CONFIG.animations.forEach((anim) => {
+        if (!this.anims.exists(`${textureKey}-${anim.key}`)) {
+            this.anims.create({
+                key: `${textureKey}-${anim.key}`,
+                frames: this.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end }),
+                frameRate: 8,
+                repeat: -1,
+            });
+        }
+    });
+
+    if (data.anim) {
+        newSprite.anims.play(`${textureKey}-${data.anim}`, true);
+    }
+}
+
+updateRemotePlayerPosition(id, data, textureKey) {
+    const lerpFactor = 0.2;
+    const targetX = data.x;
+    const targetY = data.y;
+    const newX = Phaser.Math.Linear(this.otherPlayers[id].x, targetX, lerpFactor);
+    const newY = Phaser.Math.Linear(this.otherPlayers[id].y, targetY, lerpFactor);
+    this.otherPlayers[id].x = Math.abs(newX - targetX) < 1 ? targetX : newX;
+    this.otherPlayers[id].y = Math.abs(newY - targetY) < 1 ? targetY : newY;
+
+    if (data.anim && this.otherPlayers[id].currentAnim !== data.anim) {
+        this.otherPlayers[id].anims.play(`${textureKey}-${data.anim}`, true);
+        this.otherPlayers[id].currentAnim = data.anim;
+    } else if (!data.anim && this.otherPlayers[id].currentAnim) {
+        // Stop animation if no animation is provided
+        this.otherPlayers[id].anims.stop();
+        this.otherPlayers[id].currentAnim = null;
+    }
+}
+
   handleCollision(localPlayer, remotePlayer) {
+    // Empêchez les vibrations en désactivant les forces de résolution automatiques
+    const overlapX = localPlayer.x - remotePlayer.x;
+    const overlapY = localPlayer.y - remotePlayer.y;
+
+    // Ajustez la position du joueur local pour éviter les vibrations
+    if (Math.abs(overlapX) > Math.abs(overlapY)) {
+        localPlayer.x += overlapX > 0 ? 1 : -1;
+    } else {
+        localPlayer.y += overlapY > 0 ? 1 : -1;
+    }
+
     console.log("Collision détectée entre le joueur local et un joueur distant.");
   }
 

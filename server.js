@@ -211,8 +211,8 @@ io.on('connection', (socket) => {
     players[socket.id] = {
         x: data.x,
         y: data.y,
-        character: data.character,
-        pseudo: data.pseudo || "Inconnu" // Enregistrer le pseudo du joueur
+        character: data.character || `/assets/apparences/${data.pseudo}.png`, // Inclure l'apparence
+        pseudo: data.pseudo || "Inconnu"
     };
     console.log(`Joueur connecté : ${socket.id} avec pseudo : ${players[socket.id].pseudo}`);
   });
@@ -223,6 +223,7 @@ io.on('connection', (socket) => {
       players[socket.id].x = data.x;
       players[socket.id].y = data.y;
       players[socket.id].anim = data.anim;
+      players[socket.id].character = data.character; // Mettre à jour l'apparence si nécessaire
     }
   });
 
@@ -327,7 +328,7 @@ io.on('connection', (socket) => {
 
 // Diffuser l'état complet des joueurs 20 fois par seconde (toutes les 50ms)
 setInterval(() => {
-  io.emit('playersUpdate', players);
+  io.emit('playersUpdate', players); // Inclure les données d'apparence dans les mises à jour
 }, 50);
 
 server.listen(PORT, () => {
