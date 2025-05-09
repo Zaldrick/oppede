@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import io from 'socket.io-client';
+import PlayerService from './services/PlayerService';
 
 const CONFIG = {
   maxSpeed: 200,
@@ -42,30 +43,18 @@ export class GameScene extends Phaser.Scene {
     this.preloadPromise = new Promise(async (resolve, reject) => {
       try {
         // Fetch player data from MongoDB
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${playerPseudo}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        // Store player data in the registry
-        this.registry.set("playerData", data);
+        const playerData = await PlayerService.fetchPlayerData(playerPseudo);
+        this.registry.set("playerData", playerData);
 
         // Set the player's initial position
-        this.playerPosition = { x: data.posX || 0, y: data.posY || 0 };
+        this.playerPosition = { x: playerData.posX || 0, y: playerData.posY || 0 };
 
         // Fetch inventory data for the player
-        const inventoryResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/inventory/${data._id}`);
-        if (!inventoryResponse.ok) {
-          throw new Error(`HTTP error! status: ${inventoryResponse.status}`);
-        }
-
-        const inventoryData = await inventoryResponse.json();
-        console.log(`Inventory data for player ${playerPseudo}:`, inventoryData);
+        const inventory = await PlayerService.fetchInventory(playerData._id);
+        console.log(`Inventory data for player ${playerPseudo}:`, inventory);
 
         // Store inventory data in the scene
-        this.inventory = inventoryData;
+        this.inventory = inventory;
 
         // Dynamically load the player's appearance from the public/apparences/ directory
         const appearancePath = `/assets/apparences/${playerPseudo}.png`;
@@ -140,10 +129,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   createPlayer() {
-    const playerData = this.registry.get("playerData");
+    const playerData = PlayerService.getPlayerData();
     if (!playerData) {
-        console.error("Player data is not defined in the registry!");
-        return;
+      console.error("Player data is not defined!");
+      return;
     }
 
     const textureKey = "playerAppearance"; // Use the dynamically loaded appearance
@@ -520,6 +509,7 @@ showInteractionMenu = (targetId) => {
         this.displayMessage(`Vous avez fait signe \nau joueur ${targetId}`);
         if (this.socket) {
             this.socket.emit("interaction", { from: this.myId, to: targetId, action: "faireSigne" });
+            console.log(`Interaction émise : from=${this.myId}, to=${targetId}, action=faireSigne`);
         }
         this.interactionMenu.destroy();
         this.interactionMenu = null; // Ensure proper cleanup
@@ -962,26 +952,13 @@ openMessages = () => {
   }
 
   addItemToInventory(item) {
-    const existingItem = this.inventory.find(i => i.nom === item.nom);
-    if (existingItem) {
-      existingItem.quantité += item.quantité; // Augmente la quantité si l'objet existe déjà
-    } else {
-      this.inventory.push(item); // Ajoute un nouvel objet
-    }
-    console.log("Inventaire mis à jour :", this.inventory);
+    PlayerService.addItemToInventory(item);
+    console.log("Updated inventory:", PlayerService.getInventory());
   }
 
   removeItemFromInventory(itemName, quantity) {
-    const itemIndex = this.inventory.findIndex(i => i.nom === itemName);
-    if (itemIndex !== -1) {
-      this.inventory[itemIndex].quantité -= quantity;
-      if (this.inventory[itemIndex].quantité <= 0) {
-        this.inventory.splice(itemIndex, 1); // Supprime l'objet si la quantité est 0
-      }
-      console.log("Inventaire mis à jour :", this.inventory);
-    } else {
-      console.warn(`Objet ${itemName} non trouvé dans l'inventaire.`);
-    }
+    PlayerService.removeItemFromInventory(itemName, quantity);
+    console.log("Updated inventory:", PlayerService.getInventory());
   }
 
 

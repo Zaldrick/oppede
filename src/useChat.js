@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
+import PlayerService from "./services/PlayerService";
 
 const useChat = () => {
   const [messages, setMessages] = useState([]);
@@ -23,7 +24,10 @@ const useChat = () => {
 
     // Listen for incoming chat messages
     socketRef.current.on("chatMessage", (data) => {
-      setMessages((prevMessages) => [...prevMessages, { sender: data.pseudo, message: data.message }]);
+      console.log("Received chat message:", data);
+      const sender = data.pseudo || "Anonymous"; // Fallback to "Anonymous" if pseudo is not defined
+      console.log("message recu de :", sender, "message :", data.message);
+      setMessages((prevMessages) => [...prevMessages, { sender, message: data.message }]);
     });
 
     return () => {
@@ -35,9 +39,14 @@ const useChat = () => {
   }, []);
 
   const sendMessage = (message) => {
-    const playerPseudo = localStorage.getItem("playerPseudo"); // Récupère le pseudo du joueur
+    const playerPseudo = PlayerService.getPlayerData()?.pseudo; // Retrieve pseudo from PlayerService
+    if (!playerPseudo) {
+      console.warn("Player pseudo is not available.");
+      return;
+    }
+
     const messageData = { pseudo: playerPseudo, message };
-    console.log("pseudoChat:", playerPseudo);
+    console.log("pseudoChat envoyé:", playerPseudo);
     socketRef.current.emit("chatMessage", messageData, (ack) => {
       if (ack && ack.status === "ok") {
         console.log("Server acknowledged chatMessage:", ack);

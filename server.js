@@ -112,9 +112,6 @@ app.get('/api/players', async (req, res) => {
     const players = db.collection('players');
     const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
 
-    // Log the raw query result
-    console.log('Raw query result from MongoDB:', playerList);
-
     // Log the pseudo values to the console
     playerList.forEach(player => console.log(`Pseudo: ${player.pseudo}`));
 
@@ -192,8 +189,6 @@ app.post('/api/players/update-position', async (req, res) => {
             console.warn(`Player not found: ${pseudo}`);
             return res.status(404).json({ error: 'Player not found' });
         }
-
-        console.log(`Player position updated: { pseudo: ${pseudo}, posX: ${posX}, posY: ${posY} }`);
         res.json({ success: true, message: 'Player position updated successfully.' });
     } catch (error) {
         console.error('Error updating player position:', error);
@@ -214,11 +209,12 @@ io.on('connection', (socket) => {
   // Réception d'un nouveau joueur
   socket.on('newPlayer', (data) => {
     players[socket.id] = {
-      x: data.x,
-      y: data.y,
-      character: data.character
+        x: data.x,
+        y: data.y,
+        character: data.character,
+        pseudo: data.pseudo || "Inconnu" // Enregistrer le pseudo du joueur
     };
-    console.log(`Joueur connecté : ${socket.id} (Total: ${Object.keys(players).length})`);
+    console.log(`Joueur connecté : ${socket.id} avec pseudo : ${players[socket.id].pseudo}`);
   });
 
   // Mise à jour des mouvements du joueur (limitation de fréquence)
@@ -232,6 +228,7 @@ io.on('connection', (socket) => {
 
   // Gestion des interactions entre joueurs
   socket.on('interaction', (data) => {
+    console.log(`Interaction reçue :`, data); // Log pour vérifier les données reçues
     console.log(`Interaction de ${data.from} vers ${data.to} : ${data.action}`);
     // Notify the emitter
     socket.emit('interactionFeedback', {
@@ -248,28 +245,58 @@ io.on('connection', (socket) => {
             action: data.action,
             type: 'receiver',
         });
+
+        // Handle "faireSigne" action
+        if (data.action === "faireSigne") {
+            const senderPseudo = players[data.from]?.pseudo || "Inconnu"; // Récupérer le pseudo de l'émetteur
+            io.to(data.to).emit('chatMessage', {
+                pseudo: "System",
+                message: `Le joueur ${senderPseudo} vous a fait signe !`
+            });
+        }
     } else {
         console.warn(`Le joueur cible ${data.to} n'est pas connecté.`);
     }
+/*
+            // Handle player challenges
+            socket.on("challengePlayer", ({ from, to }, callback) => {
+              if (!players[to]) {
+                  callback({ status: "error", message: "Player not found" });
+                  return;
+              }
+  
+              // Notify the challenged player
+              io.to(to).emit("challengeReceived", { from });
+  
+              // Set a timeout for the response
+              const timeout = setTimeout(() => {
+                  io.to(from).emit("challengeResponse", { to, accepted: false, reason: "timeout" });
+              }, 10000); // 10 seconds
+  
+              // Listen for the response
+              socket.on("challengeResponse", ({ accepted }) => {
+                  clearTimeout(timeout); // Clear the timeout
+                  io.to(from).emit("challengeResponse", { to, accepted });
+              });
+          });
+*/
   });
 
   // Gestion de l'événement 'chatMessage'
   socket.on('chatMessage', (data, callback) => {
     console.log(`Tentative de réception de 'chatMessage' de ${socket.id}`);
 
-    if (!data || !data.message || typeof data.message !== 'string') {
-      console.warn(`Message invalide reçu de ${socket.id}:`, data);
-      if (callback) callback({ status: 'error', message: 'Message invalide' });
-      return;
+    if (!data || !data.message || typeof data.message !== 'string' || !data.pseudo) {
+        console.warn(`Message invalide reçu de ${socket.id}:`, data);
+        if (callback) callback({ status: 'error', message: 'Message invalide' });
+        return;
     }
-
-    const message = { id: socket.id, message: data.message };
+    // Use pseudo from the received data
+    const message = { pseudo: data.pseudo, message: data.message };
     chatMessages.push(message); // Ajouter le message à l'historique
     io.emit('chatMessage', message); // Diffuser le message à tous les clients
-    console.log(`Message reçu et diffusé : ${data.message}`);
-
     if (callback) {
-      callback({ status: 'ok', message: 'Message reçu par le serveur' });
+        callback({ status: 'ok', message: 'Message reçu par le serveur' });
     }
   });
 
@@ -320,7 +347,6 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
             return res.status(404).json({ error: 'Player not found' });
         }
 
-        console.log(`Position for player ${pseudo} fetched from MongoDB:`, player); // Log the fetched position
         res.json({ x: player.posX, y: player.posY }); // Return the position
     } catch (error) {
         console.error('Error fetching player position:', error);
