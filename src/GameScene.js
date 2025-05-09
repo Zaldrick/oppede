@@ -271,7 +271,7 @@ createAnimations(textureKey) {
     // Joystick (bottom-left corner)
     const joystickRadius = gameWidth * 0.12 / this.zoomFactor; // Adjust for zoom
     this.joystick = this.plugins.get("rexVirtualJoystick").add(this, {
-        x: gameWidth * 0.13,
+        x: gameWidth * 0.2,
         y: gameHeight * 0.82,
         radius: joystickRadius,
         base: this.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor),
@@ -306,13 +306,13 @@ createAnimations(textureKey) {
     this.buttonBText.setScrollFactor(0);
 
     // Bouton Start (center-bottom, slightly above the bottom edge)
-    const startButtonWidth = gameWidth * 0.23 / this.zoomFactor;
-    const startButtonHeight = gameHeight * 0.05 / this.zoomFactor;
-    this.startButton = this.add.rectangle(gameWidth * 0.5, gameHeight * 0.90, startButtonWidth, startButtonHeight, 0x808080)
+    const startButtonWidth = gameWidth * 0.20 / this.zoomFactor;
+    const startButtonHeight = gameHeight * 0.04 / this.zoomFactor;
+    this.startButton = this.add.rectangle(gameWidth * 0.5, gameHeight * 0.93, startButtonWidth, startButtonHeight, 0x808080)
         .setInteractive()
         .on('pointerdown', () => this.handleStartButton());
-    this.startButtonText = this.add.text(gameWidth * 0.5, gameHeight * 0.90, "Start", {
-        font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
+    this.startButtonText = this.add.text(gameWidth * 0.5, gameHeight * 0.93, "Start", {
+        font: `${gameWidth * 0.05 / this.zoomFactor}px Arial`,
         fill: "#ffffff",
         align: "center"
     }).setOrigin(0.5);
@@ -498,8 +498,8 @@ updateRemotePlayerPosition(id, data, textureKey) {
   }
 
   handleResize(gameSize) {
-    const newJoystickX = gameSize.width * 0.15;
-    const newJoystickY = gameSize.height * 0.85;
+    const newJoystickX = gameSize.width * 0.2;
+    const newJoystickY = gameSize.height * 0.82;
     this.joystick.setPosition(newJoystickX, newJoystickY);
    }
 

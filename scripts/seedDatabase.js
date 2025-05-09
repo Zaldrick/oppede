@@ -71,6 +71,11 @@ async function seedDatabase() {
         item_id: insertedItems.insertedIds[3], // Lien avec "Arc"
         quantité: 1,
       },
+      {
+        player_id: insertedPlayers.insertedIds[2], // Lien avec le 3 joueur
+        item_id: insertedItems.insertedIds[0], // Lien avec potion
+        quantité: 2,
+      },
     ];
 
     // Insérer les données dans la collection inventory
