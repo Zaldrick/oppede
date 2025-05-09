@@ -218,13 +218,19 @@ io.on('connection', (socket) => {
   });
 
   // Mise à jour des mouvements du joueur (limitation de fréquence)
+  let lastMoveTime = 0;
   socket.on('playerMove', (data) => {
-    if (players[socket.id]) {
-      players[socket.id].x = data.x;
-      players[socket.id].y = data.y;
-      players[socket.id].anim = data.anim;
-      players[socket.id].character = data.character; // Mettre à jour l'apparence si nécessaire
-    }
+      const now = Date.now();
+      if (now - lastMoveTime < 50) { // Limite à 20 mises à jour par seconde
+          return;
+      }
+      lastMoveTime = now;
+  
+      if (players[socket.id]) {
+          players[socket.id].x = data.x;
+          players[socket.id].y = data.y;
+          players[socket.id].anim = data.anim;
+      }
   });
 
   // Gestion des interactions entre joueurs
@@ -327,8 +333,18 @@ io.on('connection', (socket) => {
 });
 
 // Diffuser l'état complet des joueurs 20 fois par seconde (toutes les 50ms)
+let previousState = {};
 setInterval(() => {
-  io.emit('playersUpdate', players); // Inclure les données d'apparence dans les mises à jour
+    const changedPlayers = {};
+    for (const id in players) {
+        if (JSON.stringify(players[id]) !== JSON.stringify(previousState[id])) {
+            changedPlayers[id] = players[id];
+        }
+    }
+    previousState = { ...players };
+    if (Object.keys(changedPlayers).length > 0) {
+        io.emit('playersUpdate', changedPlayers);
+    }
 }, 50);
 
 server.listen(PORT, () => {

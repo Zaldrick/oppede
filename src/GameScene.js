@@ -31,13 +31,18 @@ export class GameScene extends Phaser.Scene {
     // Initialize cursors early to avoid "Cursors are not initialized!" error
     this.cursors = this.input.keyboard.createCursorKeys();
 
-    // Fetch player pseudo from the registry
+    // Charger dynamiquement l'apparence du joueur
     const playerPseudo = this.registry.get("playerPseudo");
-
-    if (!playerPseudo) {
-      console.error("Player pseudo is not defined in the registry!");
-      return; // Exit preload if pseudo is undefined
+    if (playerPseudo) {
+        const appearancePath = `/assets/apparences/${playerPseudo}.png`;
+        this.load.spritesheet("playerAppearance", appearancePath, {
+            frameWidth: 48,
+            frameHeight: 48,
+        });
+    } else {
+        console.error("Player pseudo is not defined in the registry!");
     }
+
 
     // Use a Promise to handle asynchronous operations
     this.preloadPromise = new Promise(async (resolve, reject) => {
@@ -92,7 +97,6 @@ export class GameScene extends Phaser.Scene {
     this.setupWorld();
     this.loadPlayers();
     this.createPlayer();
-    this.createAnimations();
     this.setupCamera();
     this.setupControls();
     this.setupSocket();
@@ -118,14 +122,38 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 48,
       frameHeight: 48,
     }); // Preload default player spritesheet
+    this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
+    this.load.image("Inside_B", "/assets/maps/Inside_B.png");
   }
 
   setupWorld() {
     const worldWidth = 1536; // Match the new image size
-    const worldHeight = 2160; // Match the new image size
+    const worldHeight = 2164; // Match the new image size
     this.add.image(worldWidth / 2, worldHeight / 2, "background");
+    
+  
+    // Charger la carte et le tileset
+    this.map = this.make.tilemap({ key: "map" }); // Stocker la carte dans this.map
+    const tileset = this.map.addTilesetImage("Inside_B", "Inside_B");
+
+    // Créer les couches
+    const collisionLayer = this.map.createLayer("Collision", tileset, 0, 0);
+
+    // Activer les collisions pour les tiles ayant la propriété "collision" à true
+    collisionLayer.setCollisionByProperty({ collision: true });
+
+    // Débogage (optionnel) : afficher les zones de collision
+    const debugGraphics = this.add.graphics();
+    /*collisionLayer.renderDebug(debugGraphics, {
+        tileColor: null, // Pas de couleur pour les tiles sans collision
+        collidingTileColor: new Phaser.Display.Color(243, 134, 48, 170), // Couleur pour les tiles avec collision
+        faceColor: new Phaser.Display.Color(40, 39, 37, 200) // Couleur des faces
+    });*/
+
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    // Stocker la couche de collision pour une utilisation ultérieure
+    this.collisionLayer = collisionLayer;
   }
 
   createPlayer() {
@@ -144,9 +172,16 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
     this.player.setImmovable(true); // Empêche le joueur local d'être poussé
-    this.remotePlayersGroup = this.physics.add.group({
-        immovable: true, // Empêche les joueurs distants d'être poussés
-    });
+
+    this.player.body.setSize(36, 36); // Ajustez les dimensions selon vos besoins
+    this.player.body.setOffset(6, 6); // Centrez la hitbox si nécessaire
+
+      // Ajouter une collision entre le joueur et la couche de collision
+      if (this.collisionLayer) {
+        this.physics.add.collider(this.player, this.collisionLayer);
+    } else {
+        console.error("Collision layer is not defined!");
+    }
 
     // Ajoutez une gestion des collisions
     this.physics.add.collider(this.player, this.remotePlayersGroup);
@@ -154,16 +189,25 @@ export class GameScene extends Phaser.Scene {
     this.createAnimations(textureKey); // Pass the texture key to create animations
 }
 
-  createAnimations(textureKey) {
-    CONFIG.animations.forEach(anim => {
-      this.anims.create({
-        key: anim.key,
+createAnimations(textureKey) {
+  CONFIG.animations.forEach(anim => {
+    const animationKey = anim.key;
+
+    // Vérifiez si l'animation existe déjà
+    if (this.anims.exists(animationKey)) {
+        console.warn(`AnimationManager key already exists: ${animationKey}`);
+        return; // Ne recréez pas l'animation si elle existe déjà
+    }
+
+    // Créez l'animation si elle n'existe pas
+    this.anims.create({
+        key: animationKey,
         frames: this.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end }),
         frameRate: 8,
         repeat: -1,
-      });
     });
-  }
+});
+}
 
   setupCamera() {
     this.zoomFactor = Math.min(this.scale.width / 768, this.scale.height / 1080) * 1.75; // Adjust zoom factor
@@ -277,6 +321,8 @@ export class GameScene extends Phaser.Scene {
 }
 
   handlePlayerMovement() {
+    const gridSize = 8; // Taille de la grille (demi-tuile)
+
     let newAnim = "";
     let keyboardActive = false;
 
@@ -321,6 +367,23 @@ export class GameScene extends Phaser.Scene {
       this.player.anims.play(newAnim, true);
       this.currentAnim = newAnim;
     }
+    // Aligner le joueur sur la grille après le déplacement
+    if (!keyboardActive && (!this.joystick || this.joystick.force === 0)) {
+      // Arrêter le joueur et aligner sur la grille uniquement lorsqu'il s'arrête
+      this.player.setVelocity(0);
+      this.player.x = Math.round(this.player.x / gridSize) * gridSize;
+      this.player.y = Math.round(this.player.y / gridSize) * gridSize;
+
+        if (this.player.anims.isPlaying) {
+            this.player.anims.stop();
+        }
+        this.currentAnim = "";
+    } else if (newAnim !== this.currentAnim) {
+        this.player.anims.play(newAnim, true);
+        this.currentAnim = newAnim;
+    }
+
+
     if (this.socket && this.myId) {
       this.socket.emit('playerMove', { x: this.player.x, y: this.player.y, anim: this.currentAnim });
     }
@@ -703,48 +766,16 @@ openInventory = () => {
                   this.load.once('complete', () => {
                       const icon = this.add.image(x, y, iconPath).setOrigin(0.5).setDisplaySize(cellSize * 0.8, cellSize * 0.8);
                       this.inventoryMenu.add(icon);
+                      // Add click event to display item details
+                      this.attachItemClickEvent(icon, item, detailsContainer, iconPath, gameWidth, gameHeight);
 
-
-                                  // Add click event to display item details
-                icon.setInteractive().on("pointerdown", () => {
-                  detailsContainer.removeAll(true); // Clear previous details
-
-                  // Display item image
-                  const detailImage = this.add.image(-gameWidth * 0.25, -gameHeight * 0.06, iconPath)
-                      .setOrigin(0.5)
-                      .setDisplaySize(gameWidth * 0.22, gameWidth * 0.22);
-                  detailsContainer.add(detailImage);
-
-                  // Display item details (name, quantity, price, exchangeability)
-                  const detailText = this.add.text(
-                      -gameWidth * 0.1,
-                      -gameHeight * 0.1,
-                      `Nom: ${item.nom}\nQuantité: ${item.quantité}\nPrix: ${item.prix}`,
-                      {
-                          font: `${gameWidth * 0.04}px Arial`,
-                          fill: "#ffffff",
-                          align: "left",
-                      }
-                  ).setOrigin(0, 0);
-                  detailsContainer.add(detailText);
-
-                  // Display exchangeability
-                  const exchangeText = this.add.text(
-                      -gameWidth * 0.1,
-                      -gameHeight * 0.03,
-                      `Echanger avec ...`,
-                      {
-                          font: `${gameWidth * 0.05}px Arial`,
-                          fill: item.is_echangeable ? "#ffffff" : "#888888", // Gray if not exchangeable
-                      }
-                  ).setOrigin(0, 0);
-                  detailsContainer.add(exchangeText);
-              });
             });
             this.load.start();
               } else {
                   const icon = this.add.image(x, y, iconPath).setOrigin(0.5).setDisplaySize(cellSize * 0.8, cellSize * 0.8);
                   this.inventoryMenu.add(icon);
+                   // Add click event to display item details
+                  this.attachItemClickEvent(icon, item, detailsContainer, iconPath, gameWidth, gameHeight);
               }
                 // Quantity text
                 const quantityText = this.add.text(x - cellSize * 0.3, y + cellSize * 0.3, item.quantité || 1, {
@@ -770,6 +801,8 @@ openInventory = () => {
     });
     this.inventoryMenu.add(closeButton);
 }
+
+
 
 openProfile = () => {
     // Ensure the main menu is closed when opening the profile menu
@@ -882,6 +915,70 @@ openProfile = () => {
         this.profileMenu = null;
     });
     this.profileMenu.add(returnButton);
+}
+
+
+
+// Helper function to attach click events to inventory items
+attachItemClickEvent(icon, item, detailsContainer, iconPath, gameWidth, gameHeight) {
+  icon.setInteractive().on("pointerdown", () => {
+      detailsContainer.removeAll(true); // Clear previous details
+
+      // Display item image
+      const detailImage = this.add.image(-gameWidth * 0.25, -gameHeight * 0.06, iconPath)
+          .setOrigin(0.5)
+          .setDisplaySize(gameWidth * 0.22, gameWidth * 0.22);
+      detailsContainer.add(detailImage);
+
+      // Display item details (name, quantity, price, exchangeability)
+      const detailText = this.add.text(
+          -gameWidth * 0.1,
+          -gameHeight * 0.1,
+          `Nom: ${item.nom}\nQuantité: ${item.quantité}\nPrix: ${item.prix}`,
+          {
+              font: `${gameWidth * 0.04}px Arial`,
+              fill: "#ffffff",
+              align: "left",
+          }
+      ).setOrigin(0, 0);
+      detailsContainer.add(detailText);
+
+        // Add an interactive button for "Echanger avec ..."
+        const exchangeButton = this.add.rectangle(
+          -gameWidth * 0.1, // Position X
+          -gameHeight * 0.03, // Position Y
+          gameWidth * 0.4, // Button width
+          gameHeight * 0.03, // Button height
+          0x666666, // Background color
+          0.8 // Opacity
+      ).setOrigin(0, 0).setInteractive();
+
+      // Add the text "Echanger avec ..." on the button
+      const exchangeText = this.add.text(
+          -gameWidth * 0.1,
+          -gameHeight * 0.03,
+          "Echanger avec ...",
+          {
+              font: `${gameWidth * 0.05}px Arial`,
+              fill: "#ffffff", // Text color
+              align: "center",
+          }
+      ).setOrigin(0, 0);
+
+      // Add an event to handle button clicks
+      exchangeButton.on("pointerdown", () => {
+          if (item.is_echangeable) {
+              this.displayMessage(`Vous avez choisi d'échanger l'objet : ${item.nom}`);
+              // Add logic here to handle the exchange
+          } else {
+              this.displayMessage("Cet objet ne peut pas être échangé.");
+          }
+      });
+
+      // Add the button and text to the details container
+      detailsContainer.add(exchangeButton);
+      detailsContainer.add(exchangeText);
+  });
 }
 
 openMessages = () => {    

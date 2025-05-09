@@ -4,7 +4,7 @@
  "layers":[
         {
          "id":2,
-         "image":"interieur.png",
+         "image":"./interieur.png",
          "imageheight":2164,
          "imagewidth":1536,
          "name":"fond",
@@ -78,7 +78,7 @@
         {
          "columns":16,
          "firstgid":1,
-         "image":"Inside_B.png",
+         "image":"./Inside_B.png",
          "imageheight":768,
          "imagewidth":768,
          "margin":0,
