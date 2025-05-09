@@ -705,104 +705,13 @@ closeMenu = () => {
 }
 
 openInventory = () => {
-    // Ensure any open menu is closed before opening the inventory
+    // Close the current menu before switching scenes
     this.closeMenu();
 
-    // Destroy an existing inventory menu if it exists
-    if (this.inventoryMenu) {
-        this.inventoryMenu.destroy();
-    }
-
-    const playerX = this.player.x; // Player's current X position
-    const playerY = this.player.y; // Player's current Y position
-    const gameWidth = this.scale.width;
-    const gameHeight = this.scale.height;
-
-    // Create the inventory menu container relative to the player's position, slightly lower
-    this.inventoryMenu = this.add.container(playerX, playerY - gameHeight * 0.15);
-
-    // Background
-    const background = this.add.rectangle(0, 0, gameWidth * 0.8, gameHeight * 0.6, 0x000000, 0.8).setOrigin(0.5);
-    this.inventoryMenu.add(background);
-
-    // Title
-    const title = this.add.text(0, -gameHeight * 0.28, "Inventaire", {
-        font: `${gameWidth * 0.05}px Arial`,
-        fill: "#ffffff",
-    }).setOrigin(0.5);
-    this.inventoryMenu.add(title);
-
-    // Grid settings
-    const gridCols = 5; // Number of columns
-    const gridRows = 5; // Number of rows
-    const cellSize = gameWidth * 0.12; // Size of each cell
-    const startX = -((gridCols - 1) * cellSize) / 2; // Starting X position
-    const startY = -((gridRows - 1) * cellSize) / 2 + gameHeight * 0.05; // Starting Y position
-
-    // Create a container for item details
-    const detailsContainer = this.add.container(0, -gameHeight * 0.1);
-    this.inventoryMenu.add(detailsContainer);
-
-    // Populate the grid with inventory items
-    for (let row = 0; row < gridRows; row++) {
-        for (let col = 0; col < gridCols; col++) {
-            const x = startX + col * cellSize;
-            const y = startY + row * cellSize;
-
-            // Add a background for each cell
-            const cellBackground = this.add.rectangle(x, y, cellSize * 0.9, cellSize * 0.9, 0x333333, 0.8)
-                .setOrigin(0.5);
-            this.inventoryMenu.add(cellBackground);
-
-            // Calculate the index of the item in the inventory
-            const index = row * gridCols + col;
-            const item = this.inventory[index];
-
-            if (item) {
-                // Use the correct property names from the database
-                const iconPath = `/assets/items/${item.image}`;
-                if (!this.textures.exists(iconPath)) {
-                  this.load.image(iconPath, iconPath);
-                  this.load.once('complete', () => {
-                      const icon = this.add.image(x, y, iconPath).setOrigin(0.5).setDisplaySize(cellSize * 0.8, cellSize * 0.8);
-                      this.inventoryMenu.add(icon);
-                      // Add click event to display item details
-                      this.attachItemClickEvent(icon, item, detailsContainer, iconPath, gameWidth, gameHeight);
-
-            });
-            this.load.start();
-              } else {
-                  const icon = this.add.image(x, y, iconPath).setOrigin(0.5).setDisplaySize(cellSize * 0.8, cellSize * 0.8);
-                  this.inventoryMenu.add(icon);
-                   // Add click event to display item details
-                  this.attachItemClickEvent(icon, item, detailsContainer, iconPath, gameWidth, gameHeight);
-              }
-                // Quantity text
-                const quantityText = this.add.text(x - cellSize * 0.3, y + cellSize * 0.3, item.quantité || 1, {
-                  font: `${gameWidth * 0.03}px Arial`,
-                  fill: "#ffffff",
-              }).setOrigin(0.5);
-              this.inventoryMenu.add(quantityText);
-            }
-        }
-    }
-
-    // Close button
-    const closeButton = this.add.text(0, gameHeight * 0.25, "Fermer", {
-        font: `${gameWidth * 0.04}px Arial`,
-        fill: "#ffffff",
-        backgroundColor: "#333333",
-        padding: { x: 10, y: 5 },
-    }).setOrigin(0.5).setInteractive();
-
-    closeButton.on("pointerdown", () => {
-        this.inventoryMenu.destroy();
-        this.inventoryMenu = null;
-    });
-    this.inventoryMenu.add(closeButton);
-}
-
-
+    // Launch the InventoryScene and pass the inventory data
+    this.scene.launch("InventoryScene", { inventory: this.inventory });
+    this.scene.pause(); // Pause GameScene
+};
 
 openProfile = () => {
     // Ensure the main menu is closed when opening the profile menu

@@ -1,4 +1,5 @@
 import { GameScene } from "./GameScene";
+import { InventoryScene } from "./InventoryScene"; // Import InventoryScene
 import Phaser from "phaser";
 import VirtualJoystickPlugin from "phaser3-rex-plugins/plugins/virtualjoystick-plugin.js";
 import React, { useEffect, useRef, useState } from "react";
@@ -34,7 +35,7 @@ const Game = () => {
                     debug: false,
                 },
             },
-            scene: [GameScene],
+            scene: [GameScene, InventoryScene], // Add InventoryScene here
             plugins: {
                 global: [
                     {
