@@ -208,6 +208,21 @@ io.on('connection', (socket) => {
 
   // Réception d'un nouveau joueur
   socket.on('newPlayer', (data) => {
+    const { pseudo } = data;
+
+    // Vérifier si le pseudo est déjà connecté
+    const existingPlayerSocketId = Object.keys(players).find(
+      (id) => players[id].pseudo === pseudo
+    );
+
+    if (existingPlayerSocketId) {
+      // Déconnecter l'ancienne connexion
+      io.to(existingPlayerSocketId).emit('disconnectMessage', {
+        message: 'Connexion détectée sur un autre appareil.',
+      });
+      io.sockets.sockets.get(existingPlayerSocketId)?.disconnect();
+    }
+
     players[socket.id] = {
         x: data.x,
         y: data.y,
@@ -217,6 +232,7 @@ io.on('connection', (socket) => {
     console.log(`Joueur connecté : ${socket.id} avec pseudo : ${players[socket.id].pseudo}`);
   });
 
+  
   // Mise à jour des mouvements du joueur (limitation de fréquence)
   let lastMoveTime = 0;
   socket.on('playerMove', (data) => {
@@ -393,6 +409,14 @@ app.get('/api/inventory/:playerId', async (req, res) => {
         $unwind: '$itemDetails', // Flatten the itemDetails array
       },
       {
+        $lookup: {
+          from: 'itemActions', // Join with the itemActions collection
+          localField: 'item_id', // Field in inventory
+          foreignField: 'item_id', // Field in itemActions
+          as: 'actions', // Output array field
+        },
+      },
+      {
         $project: {
           _id: 1,
           player_id: 1,
@@ -402,6 +426,7 @@ app.get('/api/inventory/:playerId', async (req, res) => {
           image: '$itemDetails.image',
           is_echangeable: '$itemDetails.is_echangeable',
           prix: '$itemDetails.prix',
+          actions: 1, // Include actions
         },
       },
     ]).toArray();

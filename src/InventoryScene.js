@@ -26,10 +26,10 @@ export class InventoryScene extends Phaser.Scene {
         const gameHeight = this.scale.height;
 
         // Background
-        this.add.rectangle(gameWidth / 2, gameHeight / 2, gameWidth * 0.9, gameHeight * 0.8, 0x000000, 0.8);
+        this.add.rectangle(gameWidth / 2, gameHeight / 2, gameWidth * 0.9, gameHeight * 0.85, 0x000000, 0.8);
 
         // Title
-        this.add.text(gameWidth / 2, gameHeight * 0.15, "Inventaire", {
+        this.add.text(gameWidth / 2, gameHeight * 0.13, "Inventaire", {
             font: `${gameWidth * 0.1}px Arial`,
             fill: "#ffffff",
         }).setOrigin(0.5);
@@ -37,7 +37,7 @@ export class InventoryScene extends Phaser.Scene {
         // Grid settings
         const gridCols = 4; // Number of columns
         const gridRows = 4; // Number of rows
-        const cellSize = gameWidth * 0.17; // Size of each cell
+        const cellSize = gameWidth * 0.165; // Size of each cell
         const gridWidth = gridCols * cellSize;
         const gridHeight = gridRows * cellSize;
         const startX = (gameWidth - gridWidth) / 2 + cellSize / 2; // Center the grid horizontally
@@ -47,7 +47,7 @@ export class InventoryScene extends Phaser.Scene {
         const detailsContainer = this.add.container(gameWidth / 2, gameHeight * 0.75);
 
         // Create a placeholder for the large item image
-        const largeItemImage = this.add.image(gameWidth / 2, gameHeight * 0.57, null)
+        const largeItemImage = this.add.image(gameWidth * 0.32, gameHeight * 0.64, null)
             .setOrigin(0.5)
             .setDisplaySize(gameWidth * 0.18, gameWidth * 0.18)
             .setVisible(false); // Initially hidden
@@ -85,31 +85,65 @@ export class InventoryScene extends Phaser.Scene {
 
                         // Display item details
                         const detailText = this.add.text(
-                            0,
-                            -gameHeight * 0.05,
+                            +gameWidth * 0.16,
+                            -gameHeight * 0.1,
                             `Nom: ${item.nom}\nQuantité: ${item.quantité}\nPrix: ${item.prix}`,
                             {
                                 font: `${gameWidth * 0.04}px Arial`,
                                 fill: "#ffffff",
-                                align: "center",
+                                align: "left",
                             }
                         ).setOrigin(0.5);
                         detailsContainer.add(detailText);
 
+                        // Add an interactive button for the first action
+                        if (item.actions && item.actions.length > 0) {
+                            const action = item.actions[0]; // Take the first action for simplicity
+                            const useButton = this.add.rectangle(
+                                -gameWidth * 0.22, // Position to the left of "Jeter"
+                                gameHeight * 0.03,
+                                gameWidth * 0.3,
+                                gameHeight * 0.04,
+                                0x666666,
+                                0.8
+                            ).setOrigin(0.5).setInteractive();
+
+                            const useText = this.add.text(
+                                -gameWidth * 0.22, // Align text with the button
+                                gameHeight * 0.03,
+                                action.action_name, // Use the action name
+                                {
+                                    font: `${gameWidth * 0.04}px Arial`,
+                                    fill: "#ffffff",
+                                    align: "center",
+                                }
+                            ).setOrigin(0.5);
+
+                            useButton.on("pointerdown", () => {
+                                this.executeAction(action); // Execute the action
+                            });
+
+                            detailsContainer.add(useButton);
+                            detailsContainer.add(useText);
+                        } else {
+                            this.displayMessage("Aucune action disponible pour cet objet.");
+                        }
+
                         // Add an interactive button for "Echanger avec ..."
-                        const exchangeButton = this.add.rectangle(
-                            0,
+                        const jeterButton = this.add.rectangle(
+                            +gameWidth * 0.22,
                             gameHeight * 0.03,
-                            gameWidth * 0.4,
+                            gameWidth * 0.3,
                             gameHeight * 0.04,
                             0x666666,
                             0.8
                         ).setOrigin(0.5).setInteractive();
+                        
 
-                        const exchangeText = this.add.text(
-                            0,
+                        const jeterText = this.add.text(
+                            +gameWidth * 0.22,
                             gameHeight * 0.03,
-                            "Echanger avec ...",
+                            "Jeter",
                             {
                                 font: `${gameWidth * 0.04}px Arial`,
                                 fill: "#ffffff",
@@ -117,22 +151,23 @@ export class InventoryScene extends Phaser.Scene {
                             }
                         ).setOrigin(0.5);
 
-                        exchangeButton.on("pointerdown", () => {
+                        jeterButton.on("pointerdown", () => {
                             if (item.is_echangeable) {
-                                this.displayMessage(`Vous avez choisi d'échanger l'objet : ${item.nom}`);
+                                this.displayMessage(`Vous avez choisi de jeter l'objet : ${item.nom}`);
                                 // Add logic here to handle the exchange
                             } else {
-                                this.displayMessage("Cet objet ne peut pas être échangé.");
+                                this.displayMessage("Cet objet ne peut pas être jeté.");
                             }
                         });
 
-                        detailsContainer.add(exchangeButton);
-                        detailsContainer.add(exchangeText);
+                        detailsContainer.add(jeterButton);
+                        detailsContainer.add(jeterText);
+
                     });
 
                     // Quantity text
                     this.add.text(x + cellSize * 0.3, y + cellSize * 0.3, item.quantité || 1, {
-                        font: `${gameWidth * 0.03}px Arial`,
+                        font: `${gameWidth * 0.04}px Arial`,
                         fill: "#ffffff",
                     }).setOrigin(0.5);
                 }
@@ -140,7 +175,7 @@ export class InventoryScene extends Phaser.Scene {
         }
 
         // Return button
-        const returnButton = this.add.text(gameWidth / 2, gameHeight * 0.85, "Retour", {
+        const returnButton = this.add.text(gameWidth / 2, gameHeight * 0.88, "Retour", {
             font: `${gameWidth * 0.07}px Arial`,
             fill: "#ffffff",
             backgroundColor: "#333333",
@@ -184,5 +219,41 @@ export class InventoryScene extends Phaser.Scene {
         this.time.delayedCall(3000, () => {
             messageText.destroy();
         });
+    }
+
+    executeAction(action) {
+        switch (action.action_type) {
+            case "heal":
+                this.applyHeal(action.parameters.amount);
+                break;
+            case "equip":
+                this.equipItem(action.parameters.slot);
+                break;
+            case "unlock":
+                this.unlockDoor(action.parameters.door_id);
+                break;
+            case "read":
+                this.displayMessage(action.parameters.lore);
+                break;
+            default:
+                this.displayMessage("Action inconnue.");
+        }
+    }
+    
+    applyHeal(amount) {
+        // Exemple : Ajouter des points de vie au joueur
+        //this.player.health = Math.min(this.player.maxHealth, this.player.health + amount);
+        this.displayMessage(`Vous avez récupéré ${amount} points de vie.`);
+    }
+    
+    equipItem(slot) {
+        // Exemple : Équiper un objet dans un slot spécifique
+        //this.player.equip(slot, this.selectedItem);
+        this.displayMessage(`Vous avez équipé ${this.selectedItem.nom}.`);
+    }
+    
+    unlockDoor(doorId) {
+        // Exemple : Déverrouiller une porte
+        this.displayMessage(`Vous avez déverrouillé la porte ${doorId}.`);
     }
 }

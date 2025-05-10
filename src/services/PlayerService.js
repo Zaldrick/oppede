@@ -26,6 +26,11 @@ class PlayerService {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/inventory/${playerId}`);
       if (!response.ok) {
+        if (response.status === 404) {
+          console.warn("Inventory not found, returning an empty inventory.");
+          this.inventory = []; // Return an empty inventory for 404
+          return this.inventory;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       this.inventory = await response.json();

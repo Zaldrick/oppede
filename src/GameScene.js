@@ -97,17 +97,6 @@ export class GameScene extends Phaser.Scene {
     this.setupWorld();
     this.loadPlayers();
     this.createPlayer();
-
-
-    // Configure collisions entre le joueur local et les joueurs distants
-    if (this.player && this.remotePlayersGroup) {
-        this.physics.add.collider(this.player, this.remotePlayersGroup, (localPlayer, remotePlayer) => {
-            console.log(`Collision detected between local player and remote player: ${remotePlayer.id}`);
-        });
-    } else {
-        console.error("Player or remote players group is not initialized!");
-    }
-
     this.setupCamera();
     this.setupControls();
     this.setupSocket();
@@ -155,16 +144,34 @@ export class GameScene extends Phaser.Scene {
 
     // Débogage (optionnel) : afficher les zones de collision
     const debugGraphics = this.add.graphics();
-    /*collisionLayer.renderDebug(debugGraphics, {
-        tileColor: null, // Pas de couleur pour les tiles sans collision
-        collidingTileColor: new Phaser.Display.Color(243, 134, 48, 170), // Couleur pour les tiles avec collision
-        faceColor: new Phaser.Display.Color(40, 39, 37, 200) // Couleur des faces
-    });*/
 
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     // Stocker la couche de collision pour une utilisation ultérieure
     this.collisionLayer = collisionLayer;
+  }
+
+  
+  async loadPlayers() {
+    try {
+
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const players = await response.json();
+
+        // Log the retrieved players to the console
+        console.log('Players retrieved from /api/players:', players);
+
+        players.forEach(player => {
+            const option = document.createElement('option');
+            option.value = player.pseudo;
+            option.textContent = player.pseudo;
+        });
+    } catch (error) {
+        console.error('Error loading players:', error);
+    }
   }
 
   createPlayer() {
@@ -199,7 +206,13 @@ export class GameScene extends Phaser.Scene {
 
     // Ajoutez une gestion des collisions
     this.physics.add.collider(this.player, this.remotePlayersGroup);
-
+    // Configure collisions entre le joueur local et les joueurs distants
+    if (this.player && this.remotePlayersGroup) {
+      this.physics.add.collider(this.player, this.remotePlayersGroup, (localPlayer, remotePlayer) => {
+      });
+  } else {
+      console.error("Player or remote players group is not initialized!");
+  }
     this.createAnimations(textureKey); // Pass the texture key to create animations
 }
 
@@ -250,6 +263,14 @@ createAnimations(textureKey) {
                 pseudo: this.registry.get("playerPseudo") || "Player" // Utilise le pseudo du joueur
             });
         }
+    });
+
+    // Écouter l'événement disconnectMessage
+    this.socket.on('disconnectMessage', (data) => {
+        console.warn(data.message); // Affiche le message dans la console
+        this.displayMessage(data.message); // Affiche un message dans le jeu
+        this.scene.stop(); // Arrête la scène actuelle
+        this.scene.start('MainMenuScene'); // Redirige vers une autre scène, comme le menu principal
     });
 
     this.socket.on('playersUpdate', (players) => {
@@ -449,6 +470,10 @@ createRemotePlayer(id, data, textureKey) {
     newSprite.setImmovable(true); // Empêche le joueur distant d'être poussé
     newSprite.currentAnim = data.anim || "";
     newSprite.setInteractive();
+
+    // Ajoutez le pseudo et l'id au sprite
+    newSprite.id = id;
+    newSprite.pseudo = data.pseudo;
     this.remotePlayersGroup.add(newSprite);
     this.otherPlayers[id] = newSprite;
     
@@ -956,28 +981,6 @@ openMessages = () => {
     this.time.delayedCall(3000, () => {
         messageText.destroy();
     });
-  }
-  
-  async loadPlayers() {
-      try {
-
-          const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players`);
-          if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const players = await response.json();
-
-          // Log the retrieved players to the console
-          console.log('Players retrieved from /api/players:', players);
-
-          players.forEach(player => {
-              const option = document.createElement('option');
-              option.value = player.pseudo;
-              option.textContent = player.pseudo;
-          });
-      } catch (error) {
-          console.error('Error loading players:', error);
-      }
   }
 
   selectPlayer() {

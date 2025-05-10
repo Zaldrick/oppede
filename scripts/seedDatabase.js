@@ -1,7 +1,7 @@
 const { MongoClient, ObjectId } = require("mongodb");
 
 async function connectToDatabase() {
-  const uri = process.env.MONGO_URI || "mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede"; // Utilise une variable d'environnement pour l'URI
+  const uri = process.env.MONGO_URI || "mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede";
   const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
   await client.connect();
   return client;
@@ -20,6 +20,7 @@ async function seedDatabase() {
     const playersCollection = db.collection("players");
     const itemsCollection = db.collection("items");
     const inventoryCollection = db.collection("inventory");
+    const itemActionsCollection = db.collection("itemActions");
 
     // Données pour la collection players
     const players = [
@@ -40,6 +41,7 @@ async function seedDatabase() {
     await playersCollection.deleteMany({});
     await itemsCollection.deleteMany({});
     await inventoryCollection.deleteMany({});
+    await itemActionsCollection.deleteMany({});
 
     // Insérer les données dans la collection players
     const insertedPlayers = await playersCollection.insertMany(players);
@@ -63,24 +65,51 @@ async function seedDatabase() {
       },
       {
         player_id: insertedPlayers.insertedIds[1], // Lien avec le deuxième joueur
-        item_id: insertedItems.insertedIds[2], // Lien avec "Bouclier"
+        item_id: insertedItems.insertedIds[2], // Lien avec "Clef"
         quantité: 2,
       },
       {
         player_id: insertedPlayers.insertedIds[1], // Lien avec le deuxième joueur
-        item_id: insertedItems.insertedIds[3], // Lien avec "Arc"
+        item_id: insertedItems.insertedIds[3], // Lien avec "Livre Rouge"
         quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[2], // Lien avec le 3 joueur
-        item_id: insertedItems.insertedIds[0], // Lien avec potion
-        quantité: 2,
       },
     ];
 
     // Insérer les données dans la collection inventory
     await inventoryCollection.insertMany(inventory);
     console.log("Collection 'inventory' alimentée avec succès");
+
+    // Données pour la collection itemActions
+    const itemActions = [
+      {
+        item_id: insertedItems.insertedIds[0], // Lien avec "Potion"
+        action_name: "Utiliser",
+        action_type: "heal",
+        parameters: { amount: 50 },
+      },
+      {
+        item_id: insertedItems.insertedIds[1], // Lien avec "Épée"
+        action_name: "Équiper",
+        action_type: "equip",
+        parameters: { slot: "weapon" },
+      },
+      {
+        item_id: insertedItems.insertedIds[2], // Lien avec "Clef"
+        action_name: "Utiliser",
+        action_type: "unlock",
+        parameters: { door_id: "12345" },
+      },
+      {
+        item_id: insertedItems.insertedIds[3], // Lien avec "Livre Rouge"
+        action_name: "Lire",
+        action_type: "read",
+        parameters: { lore: "Ancient secrets revealed..." },
+      },
+    ];
+
+    // Insérer les données dans la collection itemActions
+    await itemActionsCollection.insertMany(itemActions);
+    console.log("Collection 'itemActions' alimentée avec succès");
   } catch (error) {
     console.error("Erreur lors de l'alimentation de la base de données :", error);
   } finally {
