@@ -97,6 +97,17 @@ export class GameScene extends Phaser.Scene {
     this.setupWorld();
     this.loadPlayers();
     this.createPlayer();
+
+
+    // Configure collisions entre le joueur local et les joueurs distants
+    if (this.player && this.remotePlayersGroup) {
+        this.physics.add.collider(this.player, this.remotePlayersGroup, (localPlayer, remotePlayer) => {
+            console.log(`Collision detected between local player and remote player: ${remotePlayer.id}`);
+        });
+    } else {
+        console.error("Player or remote players group is not initialized!");
+    }
+
     this.setupCamera();
     this.setupControls();
     this.setupSocket();
@@ -172,7 +183,10 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
     this.player.setImmovable(true); // Empêche le joueur local d'être poussé
-
+    // Initialize the remote players group
+    this.remotePlayersGroup = this.physics.add.group({
+      immovable: true, // Prevent remote players from being pushed
+    });
     this.player.body.setSize(36, 36); // Ajustez les dimensions selon vos besoins
     this.player.body.setOffset(6, 6); // Centrez la hitbox si nécessaire
 
@@ -437,6 +451,14 @@ createRemotePlayer(id, data, textureKey) {
     newSprite.setInteractive();
     this.remotePlayersGroup.add(newSprite);
     this.otherPlayers[id] = newSprite;
+    
+    console.log(`Created remote player: ${id} at (${data.x}, ${data.y})`);
+
+    if (this.collisionLayer) {
+      console.log("Collision layer is configured.");
+    } else {
+        console.error("Collision layer is missing!");
+    }
 
     // Configure animations pour ce joueur
     CONFIG.animations.forEach((anim) => {
