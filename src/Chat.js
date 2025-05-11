@@ -1,7 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const Chat = ({ messages, onSendMessage }) => {
   const [currentMessage, setCurrentMessage] = useState("");
+  const [isVisible, setIsVisible] = useState(false); // Chat is invisible by default
+
+  useEffect(() => {
+    const checkPhaserReady = () => {
+      const game = window.phaserGame; // Assuming Phaser game instance is globally accessible
+
+      if (game && game.scene) {
+        // Check the initial active scene
+        const activeScene = game.scene.getScenes(true)[0]?.scene.key;
+        setIsVisible(activeScene === "GameScene");
+
+        // Listen for scene-switch events
+        const handleSceneSwitch = (sceneKey) => {
+          setIsVisible(sceneKey === "GameScene"); // Show chat only on GameScene
+        };
+
+        game.events.on("scene-switch", handleSceneSwitch);
+
+        return () => {
+          game.events.off("scene-switch", handleSceneSwitch);
+        };
+      } else {
+        // Retry after a short delay if Phaser is not ready
+        setTimeout(checkPhaserReady, 100);
+      }
+    };
+
+    checkPhaserReady();
+  }, []);
+
+  if (!isVisible) {
+    return null; // Do not render the chat if it's not visible
+  }
 
   const handleSendMessage = () => {
     if (currentMessage.trim()) {

@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import io from 'socket.io-client';
 import PlayerService from './services/PlayerService';
+import Chat from "./Chat";
+import useChat from "./useChat";
 
 const CONFIG = {
   maxSpeed: 200,
@@ -21,8 +23,8 @@ const CONFIG = {
 
 export class GameScene extends Phaser.Scene {
   constructor() {
-    super("GameScene");
-    this.inventory = []; // Initialise un inventaire vide pour le joueur
+    super("GameScene"); // Removed plugin registration
+    this.inventory = []; // Initialize an empty inventory for the player
   }
 
   async preload() {
@@ -79,6 +81,10 @@ export class GameScene extends Phaser.Scene {
 }
 
   async create() {
+    // Notify app about the active scene
+    this.game.events.emit("scene-switch", "GameScene");
+
+    console.log("rexVirtualJoystick plugin in GameScene:", this.plugins.get("rexVirtualJoystick"));
     // Wait for the preloadPromise to resolve before proceeding
     try {
         await this.preloadPromise;
@@ -124,6 +130,7 @@ export class GameScene extends Phaser.Scene {
     }); // Preload default player spritesheet
     this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
     this.load.image("Inside_B", "/assets/maps/Inside_B.png");
+    this.load.plugin('rexvirtualjoystickplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexvirtualjoystickplugin.min.js', true);
   }
 
   setupWorld() {
@@ -303,9 +310,17 @@ createAnimations(textureKey) {
     const gameWidth = this.scale.width;
     const gameHeight = this.scale.height;
 
+    // Ensure the rexVirtualJoystick plugin is available
+    
+    const joystickPlugin = this.plugins.get('rexvirtualjoystickplugin');
+    if (!joystickPlugin) {
+        console.error("rexVirtualJoystick plugin is not available in GameScene.");
+        return; // Prevent further execution if the plugin is not available
+    }
+
     // Joystick (bottom-left corner)
     const joystickRadius = gameWidth * 0.12 / this.zoomFactor; // Adjust for zoom
-    this.joystick = this.plugins.get("rexVirtualJoystick").add(this, {
+    this.joystick = joystickPlugin.add(this, {
         x: gameWidth * 0.2,
         y: gameHeight * 0.82,
         radius: joystickRadius,
@@ -1037,5 +1052,4 @@ openMessages = () => {
 
 
 
-  
 }
