@@ -26,7 +26,8 @@ async function seedDatabase() {
     const players = [
       { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 100, posX: 677.93, posY: 1286.59, updatedAt: new Date() },
       { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 500.0, posY: 800.0, updatedAt: new Date() },
-      { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 500.0, posY: 800.0, updatedAt: new Date() }
+      { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 500.0, posY: 800.0, updatedAt: new Date() },
+       { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 500.0, posY: 800.0, updatedAt: new Date() }
     ];
 
     // Données pour la collection items
