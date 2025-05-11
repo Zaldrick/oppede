@@ -235,6 +235,9 @@ export class InventoryScene extends Phaser.Scene {
             case "read":
                 this.displayMessage(action.parameters.lore);
                 break;
+            case "pet":
+                this.displayMessage(action.parameters.lore);
+                break;
             default:
                 this.displayMessage("Action inconnue.");
         }
