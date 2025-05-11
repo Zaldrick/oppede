@@ -2,7 +2,7 @@ import { GameScene } from "./GameScene";
 import { InventoryScene } from "./InventoryScene";
 import { MainMenuScene } from "./MainMenuScene";
 import Phaser from "phaser";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import VirtualJoystickPlugin from "phaser3-rex-plugins/plugins/virtualjoystick-plugin.js";
 import Chat from "./Chat"; // Import the Chat component
 import useChat from "./useChat"; // Import the custom hook for chat functionality
@@ -10,7 +10,7 @@ import useChat from "./useChat"; // Import the custom hook for chat functionalit
 const Game = () => {
     const phaserGameRef = useRef(null);
     const { messages, sendMessage } = useChat(); // Use the chat hook to manage messages
-    const [isChatVisible, setChatVisible] = React.useState(false); // State to control chat visibility
+    const [isChatVisible, setChatVisible] = useState(false); // State to control chat visibility
 
     useEffect(() => {
         if (phaserGameRef.current) {

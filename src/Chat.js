@@ -2,39 +2,25 @@ import React, { useState, useEffect } from "react";
 
 const Chat = ({ messages, onSendMessage }) => {
   const [currentMessage, setCurrentMessage] = useState("");
-  const [isVisible, setIsVisible] = useState(false); // Chat is invisible by default
+  const [messageQueue, setMessageQueue] = useState([]); // FIFO queue for messages
 
   useEffect(() => {
-    const checkPhaserReady = () => {
-      const game = window.phaserGame; // Assuming Phaser game instance is globally accessible
+    if (messages.length > 0) {
+      const newMessage = messages[messages.length - 1];
+      setMessageQueue((prev) => [...prev, newMessage]); // Add new message to the queue
+    }
+  }, [messages]);
 
-      if (game && game.scene) {
-        // Check the initial active scene
-        const activeScene = game.scene.getScenes(true)[0]?.scene.key;
-        setIsVisible(activeScene === "GameScene");
+  useEffect(() => {
+    if (messageQueue.length > 0) {
+      // Remove the oldest message every 5 seconds
+      const interval = setInterval(() => {
+        setMessageQueue((prev) => prev.slice(1)); // Remove the first message (FIFO)
+      }, 5000);
 
-        // Listen for scene-switch events
-        const handleSceneSwitch = (sceneKey) => {
-          setIsVisible(sceneKey === "GameScene"); // Show chat only on GameScene
-        };
-
-        game.events.on("scene-switch", handleSceneSwitch);
-
-        return () => {
-          game.events.off("scene-switch", handleSceneSwitch);
-        };
-      } else {
-        // Retry after a short delay if Phaser is not ready
-        setTimeout(checkPhaserReady, 100);
-      }
-    };
-
-    checkPhaserReady();
-  }, []);
-
-  if (!isVisible) {
-    return null; // Do not render the chat if it's not visible
-  }
+      return () => clearInterval(interval); // Cleanup interval on unmount
+    }
+  }, [messageQueue]);
 
   const handleSendMessage = () => {
     if (currentMessage.trim()) {
@@ -47,7 +33,7 @@ const Chat = ({ messages, onSendMessage }) => {
     <div id="chat-container">
       {/* Chat messages displayed from the top */}
       <div id="chat-messages" style={{ position: "absolute", top: "10px", left: "10px", right: "10px", zIndex: 1000 }}>
-        {messages.map((msg, index) => (
+        {messageQueue.map((msg, index) => (
           <div
             key={index}
             style={{

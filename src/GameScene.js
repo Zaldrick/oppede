@@ -87,6 +87,12 @@ export class GameScene extends Phaser.Scene {
     // Add fade-in effect
     this.cameras.main.fadeIn(1000, 0, 0, 0); // 1-second fade from black
 
+    // Show chat and input elements
+    const chatElement = document.getElementById("chat");
+    const inputElement = document.getElementById("input");
+    if (chatElement) chatElement.style.display = "block";
+    if (inputElement) inputElement.style.display = "block";
+
     console.log("rexVirtualJoystick plugin in GameScene:", this.plugins.get("rexVirtualJoystick"));
     // Wait for the preloadPromise to resolve before proceeding
     try {
@@ -206,7 +212,17 @@ export class GameScene extends Phaser.Scene {
     });
     this.player.body.setSize(36, 36); // Ajustez les dimensions selon vos besoins
     this.player.body.setOffset(6, 6); // Centrez la hitbox si nécessaire
+   // Add a text label above the player's sprite
+   this.player.pseudoText = this.add.text(x, y - 29, playerData.pseudo, {
+      font: "18px Arial",
+      fill: "#ffffff",
+      align: "center",
+    }).setOrigin(0.5);
 
+    // Update the text position to follow the player
+    this.physics.world.on("worldstep", () => {
+        this.player.pseudoText.setPosition(this.player.x, this.player.y - 29); // Adjusted offset
+    });
       // Ajouter une collision entre le joueur et la couche de collision
       if (this.collisionLayer) {
         this.physics.add.collider(this.player, this.collisionLayer);
@@ -805,13 +821,6 @@ openProfile = () => {
     }).setOrigin(0.5);
     this.profileMenu.add(currentPseudoText);
 
-    // Input for pseudo with placeholder "Nouveau Pseudo"
-    const pseudoInput = this.add.dom(gameWidth / 2, gameHeight / 2 - 50).createFromHTML(`
-        <input type="text" id="pseudo-input" placeholder="Nouveau Pseudo" style="width: 200px; padding: 5px;" />
-    `);
-    pseudoInput.setOrigin(0.5); // Center the input field
-    pseudoInput.setScrollFactor(0); // Ensure it stays in place
-    this.add.existing(pseudoInput); // Add to the scene
 
     const pseudoButton = this.add.text(0, -gameHeight * 0.1, "Change Pseudo", {
         font: "18px Arial",
