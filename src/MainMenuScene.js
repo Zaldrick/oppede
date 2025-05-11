@@ -24,6 +24,12 @@ export class MainMenuScene extends Phaser.Scene {
         const gameWidth = this.scale.width;
         const gameHeight = this.scale.height;
 
+        // Define a maximum font size scale factor for PC and cap the sizes
+        const maxScaleFactor = gameWidth > gameHeight ? gameHeight / gameWidth : 1;
+        const maxFontSize = 20; // Maximum font size in pixels
+        const maxInputWidth = 200; // Maximum input width in pixels
+        const maxInputHeight = 40; // Maximum input height in pixels
+
         // Add background image and preserve its aspect ratio
         const background = this.add.image(0, 0, "mainMenuBackground").setOrigin(0.5, 0.5);
         const scaleX = gameWidth / background.width;
@@ -54,7 +60,7 @@ export class MainMenuScene extends Phaser.Scene {
 
         // Connection UI elements (initially hidden)
         const titleText = this.add.text(gameWidth / 2, gameHeight * 0.64, "Qui es-tu ?", {
-            font: `${gameWidth * 0.06}px Arial`,
+            font: `${Math.min(gameWidth * 0.06 * maxScaleFactor, maxFontSize)}px Arial`,
             fill: "#ffffff",
         }).setOrigin(0.5).setVisible(false);
 
@@ -65,9 +71,9 @@ export class MainMenuScene extends Phaser.Scene {
 
         // Apply styles and attributes directly to the pseudoInput DOM node
         if (pseudoInput.node) {
-            pseudoInput.node.style.width = `${gameWidth * 0.4}px`; // Increase width
-            pseudoInput.node.style.height = `${gameWidth * 0.06}px`; // Increase height
-            pseudoInput.node.style.fontSize = `${gameWidth * 0.06}px`; // Set font size (only size, no font-family)
+            pseudoInput.node.style.width = `${Math.min(gameWidth * 0.4 * maxScaleFactor, maxInputWidth)}px`;
+            pseudoInput.node.style.height = `${Math.min(gameWidth * 0.06 * maxScaleFactor, maxInputHeight)}px`;
+            pseudoInput.node.style.fontSize = `${Math.min(gameWidth * 0.06 * maxScaleFactor, maxFontSize)}px`;
             pseudoInput.node.style.border = "2px solid #ccc"; // Adjust border size
             pseudoInput.node.style.textAlign = "center"; // Center-align text
             pseudoInput.node.style.backgroundColor = "#ffffff"; // Set background color
@@ -84,13 +90,34 @@ export class MainMenuScene extends Phaser.Scene {
         }
 
         const errorText = this.add.text(gameWidth / 2, gameHeight * 0.56, "", {
-            font: `${gameWidth * 0.05}px Arial`,
+            font: `${Math.min(gameWidth * 0.05 * maxScaleFactor, maxFontSize)}px Arial`,
             fill: "#ff0000",
             padding: { x: 10, y: 5 },
         }).setOrigin(0.5).setBackgroundColor(null).setVisible(false);
 
+        // Vérifiez si un message de déconnexion est présent dans le registry
+        const disconnectMessage = this.registry.get('disconnectMessage');
+        if (disconnectMessage) {
+            // Affichez le message avec errorText
+            errorText.setText(disconnectMessage);
+            errorText.setBackgroundColor("#ff0000"); // Ajoutez un fond rouge pour attirer l'attention
+            errorText.setColor("#ffffff"); // Changez la couleur du texte
+            errorText.setVisible(true);
+
+            // Optionnel : Ajoutez une animation pour attirer l'attention
+            this.tweens.add({
+                targets: errorText,
+                alpha: { from: 0, to: 1 }, // Faites apparaître progressivement
+                duration: 500,
+                ease: "Power2",
+            });
+
+            // Supprimez le message du registry pour éviter qu'il ne s'affiche à nouveau
+            this.registry.set('disconnectMessage', null);
+        }
+
         const submitButton = this.add.text(gameWidth / 2, gameHeight * 0.77, "Connexion", {
-            font: `${gameWidth * 0.1}px Arial`,
+            font: `${Math.min(gameWidth * 0.1 * maxScaleFactor, maxFontSize)}px Arial`,
             fill: "#ffffff",
             backgroundColor: "#333333",
             padding: { x: 10, y: 5 },

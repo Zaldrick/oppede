@@ -1,8 +1,6 @@
 import Phaser from "phaser";
 import io from 'socket.io-client';
 import PlayerService from './services/PlayerService';
-import Chat from "./Chat";
-import useChat from "./useChat";
 
 const CONFIG = {
   maxSpeed: 200,
@@ -294,7 +292,7 @@ createAnimations(textureKey) {
     // Écouter l'événement disconnectMessage
     this.socket.on('disconnectMessage', (data) => {
         console.warn(data.message); // Affiche le message dans la console
-        this.displayMessage(data.message); // Affiche un message dans le jeu
+        this.registry.set('disconnectMessage', data.message);
         this.scene.stop(); // Arrête la scène actuelle
         this.scene.start('MainMenuScene'); // Redirige vers une autre scène, comme le menu principal
     });
