@@ -84,6 +84,9 @@ export class GameScene extends Phaser.Scene {
     // Notify app about the active scene
     this.game.events.emit("scene-switch", "GameScene");
 
+    // Add fade-in effect
+    this.cameras.main.fadeIn(1000, 0, 0, 0); // 1-second fade from black
+
     console.log("rexVirtualJoystick plugin in GameScene:", this.plugins.get("rexVirtualJoystick"));
     // Wait for the preloadPromise to resolve before proceeding
     try {

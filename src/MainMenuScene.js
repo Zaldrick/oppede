@@ -53,36 +53,44 @@ export class MainMenuScene extends Phaser.Scene {
             .setInteractive();
 
         // Connection UI elements (initially hidden)
-        const titleText = this.add.text(gameWidth / 2, gameHeight * 0.77, "Ton prénom", {
+        const titleText = this.add.text(gameWidth / 2, gameHeight * 0.64, "Qui es-tu ?", {
             font: `${gameWidth * 0.06}px Arial`,
             fill: "#ffffff",
         }).setOrigin(0.5).setVisible(false);
 
-        const pseudoInput = this.add.dom(gameWidth / 2, gameHeight * 0.8, "input", {
+        const pseudoInput = this.add.dom(gameWidth / 2, gameHeight * 0.675, "input", {
             type: "text",
-            placeholder: "Ton prénom",
-            value: "Mehdi", // Set default value
-            style: `
-                width: 300px; /* Increase width */
-                height: 60px; /* Increase height */
-                padding: 15px; /* Adjust padding */
-                font-size: 24px; /* Increase font size */
-                border: 2px solid #ccc; /* Adjust border size */
-                border-radius: 10px; /* Adjust border radius */
-                text-align: center;
-                background-color: #ffffff;
-                color: #000000;
-            `,
         }).setOrigin(0.5).setScrollFactor(0).setVisible(false);
 
-        const errorText = this.add.text(gameWidth / 2, gameHeight * 0.68, "", {
+
+        // Apply styles and attributes directly to the pseudoInput DOM node
+        if (pseudoInput.node) {
+            pseudoInput.node.style.width = `${gameWidth * 0.4}px`; // Increase width
+            pseudoInput.node.style.height = `${gameWidth * 0.06}px`; // Increase height
+            pseudoInput.node.style.fontSize = `${gameWidth * 0.06}px`; // Set font size (only size, no font-family)
+            pseudoInput.node.style.border = "2px solid #ccc"; // Adjust border size
+            pseudoInput.node.style.textAlign = "center"; // Center-align text
+            pseudoInput.node.style.backgroundColor = "#ffffff"; // Set background color
+            pseudoInput.node.style.color = "#000000"; // Set text color
+            pseudoInput.node.placeholder = "Ton prénom"; // Set placeholder
+            pseudoInput.node.value = "Mehdi"; // Set default value
+
+            // Add event listener for "Enter" key
+            pseudoInput.node.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    submitButton.emit("pointerdown"); // Trigger the same behavior as clicking "Connexion"
+                }
+            });
+        }
+
+        const errorText = this.add.text(gameWidth / 2, gameHeight * 0.56, "", {
             font: `${gameWidth * 0.05}px Arial`,
             fill: "#ff0000",
             padding: { x: 10, y: 5 },
         }).setOrigin(0.5).setBackgroundColor(null).setVisible(false);
 
-        const submitButton = this.add.text(gameWidth / 2, gameHeight * 0.9, "Connexion", {
-            font: `${gameWidth * 0.08}px Arial`,
+        const submitButton = this.add.text(gameWidth / 2, gameHeight * 0.77, "Connexion", {
+            font: `${gameWidth * 0.1}px Arial`,
             fill: "#ffffff",
             backgroundColor: "#333333",
             padding: { x: 10, y: 5 },
@@ -128,10 +136,19 @@ export class MainMenuScene extends Phaser.Scene {
                 onComplete: () => {
                     startText.setVisible(false); // Hide "Appuyez pour Démarrer" after animation
                     fullScreenZone.disableInteractive(); // Disable further clicks
-                    titleText.setVisible(true); // Show connection UI
-                    pseudoInput.setVisible(true);
-                    errorText.setVisible(true);
-                    submitButton.setVisible(true);
+
+                    // Animate the appearance of the hidden fields
+                    [titleText, pseudoInput, errorText, submitButton].forEach((element, index) => {
+                        this.tweens.add({
+                            targets: element,
+                            alpha: { from: 0, to: 1 }, // Fade in
+                            y: `+=20`, // Slide down slightly
+                            duration: 500,
+                            delay: index * 100, // Stagger animations
+                            ease: "Power2",
+                            onStart: () => element.setVisible(true), // Make the element visible
+                        });
+                    });
                 },
             });
         });
@@ -166,7 +183,12 @@ export class MainMenuScene extends Phaser.Scene {
                             this.backgroundMusic.stop();
                         }
 
-                        this.scene.start("GameScene"); // Transition to GameScene
+                        // Add fade-out effect before transitioning to GameScene
+                        this.cameras.main.fadeOut(1000, 0, 0, 0); // 1-second fade to black
+                        this.cameras.main.once("camerafadeoutcomplete", () => {
+                            this.scene.start("GameScene"); // Transition to GameScene
+                        });
+
                         errorText.setText(""); // Clear error text
                         errorText.setBackgroundColor(null); // Hide background
                     } else {
