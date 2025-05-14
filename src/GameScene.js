@@ -500,8 +500,9 @@ createAnimations(textureKey) {
         } else if (angle > -135 && angle <= -45) {
             newAnim = "walk-up";
         }
-        this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
-        this.player.setVelocityY(Math.sin(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
+        const forceCoeff = this.isSpeedBoosted ? 2.5 : 1.5;
+        this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * this.joystick.force * forceCoeff);
+        this.player.setVelocityY(Math.sin(Phaser.Math.DegToRad(angle)) * this.joystick.force * forceCoeff);
     }
 
     if (newAnim === "") {
@@ -516,7 +517,7 @@ createAnimations(textureKey) {
     }
 
     // Aligner le joueur sur la grille après le déplacement
-    if (!keyboardActive && (!this.joystick || this.joystick.force === 0)) {
+    /*if (!keyboardActive && (!this.joystick || this.joystick.force === 0)) {
         this.player.setVelocity(0);
         this.player.x = Math.round(this.player.x / gridSize) * gridSize;
         this.player.y = Math.round(this.player.y / gridSize) * gridSize;
@@ -525,7 +526,7 @@ createAnimations(textureKey) {
             this.player.anims.stop();
         }
         this.currentAnim = "";
-    }
+    }*/
 
     if (this.socket && this.myId) {
         const currentMapId = PlayerService.getPlayerData()?.mapId; // Récupérer le mapId actuel

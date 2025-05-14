@@ -69,6 +69,7 @@ export class MainMenuScene extends Phaser.Scene {
         }).setOrigin(0.5).setScrollFactor(0).setVisible(false);
 
 
+        const savedPseudo = localStorage.getItem("playerPseudo");
         // Apply styles and attributes directly to the pseudoInput DOM node
         if (pseudoInput.node) {
             pseudoInput.node.style.width = `${Math.min(gameWidth * 0.4 * maxScaleFactor, maxInputWidth)}px`;
@@ -79,7 +80,7 @@ export class MainMenuScene extends Phaser.Scene {
             pseudoInput.node.style.backgroundColor = "#ffffff"; // Set background color
             pseudoInput.node.style.color = "#000000"; // Set text color
             pseudoInput.node.placeholder = "Ton prénom"; // Set placeholder
-            //pseudoInput.node.value = "Mehdi"; // Set default value
+            pseudoInput.node.value = savedPseudo || ""; // Set default value
 
             // Add event listener for "Enter" key
             pseudoInput.node.addEventListener("keydown", (event) => {
@@ -193,6 +194,7 @@ export class MainMenuScene extends Phaser.Scene {
                 try {
                     const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${this.pseudo}`);
                     if (response.ok) {
+                        localStorage.setItem("playerPseudo", this.pseudo);
                         const appearance = `/public/assets/apparences/${this.pseudo}.png`;
                         this.registry.set("playerPseudo", this.pseudo);
                         this.registry.set("playerAppearance", appearance);
@@ -232,5 +234,7 @@ export class MainMenuScene extends Phaser.Scene {
             errorText.setText(this.pseudoError); // Update error message
             errorText.setBackgroundColor(this.pseudoError ? "#ffffff" : null); // Show or hide background
         });
+
+        if (savedPseudo) {setTimeout(() => {submitButton.emit("pointerdown");}, 500);}
     }
 }
