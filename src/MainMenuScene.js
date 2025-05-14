@@ -79,7 +79,7 @@ export class MainMenuScene extends Phaser.Scene {
             pseudoInput.node.style.backgroundColor = "#ffffff"; // Set background color
             pseudoInput.node.style.color = "#000000"; // Set text color
             pseudoInput.node.placeholder = "Ton prénom"; // Set placeholder
-            pseudoInput.node.value = "Mehdi"; // Set default value
+            //pseudoInput.node.value = "Mehdi"; // Set default value
 
             // Add event listener for "Enter" key
             pseudoInput.node.addEventListener("keydown", (event) => {

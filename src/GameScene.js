@@ -138,7 +138,7 @@ export class GameScene extends Phaser.Scene {
     this.createUI();
 
     // Periodically update the player's position in the database
-    this.positionUpdateInterval = setInterval(() => this.updatePlayer(), 5000);
+    this.positionUpdateInterval = setInterval(() => this.updatePlayer(), 2000);
 }
 
   update() {
@@ -149,6 +149,16 @@ export class GameScene extends Phaser.Scene {
 
     this.handlePlayerMovement();
     this.updateRemotePlayers();
+        // Envoi de la position à chaque frame (20-60 fois/seconde selon le framerate)
+    if (this.socket && this.myId) {
+        const currentMapId = PlayerService.getPlayerData()?.mapId;
+        this.socket.emit('playerMove', {
+            x: this.player.x,
+            y: this.player.y,
+            anim: this.currentAnim,
+            mapId: currentMapId,
+        });
+    }
   }
 
   loadAssets() {
@@ -229,17 +239,6 @@ export class GameScene extends Phaser.Scene {
   });
     this.player.body.setSize(36, 36); // Ajustez les dimensions selon vos besoins
     this.player.body.setOffset(6, 6); // Centrez la hitbox si nécessaire
-   // Add a text label above the player's sprite
-   this.player.pseudoText = this.add.text(x, y - 29, playerData.pseudo, {
-      font: "18px Arial",
-      fill: "#ffffff",
-      align: "center",
-    }).setOrigin(0.5);
-
-    // Update the text position to follow the player
-    this.physics.world.on("worldstep", () => {
-        this.player.pseudoText.setPosition(this.player.x, this.player.y - 29); // Adjusted offset
-    });
 
     this.createAnimations(textureKey); // Pass the texture key to create animations
 }
@@ -315,7 +314,8 @@ createAnimations(textureKey) {
 
     Object.keys(this.otherPlayers).forEach((id) => {
         if (!players[id] || players[id].mapId !== currentMapId) {
-            this.otherPlayers[id].destroy();
+            if (this.otherPlayers[id].sprite) this.otherPlayers[id].sprite.destroy();
+            if (this.otherPlayers[id].pseudoText) this.otherPlayers[id].pseudoText.destroy();
             delete this.otherPlayers[id];
         }
     });
@@ -330,18 +330,14 @@ createAnimations(textureKey) {
                     frameHeight: 48,
                 });
                 this.load.once('complete', () => {
-                    if (!this.otherPlayers[id]) {
-                        this.otherPlayers[id] = this.add.sprite(players[id].x, players[id].y, characterKey);
-                        this.otherPlayers[id].setDepth(1);
-                    }
+                    this.createRemotePlayer(id, players[id], characterKey);
                 });
                 this.load.start();
             } else {
                 if (!this.otherPlayers[id]) {
-                    this.otherPlayers[id] = this.add.sprite(players[id].x, players[id].y, characterKey);
-                    this.otherPlayers[id].setDepth(1);
+                    this.createRemotePlayer(id, players[id], characterKey);
                 } else {
-                    this.otherPlayers[id].setPosition(players[id].x, players[id].y);
+                    this.updateRemotePlayerPosition(id, players[id], characterKey);
                 }
             }
         }
@@ -364,26 +360,26 @@ createAnimations(textureKey) {
     this.socket.on("appearanceUpdate", (data) => {
         if (data.id === this.myId) {
             this.player.setTexture(data.character);
-        } else if (this.otherPlayers[data.id]) {
-            this.otherPlayers[data.id].setTexture(data.character);
+        } else if (this.otherPlayers[data.id] && this.otherPlayers[data.id].sprite) {
+             this.otherPlayers[data.id].sprite.setTexture(data.character);
         }
     });
 
 
     this.socket.on('playerLeftMap', (data) => {
-      console.log(`Joueur ${data.id} a quitté la carte ${data.mapId}`);
-      if (this.otherPlayers[data.id]) {
-          this.otherPlayers[data.id].destroy(); // Supprime le sprite du joueur
-          delete this.otherPlayers[data.id]; // Supprime le joueur de la liste
-      }
+        if (this.otherPlayers[data.id]) {
+            if (this.otherPlayers[data.id].sprite) this.otherPlayers[data.id].sprite.destroy();
+            if (this.otherPlayers[data.id].pseudoText) this.otherPlayers[data.id].pseudoText.destroy();
+            delete this.otherPlayers[data.id];
+        }
     });
 
     this.socket.on('playerDisconnected', (data) => {
-      console.log(`Joueur déconnecté : ${data.id} de la carte ${data.mapId}`);
-      if (this.otherPlayers[data.id]) {
-          this.otherPlayers[data.id].destroy(); // Supprime le sprite du joueur
-          delete this.otherPlayers[data.id]; // Supprime le joueur de la liste
-      }
+        if (this.otherPlayers[data.id]) {
+            if (this.otherPlayers[data.id].sprite) this.otherPlayers[data.id].sprite.destroy();
+            if (this.otherPlayers[data.id].pseudoText) this.otherPlayers[data.id].pseudoText.destroy();
+            delete this.otherPlayers[data.id];
+        }
     });
 }
 
@@ -565,11 +561,17 @@ updateRemotePlayers() {
     });
 
     // Supprime les joueurs qui ne sont plus sur la même carte ou absents
-    Object.keys(this.otherPlayers).forEach((id) => {
-        if (!this.latestPlayersData[id] || this.latestPlayersData[id].mapId !== currentMapId) {
-            this.otherPlayers[id].destroy();
-            delete this.otherPlayers[id];
+// --- Correction dans updateRemotePlayers (suppression) ---
+Object.keys(this.otherPlayers).forEach((id) => {
+    if (!this.latestPlayersData[id] || this.latestPlayersData[id].mapId !== currentMapId) {
+        if (this.otherPlayers[id].pseudoText) {
+            this.otherPlayers[id].pseudoText.destroy();
         }
+        if (this.otherPlayers[id].sprite) {
+            this.otherPlayers[id].sprite.destroy();
+        }
+        delete this.otherPlayers[id];
+    }
     });
 }
 
@@ -577,28 +579,40 @@ updateRemotePlayerPosition(id, data, textureKey) {
     const lerpFactor = 0.2;
     const targetX = data.x;
     const targetY = data.y;
-    const newX = Phaser.Math.Linear(this.otherPlayers[id].x, targetX, lerpFactor);
-    const newY = Phaser.Math.Linear(this.otherPlayers[id].y, targetY, lerpFactor);
-    this.otherPlayers[id].x = Math.abs(newX - targetX) < 1 ? targetX : newX;
-    this.otherPlayers[id].y = Math.abs(newY - targetY) < 1 ? targetY : newY;
+    const remoteObj = this.otherPlayers[id];
+    if (!remoteObj) return;
+    const remote = remoteObj.sprite;
+    const newX = Phaser.Math.Linear(remote.x, targetX, lerpFactor);
+    const newY = Phaser.Math.Linear(remote.y, targetY, lerpFactor);
+    remote.x = Math.abs(newX - targetX) < 1 ? targetX : newX;
+    remote.y = Math.abs(newY - targetY) < 1 ? targetY : newY;
 
-    if (data.anim && this.otherPlayers[id].currentAnim !== data.anim) {
+    // Met à jour la position du pseudoText
+    if (remoteObj.pseudoText) {
+        remoteObj.pseudoText.setPosition(remote.x, remote.y - 29);
+    }
+
+    if (data.anim && remote.currentAnim !== data.anim) {
         const animationKey = `${textureKey}-${data.anim}`;
         if (this.anims.exists(animationKey)) {
-            this.otherPlayers[id].anims.play(animationKey, true);
-            this.otherPlayers[id].currentAnim = data.anim;
+            remote.anims.play(animationKey, true);
+            remote.currentAnim = data.anim;
         }
-    } else if (!data.anim && this.otherPlayers[id].currentAnim) {
-        // Stop animation if no animation is provided
-        this.otherPlayers[id].anims.stop();
-        this.otherPlayers[id].currentAnim = null;
+    } else if (!data.anim && remote.currentAnim) {
+        remote.anims.stop();
+        remote.currentAnim = null;
     }
 }
 
 createRemotePlayer(id, data, textureKey) {
     // Supprime tout sprite existant pour éviter les résidus
     if (this.otherPlayers[id]) {
-        this.otherPlayers[id].destroy();
+        if (this.otherPlayers[id].pseudoText) {
+            this.otherPlayers[id].pseudoText.destroy();
+        }
+        if (this.otherPlayers[id].sprite) {
+            this.otherPlayers[id].sprite.destroy();
+        }
         delete this.otherPlayers[id];
     }
 
@@ -614,11 +628,21 @@ createRemotePlayer(id, data, textureKey) {
     newSprite.currentAnim = data.anim || "";
     newSprite.setInteractive();
 
-    // Ajoute le pseudo et l'id au sprite (utile pour interactions)
     newSprite.id = id;
     newSprite.pseudo = data.pseudo;
     this.remotePlayersGroup.add(newSprite);
-    this.otherPlayers[id] = newSprite;
+
+
+    // Ajoute le pseudo au-dessus du sprite
+    const pseudoText = this.add.text(data.x, data.y - 29, data.pseudo, {
+        font: "18px Arial",
+        fill: "#ffffff",
+        align: "center",
+    }).setOrigin(0.5);
+
+
+    // Stocke un objet {sprite, pseudoText}
+    this.otherPlayers[id] = { sprite: newSprite, pseudoText };
 
     // Crée dynamiquement les animations pour ce joueur
     CONFIG.animations.forEach((anim) => {
@@ -1056,12 +1080,12 @@ openMessages = () => {
     let nearestId = null;
     let minDistance = Number.MAX_VALUE;
     Object.keys(this.otherPlayers).forEach((id) => {
-      let remote = this.otherPlayers[id];
-      let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestId = id;
-      }
+        let remote = this.otherPlayers[id].sprite;
+        let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestId = id;
+        }
     });
     return (minDistance < 100) ? nearestId : null;
   }
