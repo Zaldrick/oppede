@@ -15,8 +15,8 @@ export class MainMenuScene extends Phaser.Scene {
 
     preload() {
         this.load.image("mainMenuBackground", "/assets/mainMenuBackground.png"); // Load the background image
-        this.load.audio("silentSound", "/assets/music/silent.mp3");
-        this.load.audio("mainMenuMusic", "/assets/music/mainMenuMusic.mp3"); // Load background music
+        this.load.audio("silentSound", "/assets/musics/silent.mp3");
+        this.load.audio("mainMenuMusic", "/assets/musics/mainMenuMusic.mp3"); // Load background music
         this.load.image("logo", "/assets/logo.png"); // Load the logo image
     }
 
@@ -79,6 +79,7 @@ export class MainMenuScene extends Phaser.Scene {
             pseudoInput.node.style.backgroundColor = "#ffffff"; // Set background color
             pseudoInput.node.style.color = "#000000"; // Set text color
             pseudoInput.node.placeholder = "Ton prénom"; // Set placeholder
+            pseudoInput.node.value = "Mehdi"; // Set default value
 
             // Add event listener for "Enter" key
             pseudoInput.node.addEventListener("keydown", (event) => {

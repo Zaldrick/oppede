@@ -1,14 +1,14 @@
 { "compressionlevel":-1,
- "height":43,
+ "height":45,
  "infinite":false,
  "layers":[
         {
          "id":2,
-         "image":"./interieur.png",
+         "image":"..\/interieur.png",
          "imageheight":2164,
          "imagewidth":1536,
          "name":"fond",
-         "opacity":0.58,
+         "opacity":1,
          "type":"imagelayer",
          "visible":true,
          "x":0,
@@ -57,11 +57,13 @@
             1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-         "height":43,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 257, 257, 257, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+         "height":45,
          "id":1,
          "name":"Collision",
-         "opacity":0.46,
+         "opacity":1,
          "type":"tilelayer",
          "visible":true,
          "width":32,
@@ -78,6 +80,29 @@
         {
          "columns":16,
          "firstgid":1,
+         "image":"./Inside_B.png",
+         "imageheight":768,
+         "imagewidth":768,
+         "margin":0,
+         "name":"Inside_B",
+         "spacing":0,
+         "tilecount":256,
+         "tileheight":48,
+         "tiles":[
+                {
+                 "id":0,
+                 "properties":[
+                        {
+                         "name":"collision",
+                         "type":"bool",
+                         "value":true
+                        }]
+                }],
+         "tilewidth":48
+        }, 
+        {
+         "columns":16,
+         "firstgid":257,
          "image":"./Inside_B.png",
          "imageheight":768,
          "imagewidth":768,

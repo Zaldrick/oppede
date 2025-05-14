@@ -11,24 +11,25 @@ const useChat = () => {
     socketRef.current = io(process.env.REACT_APP_SOCKET_URL);
 
     socketRef.current.on("connect", () => {
-      console.log("Connected to WebSocket server:", socketRef.current.id);
     });
 
     socketRef.current.on("disconnect", () => {
-      console.log("Disconnected from WebSocket server");
     });
 
     socketRef.current.on("connect_error", (err) => {
       console.error("Connection error:", err);
     });
 
-    // Listen for incoming chat messages
-    socketRef.current.on("chatMessage", (data) => {
-      console.log("Received chat message:", data);
-      const sender = data.pseudo || "Anonymous"; // Fallback to "Anonymous" if pseudo is not defined
-      console.log("message recu de :", sender, "message :", data.message);
-      setMessages((prevMessages) => [...prevMessages, { sender, message: data.message }]);
+     socketRef.current.on('chatMessage', (data) => {
+        const currentMapId =  PlayerService.getPlayerData()?.mapId;  // Récupérez l'id de la carte actuelle
+        if (data.mapId === currentMapId) {
+            const sender = data.pseudo || "Anonymous"; // Fallback to "Anonymous" if pseudo is not defined
+            setMessages((prevMessages) => [...prevMessages, { sender, message: data.message }]);
+        } else {
+            console.log("(Map ",data.mapId,") ",data.pseudo, ": ",data.message);
+        }
     });
+
 
     return () => {
       // Clean up WebSocket connection on unmount
@@ -40,19 +41,19 @@ const useChat = () => {
 
   const sendMessage = (message) => {
     const playerPseudo = PlayerService.getPlayerData()?.pseudo; // Retrieve pseudo from PlayerService
-    if (!playerPseudo) {
-      console.warn("Player pseudo is not available.");
-      return;
+    const mapId =  PlayerService.getPlayerData()?.mapId;  // Récupérez l'id de la carte actuelle
+    if (!playerPseudo || mapId === undefined) {
+        console.warn("Player pseudo or mapId is not available.");
+        return;
     }
 
-    const messageData = { pseudo: playerPseudo, message };
-    console.log("pseudoChat envoyé:", playerPseudo);
+    const messageData = { pseudo: playerPseudo, message, mapId };
     socketRef.current.emit("chatMessage", messageData, (ack) => {
-      if (ack && ack.status === "ok") {
-        console.log("Server acknowledged chatMessage:", ack);
-      } else {
-        console.warn("No acknowledgment received for chatMessage or error occurred:", ack);
-      }
+        if (ack && ack.status === "ok") {
+            console.log("Server acknowledged chatMessage:", ack);
+        } else {
+            console.warn("No acknowledgment received for chatMessage or error occurred:", ack);
+        }
     });
   };
 

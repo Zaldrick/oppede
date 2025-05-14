@@ -55,7 +55,7 @@ const Chat = ({ messages, onSendMessage }) => {
         <input
           type="text"
           value={currentMessage}
-          placeholder="Type a message..."
+          placeholder="Écrire un message..."
           style={{ flex: 1, marginRight: "10px", padding: "10px", border: "1px solid #ccc", borderRadius: "5px" }}
           onChange={(e) => setCurrentMessage(e.target.value)}
           onKeyDown={(e) => {
@@ -75,7 +75,7 @@ const Chat = ({ messages, onSendMessage }) => {
             cursor: "pointer",
           }}
         >
-          Send
+          Envoyer
         </button>
       </div>
     </div>

@@ -7,6 +7,7 @@ const playerSchema = new mongoose.Schema({
     totalScore: { type: Number, default: 0 }, // Score total
     posX: { type: Number, default: 0 },
     posY: { type: Number, default: 0 },
+    mapId: { type: Number, default: 0 }, // ID de la carte   
     character: { type: String, default: 'default' },
 });
 

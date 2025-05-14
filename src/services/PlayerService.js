@@ -8,7 +8,7 @@ class PlayerService {
     return PlayerService.instance;
   }
 
-  async fetchPlayerData(playerPseudo) {
+  async fetchPlayerData(playerPseudo) { 
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${playerPseudo}`);
       if (!response.ok) {
@@ -44,6 +44,22 @@ class PlayerService {
   getPlayerData() {
     return this.playerData;
   }
+
+    // Définit les données du joueur
+    setPlayerData(data) {
+        this.playerData = data;
+    }
+
+    // Met à jour une ou plusieurs propriétés des données du joueur
+    updatePlayerData(updates) {
+        if (!this.playerData) {
+            console.warn("Player data is not initialized. Cannot update.");
+            return;
+        }
+
+        this.playerData = { ...this.playerData, ...updates };
+        console.log("Player data updated:", this.playerData);
+    }
 
   getInventory() {
     return this.inventory;

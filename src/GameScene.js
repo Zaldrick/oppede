@@ -23,6 +23,31 @@ export class GameScene extends Phaser.Scene {
   constructor() {
     super("GameScene"); // Removed plugin registration
     this.inventory = []; // Initialize an empty inventory for the player
+    // Associez les cartes à leurs identifiants
+    
+    this.mapIds = {
+      map: 0,   // Carte de base
+      map2: 1,  // Deuxième carte
+    };
+        // Associez chaque mapId à une image de fond
+    this.backgroundImages = {
+        0: "background",       // Image de fond pour la carte "map"
+        1: "backgroundext",    // Image de fond pour la carte "map2"
+    };
+
+    this.mapMusic = {
+        map: "music1",   // Musique pour la carte "map"
+        map2: "music1",  // Musique pour la carte "map2"
+    };
+
+    this.teleportPoints = {
+        map: [
+            { x: 18*48 + 24, y: 43*48+24, targetMap: "map2", targetX: 7 * 48 + 24, targetY: 8 * 48 + 24 },
+        ],
+        map2: [
+            { x: 7 * 48 + 24, y: 7 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24 },
+        ],
+    };
   }
 
   async preload() {
@@ -56,7 +81,6 @@ export class GameScene extends Phaser.Scene {
 
         // Fetch inventory data for the player
         const inventory = await PlayerService.fetchInventory(playerData._id);
-        console.log(`Inventory data for player ${playerPseudo}:`, inventory);
 
         // Store inventory data in the scene
         this.inventory = inventory;
@@ -91,7 +115,6 @@ export class GameScene extends Phaser.Scene {
     if (chatElement) chatElement.style.display = "block";
     if (inputElement) inputElement.style.display = "block";
 
-    console.log("rexVirtualJoystick plugin in GameScene:", this.plugins.get("rexVirtualJoystick"));
     // Wait for the preloadPromise to resolve before proceeding
     try {
         await this.preloadPromise;
@@ -106,10 +129,9 @@ export class GameScene extends Phaser.Scene {
         return; // Exit if player data is missing
     }
 
-    // Initialize the game world and player only after all data is ready
+    this.createPlayer();
     this.setupWorld();
     this.loadPlayers();
-    this.createPlayer();
     this.setupCamera();
     this.setupControls();
     this.setupSocket();
@@ -130,40 +152,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   loadAssets() {
+    this.load.audio("teleportSound", "/assets/sounds/tp.mp3"); // Son de téléportation
+    this.load.audio("music1", "/assets/musics/music1.mp3");
     this.load.image("background", "/assets/interieur.png"); // Preload background image
+    this.load.image("backgroundext", "/assets/maps/exterieur.png"); // Preload background image
     this.load.spritesheet("player", "/assets/apparences/Mehdi.png", {
       frameWidth: 48,
       frameHeight: 48,
     }); // Preload default player spritesheet
     this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
+    this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj"); // Nouvelle carte
     this.load.image("Inside_B", "/assets/maps/Inside_B.png");
     this.load.plugin('rexvirtualjoystickplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexvirtualjoystickplugin.min.js', true);
   }
 
   setupWorld() {
-    const worldWidth = 1536; // Match the new image size
-    const worldHeight = 2164; // Match the new image size
-    this.add.image(worldWidth / 2, worldHeight / 2, "background");
-    
-  
-    // Charger la carte et le tileset
-    this.map = this.make.tilemap({ key: "map" }); // Stocker la carte dans this.map
-    const tileset = this.map.addTilesetImage("Inside_B", "Inside_B");
+    // Récupérez les données du joueur depuis le registre
+    const playerData = this.registry.get("playerData");
+    if (!playerData) {
+        console.error("Player data is not defined in the registry! Aborting world setup.");
+        return;
+    }
 
-    // Créer les couches
-    const collisionLayer = this.map.createLayer("Collision", tileset, 0, 0);
+    // Déterminez la carte à charger en fonction de mapId
+    const mapKey = Object.keys(this.mapIds).find(key => this.mapIds[key] === playerData.mapId);
+    if (!mapKey) {
+        console.error(`Aucune carte trouvée pour mapId: ${playerData.mapId}`);
+        return;
+    }
 
-    // Activer les collisions pour les tiles ayant la propriété "collision" à true
-    collisionLayer.setCollisionByProperty({ collision: true });
-
-    // Débogage (optionnel) : afficher les zones de collision
-    const debugGraphics = this.add.graphics();
-
-    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
-    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
-    // Stocker la couche de collision pour une utilisation ultérieure
-    this.collisionLayer = collisionLayer;
-  }
+    this.changeMap(mapKey, playerData.posX || 0, playerData.posY || 0);
+}
 
   
   async loadPlayers() {
@@ -174,9 +193,6 @@ export class GameScene extends Phaser.Scene {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const players = await response.json();
-
-        // Log the retrieved players to the console
-        console.log('Players retrieved from /api/players:', players);
 
         players.forEach(player => {
             const option = document.createElement('option');
@@ -208,6 +224,9 @@ export class GameScene extends Phaser.Scene {
     this.remotePlayersGroup = this.physics.add.group({
       immovable: true, // Prevent remote players from being pushed
     });
+    this.physics.add.collider(this.player, this.remotePlayersGroup, (localPlayer, remotePlayer) => {
+    this.handleCollision(localPlayer, remotePlayer);
+  });
     this.player.body.setSize(36, 36); // Ajustez les dimensions selon vos besoins
     this.player.body.setOffset(6, 6); // Centrez la hitbox si nécessaire
    // Add a text label above the player's sprite
@@ -221,22 +240,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.on("worldstep", () => {
         this.player.pseudoText.setPosition(this.player.x, this.player.y - 29); // Adjusted offset
     });
-      // Ajouter une collision entre le joueur et la couche de collision
-      if (this.collisionLayer) {
-        this.physics.add.collider(this.player, this.collisionLayer);
-    } else {
-        console.error("Collision layer is not defined!");
-    }
 
-    // Ajoutez une gestion des collisions
-    this.physics.add.collider(this.player, this.remotePlayersGroup);
-    // Configure collisions entre le joueur local et les joueurs distants
-    if (this.player && this.remotePlayersGroup) {
-      this.physics.add.collider(this.player, this.remotePlayersGroup, (localPlayer, remotePlayer) => {
-      });
-  } else {
-      console.error("Player or remote players group is not initialized!");
-  }
     this.createAnimations(textureKey); // Pass the texture key to create animations
 }
 
@@ -276,16 +280,21 @@ createAnimations(textureKey) {
     this.socket = io(process.env.REACT_APP_SOCKET_URL);
     this.otherPlayers = {};
     this.latestPlayersData = {};
-    console.log("pseudo : ", this.registry.get("playerPseudo")) 
     this.socket.on('connect', () => {
         if (this.socket && this.socket.id) {
             this.myId = this.socket.id;
+
+            const currentMapId = PlayerService.getPlayerData().mapId;
+
             this.socket.emit('newPlayer', {
                 x: this.player.x,
                 y: this.player.y,
-                character: 'default',
-                pseudo: this.registry.get("playerPseudo") || "Player" // Utilise le pseudo du joueur
+                character: '/assets/apparences/'+this.registry.get("playerPseudo")+'.png',
+                pseudo: this.registry.get("playerPseudo") || "Player",
+                mapId: currentMapId,
             });
+        } else {
+            console.error("Socket connection failed or socket ID is undefined.");
         }
     });
 
@@ -293,12 +302,54 @@ createAnimations(textureKey) {
     this.socket.on('disconnectMessage', (data) => {
         console.warn(data.message); // Affiche le message dans la console
         this.registry.set('disconnectMessage', data.message);
+
+        // Réinitialiser l'application
+        this.resetApplication();
         this.scene.stop(); // Arrête la scène actuelle
         this.scene.start('MainMenuScene'); // Redirige vers une autre scène, comme le menu principal
     });
 
     this.socket.on('playersUpdate', (players) => {
-        this.latestPlayersData = players;
+
+    const currentMapId = PlayerService.getPlayerData().mapId;
+
+    Object.keys(this.otherPlayers).forEach((id) => {
+        if (!players[id] || players[id].mapId !== currentMapId) {
+            this.otherPlayers[id].destroy();
+            delete this.otherPlayers[id];
+        }
+    });
+
+    Object.keys(players).forEach((id) => {
+        if (id !== this.myId && players[id].mapId === currentMapId) {
+            const characterKey = players[id].character; // ex: "/assets/apparences/Arthur.png"
+            // Charge dynamiquement la texture si besoin
+            if (!this.textures.exists(characterKey)) {
+                this.load.spritesheet(characterKey, characterKey, {
+                    frameWidth: 48,
+                    frameHeight: 48,
+                });
+                this.load.once('complete', () => {
+                    if (!this.otherPlayers[id]) {
+                        this.otherPlayers[id] = this.add.sprite(players[id].x, players[id].y, characterKey);
+                        this.otherPlayers[id].setDepth(1);
+                    }
+                });
+                this.load.start();
+            } else {
+                if (!this.otherPlayers[id]) {
+                    this.otherPlayers[id] = this.add.sprite(players[id].x, players[id].y, characterKey);
+                    this.otherPlayers[id].setDepth(1);
+                } else {
+                    this.otherPlayers[id].setPosition(players[id].x, players[id].y);
+                }
+            }
+        }
+    });
+
+    this.latestPlayersData = players;
+
+    
     });
 
     this.socket.on("interaction", (data) => {
@@ -318,10 +369,25 @@ createAnimations(textureKey) {
         }
     });
 
-    this.socket.on('chatMessage', (data) => {
-      console.log(`Message reçu de ${data.pseudo}: ${data.message}`);
-  });
+
+    this.socket.on('playerLeftMap', (data) => {
+      console.log(`Joueur ${data.id} a quitté la carte ${data.mapId}`);
+      if (this.otherPlayers[data.id]) {
+          this.otherPlayers[data.id].destroy(); // Supprime le sprite du joueur
+          delete this.otherPlayers[data.id]; // Supprime le joueur de la liste
+      }
+    });
+
+    this.socket.on('playerDisconnected', (data) => {
+      console.log(`Joueur déconnecté : ${data.id} de la carte ${data.mapId}`);
+      if (this.otherPlayers[data.id]) {
+          this.otherPlayers[data.id].destroy(); // Supprime le sprite du joueur
+          delete this.otherPlayers[data.id]; // Supprime le joueur de la liste
+      }
+    });
 }
+
+
 
   createUI() {
     const gameWidth = this.scale.width;
@@ -394,53 +460,40 @@ createAnimations(textureKey) {
     let keyboardActive = false;
 
     if (this.cursors.left?.isDown) {
-      keyboardActive = true;
-      newAnim = "walk-left";
-      this.player.setVelocity(-200, 0);
-    } else if (this.cursors.right?.isDown) {
-      keyboardActive = true;
-      newAnim = "walk-right";
-      this.player.setVelocity(200, 0);
-    } else if (this.cursors.up?.isDown) {
-      keyboardActive = true;
-      newAnim = "walk-up";
-      this.player.setVelocity(0, -200);
-    } else if (this.cursors.down?.isDown) {
-      keyboardActive = true;
-      newAnim = "walk-down";
-      this.player.setVelocity(0, 200);
-    }
-    if (!keyboardActive && this.joystick && this.joystick.force > 0) {
-      const angle = this.joystick.angle;
-      if (angle > -45 && angle <= 45) {
-        newAnim = "walk-right";
-      } else if (angle > 45 && angle <= 135) {
-        newAnim = "walk-down";
-      } else if (angle > 135 || angle <= -135) {
+        keyboardActive = true;
         newAnim = "walk-left";
-      } else if (angle > -135 && angle <= -45) {
+        this.player.setVelocity(-200, 0);
+    } else if (this.cursors.right?.isDown) {
+        keyboardActive = true;
+        newAnim = "walk-right";
+        this.player.setVelocity(200, 0);
+    } else if (this.cursors.up?.isDown) {
+        keyboardActive = true;
         newAnim = "walk-up";
-      }
-      this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
-      this.player.setVelocityY(Math.sin(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
+        this.player.setVelocity(0, -200);
+    } else if (this.cursors.down?.isDown) {
+        keyboardActive = true;
+        newAnim = "walk-down";
+        this.player.setVelocity(0, 200);
     }
-    if (newAnim === "") {
-      this.player.setVelocity(0);
-      if (this.player.anims.isPlaying) {
-        this.player.anims.stop();
-      }
-      this.currentAnim = "";
-    } else if (newAnim !== this.currentAnim) {
-      this.player.anims.play(newAnim, true);
-      this.currentAnim = newAnim;
-    }
-    // Aligner le joueur sur la grille après le déplacement
-    if (!keyboardActive && (!this.joystick || this.joystick.force === 0)) {
-      // Arrêter le joueur et aligner sur la grille uniquement lorsqu'il s'arrête
-      this.player.setVelocity(0);
-      this.player.x = Math.round(this.player.x / gridSize) * gridSize;
-      this.player.y = Math.round(this.player.y / gridSize) * gridSize;
 
+    if (!keyboardActive && this.joystick && this.joystick.force > 0) {
+        const angle = this.joystick.angle;
+        if (angle > -45 && angle <= 45) {
+            newAnim = "walk-right";
+        } else if (angle > 45 && angle <= 135) {
+            newAnim = "walk-down";
+        } else if (angle > 135 || angle <= -135) {
+            newAnim = "walk-left";
+        } else if (angle > -135 && angle <= -45) {
+            newAnim = "walk-up";
+        }
+        this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
+        this.player.setVelocityY(Math.sin(Phaser.Math.DegToRad(angle)) * this.joystick.force * 2);
+    }
+
+    if (newAnim === "") {
+        this.player.setVelocity(0);
         if (this.player.anims.isPlaying) {
             this.player.anims.stop();
         }
@@ -450,88 +503,74 @@ createAnimations(textureKey) {
         this.currentAnim = newAnim;
     }
 
+    // Aligner le joueur sur la grille après le déplacement
+    if (!keyboardActive && (!this.joystick || this.joystick.force === 0)) {
+        this.player.setVelocity(0);
+        this.player.x = Math.round(this.player.x / gridSize) * gridSize;
+        this.player.y = Math.round(this.player.y / gridSize) * gridSize;
+
+        if (this.player.anims.isPlaying) {
+            this.player.anims.stop();
+        }
+        this.currentAnim = "";
+    }
 
     if (this.socket && this.myId) {
-      this.socket.emit('playerMove', { x: this.player.x, y: this.player.y, anim: this.currentAnim });
+        const currentMapId = PlayerService.getPlayerData()?.mapId; // Récupérer le mapId actuel
+        this.socket.emit('playerMove', {
+            x: this.player.x,
+            y: this.player.y,
+            anim: this.currentAnim,
+            mapId: currentMapId, // Inclure mapId dans les données envoyées
+        });
     }
   }
+updateRemotePlayers() {
+    if (!this.latestPlayersData) return;
 
-  updateRemotePlayers() {
-    if (this.latestPlayersData) {
-        Object.keys(this.latestPlayersData).forEach((id) => {
-            if (id === this.myId) return;
-            const data = this.latestPlayersData[id];
-            const textureKey = `appearance-${data.pseudo}`;
+    const currentMapId = PlayerService.getPlayerData()?.mapId;
+    if (currentMapId === undefined) return;
 
-            if (!this.otherPlayers[id]) {
-                if (!this.textures.exists(textureKey)) {
+    // Liste des joueurs à créer après chargement
+    const toCreate = [];
+
+    Object.keys(this.latestPlayersData).forEach((id) => {
+        if (id === this.myId) return;
+        const data = this.latestPlayersData[id];
+        const textureKey = `appearance-${data.pseudo}`;
+
+        if (data.mapId === currentMapId && !this.otherPlayers[id]) {
+            if (!this.textures.exists(textureKey)) {
+                // Charge la texture si pas déjà en cours de chargement
+                if (!this.load.isLoading()) {
                     this.load.spritesheet(textureKey, `/assets/apparences/${data.pseudo}.png`, {
-                        frameWidth: 48, // Assurez-vous que cela correspond à la taille des frames
+                        frameWidth: 48,
                         frameHeight: 48,
                     });
+                    toCreate.push({ id, data, textureKey });
                     this.load.once('complete', () => {
-                        this.createRemotePlayer(id, data, textureKey);
+                        toCreate.forEach(({ id, data, textureKey }) => {
+                            this.createRemotePlayer(id, data, textureKey);
+                        });
                     });
                     this.load.start();
-                } else {
-                    this.createRemotePlayer(id, data, textureKey);
                 }
+                // Sinon, on attend le prochain updateRemotePlayers
             } else {
-                this.updateRemotePlayerPosition(id, data, textureKey);
+                this.createRemotePlayer(id, data, textureKey);
             }
-        });
-
-        Object.keys(this.otherPlayers).forEach((id) => {
-            if (!this.latestPlayersData[id]) {
-                this.otherPlayers[id].destroy();
-                delete this.otherPlayers[id];
-            }
-        });
-    }
-}
-
-createRemotePlayer(id, data, textureKey) {
-    // Supprimez tout sprite existant pour éviter les résidus
-    if (this.otherPlayers[id]) {
-        this.otherPlayers[id].destroy();
-        delete this.otherPlayers[id];
-    }
-
-    const newSprite = this.physics.add.sprite(data.x, data.y, textureKey);
-    newSprite.setCollideWorldBounds(true);
-    newSprite.setImmovable(true); // Empêche le joueur distant d'être poussé
-    newSprite.currentAnim = data.anim || "";
-    newSprite.setInteractive();
-
-    // Ajoutez le pseudo et l'id au sprite
-    newSprite.id = id;
-    newSprite.pseudo = data.pseudo;
-    this.remotePlayersGroup.add(newSprite);
-    this.otherPlayers[id] = newSprite;
-    
-    console.log(`Created remote player: ${id} at (${data.x}, ${data.y})`);
-
-    if (this.collisionLayer) {
-      console.log("Collision layer is configured.");
-    } else {
-        console.error("Collision layer is missing!");
-    }
-
-    // Configure animations pour ce joueur
-    CONFIG.animations.forEach((anim) => {
-        if (!this.anims.exists(`${textureKey}-${anim.key}`)) {
-            this.anims.create({
-                key: `${textureKey}-${anim.key}`,
-                frames: this.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end }),
-                frameRate: 8,
-                repeat: -1,
-            });
+        } else if (data.mapId === currentMapId) {
+            this.updateRemotePlayerPosition(id, data, textureKey);
         }
     });
 
-    if (data.anim) {
-        newSprite.anims.play(`${textureKey}-${data.anim}`, true);
-    }
+    // Supprime les joueurs qui ne sont plus sur la même carte ou absents
+    Object.keys(this.otherPlayers).forEach((id) => {
+        if (!this.latestPlayersData[id] || this.latestPlayersData[id].mapId !== currentMapId) {
+            this.otherPlayers[id].destroy();
+            delete this.otherPlayers[id];
+        }
+    });
 }
 
 updateRemotePlayerPosition(id, data, textureKey) {
@@ -544,12 +583,58 @@ updateRemotePlayerPosition(id, data, textureKey) {
     this.otherPlayers[id].y = Math.abs(newY - targetY) < 1 ? targetY : newY;
 
     if (data.anim && this.otherPlayers[id].currentAnim !== data.anim) {
-        this.otherPlayers[id].anims.play(`${textureKey}-${data.anim}`, true);
-        this.otherPlayers[id].currentAnim = data.anim;
+        const animationKey = `${textureKey}-${data.anim}`;
+        if (this.anims.exists(animationKey)) {
+            this.otherPlayers[id].anims.play(animationKey, true);
+            this.otherPlayers[id].currentAnim = data.anim;
+        }
     } else if (!data.anim && this.otherPlayers[id].currentAnim) {
         // Stop animation if no animation is provided
         this.otherPlayers[id].anims.stop();
         this.otherPlayers[id].currentAnim = null;
+    }
+}
+
+createRemotePlayer(id, data, textureKey) {
+    // Supprime tout sprite existant pour éviter les résidus
+    if (this.otherPlayers[id]) {
+        this.otherPlayers[id].destroy();
+        delete this.otherPlayers[id];
+    }
+
+    // Vérifie que la texture est bien chargée
+    if (!this.textures.exists(textureKey)) {
+        console.warn(`Texture "${textureKey}" not loaded for player ${data.pseudo}, skipping sprite creation.`);
+        return;
+    }
+
+    const newSprite = this.physics.add.sprite(data.x, data.y, textureKey);
+    newSprite.setCollideWorldBounds(true);
+    newSprite.setImmovable(true);
+    newSprite.currentAnim = data.anim || "";
+    newSprite.setInteractive();
+
+    // Ajoute le pseudo et l'id au sprite (utile pour interactions)
+    newSprite.id = id;
+    newSprite.pseudo = data.pseudo;
+    this.remotePlayersGroup.add(newSprite);
+    this.otherPlayers[id] = newSprite;
+
+    // Crée dynamiquement les animations pour ce joueur
+    CONFIG.animations.forEach((anim) => {
+        const animationKey = `${textureKey}-${anim.key}`;
+        if (!this.anims.exists(animationKey)) {
+            this.anims.create({
+                key: animationKey,
+                frames: this.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end }),
+                frameRate: 8,
+                repeat: -1,
+            });
+        }
+    });
+
+    if (data.anim) {
+        newSprite.anims.play(`${textureKey}-${data.anim}`, true);
     }
 }
 
@@ -565,7 +650,7 @@ updateRemotePlayerPosition(id, data, textureKey) {
         localPlayer.y += overlapY > 0 ? 1 : -1;
     }
 
-    console.log("Collision détectée entre le joueur local et un joueur distant.");
+
   }
 
   handleJoystickUpdate() {
@@ -598,11 +683,10 @@ updateRemotePlayerPosition(id, data, textureKey) {
 
   handleSocketConnect() {
     this.myId = this.socket.id;
-    console.log("Connecté avec id:", this.myId);
     this.socket.emit('newPlayer', {
       x: this.player.x,
       y: this.player.y,
-      character: 'default'
+      character: '/assets/apparences/'+this.registry.get("playerPseudo")+'.png'
     });
   }
 
@@ -611,7 +695,6 @@ updateRemotePlayerPosition(id, data, textureKey) {
   }
 
   handleInteractionFeedback(data) {
-    console.log("handleInteractionFeedback called with data:", data); // Debug log
 
     if (data.from === this.myId || data.to === this.myId) {
         const message = (data.action === "defier")
@@ -972,7 +1055,6 @@ openMessages = () => {
   getNearestRemotePlayer() {
     let nearestId = null;
     let minDistance = Number.MAX_VALUE;
-    console.log("Recherche de joueurs"); // Debug log
     Object.keys(this.otherPlayers).forEach((id) => {
       let remote = this.otherPlayers[id];
       let distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, remote.x, remote.y);
@@ -1024,13 +1106,13 @@ openMessages = () => {
     const playerPseudo = this.registry.get("playerData").pseudo;
     const posX = this.player.x;
     const posY = this.player.y;
-
+    const mapId = this.mapIds[this.map.key];  // Ajoutez l'identifiant de la carte
 
     try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/update-position`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pseudo: playerPseudo, posX, posY }),
+            body: JSON.stringify({ pseudo: playerPseudo, posX, posY, mapId }),
         });
 
         if (!response.ok) {
@@ -1060,6 +1142,191 @@ openMessages = () => {
     console.log("Updated inventory:", PlayerService.getInventory());
   }
 
+changeMap(mapKey, spawnX, spawnY) {
+    if (!this.cache.tilemap.has(mapKey)) {
+        return;
+    }
 
+    // Supprimez les colliders existants
+    if (this.collisionLayer) {
+        this.physics.world.colliders.destroy(); // Supprime tous les colliders existants
+        this.collisionLayer.destroy();
+    }
 
+    // Chargez la nouvelle carte
+    this.map = this.make.tilemap({ key: mapKey });
+    this.map.key = mapKey; // Définir explicitement la clé
+    if (!this.map) {
+      console.error(`La carte "${mapKey}" n'a pas pu être chargée.`);
+      return;
+    }
+
+    const tileset = this.map.addTilesetImage("Inside_B", "Inside_B");
+    if (!tileset) {
+        console.error(`Le tileset "Inside_B" n'a pas pu être chargé.`);
+        return;
+    }
+
+    // Affichez l'image de fond correspondant au mapId
+    const mapId = this.mapIds[mapKey];
+    this.registry.set("currentMapId", mapId); // Stockez le mapId dans le registre
+    const backgroundImageKey = this.backgroundImages[mapId];
+    if (backgroundImageKey) {
+        if (this.currentBackgroundImage) {
+            this.currentBackgroundImage.destroy(); // Supprimez l'image précédente
+        }
+        this.currentBackgroundImage = this.add.image(0, 0, backgroundImageKey).setOrigin(0).setDepth(-1);
+    } else {
+        console.warn(`Aucune image de fond trouvée pour mapId: ${mapId}`);
+    }
+
+    // Configurez les couches
+    this.collisionLayer = this.map.createLayer("Collision", tileset, 0, 0);
+    if (!this.collisionLayer) {
+      console.error("La couche de collision n'a pas pu être créée.");
+      return;
+    }
+    this.collisionLayer.setCollisionByProperty({ collision: true });
+
+    var tile = this.collisionLayer.getTileAt(7, 8); // Coordonnées de la tuile
+    if (!tile) {
+        console.warn("Aucune tuile trouvée aux coordonnées (7, 8) dans la couche Collision.");
+    } 
+    
+    // Ajoutez des collisions pour la nouvelle carte
+    if (this.player) {
+        this.physics.add.collider(this.player, this.collisionLayer);
+    }
+
+    // Mettez à jour les limites du monde
+    this.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+
+    // Téléportez le joueur aux nouvelles coordonnées
+    if (this.player) {
+        this.player.setPosition(spawnX, spawnY);
+        this.player.setVisible(true);
+    } else {
+        console.error("Player is not initialized! Cannot set position.");
+    }
+    PlayerService.updatePlayerData({ mapId }); // Ajoutez cette ligne si PlayerService est utilisé
+    tile = this.collisionLayer.getTileAtWorldXY(this.player.x, this.player.y);
+    if (!tile) {
+        console.warn(`Le joueur est positionné sur une tuile invalide : (${this.player.x}, ${this.player.y})`);
+    } 
+    this.createTeleportZones();
+    this.cameras.main.fadeIn(500, 0, 0, 0); // 500ms de fondu depuis le noir
+    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    if (this.socket && this.myId) {
+      const currentMapId = PlayerService.getPlayerData()?.mapId; // Récupérer le mapId actuel
+      this.socket.emit('playerMove', {
+          x: this.player.x,
+          y: this.player.y,
+          anim: this.currentAnim,
+          mapId: currentMapId, // Inclure mapId dans les données envoyées
+      });
+      console.log(`playerMove envoyé : x=${this.player.x}, y=${this.player.y}, anim=${this.currentAnim}, mapId=${currentMapId}`);
+    }
+  
+    // Jouez la musique associée à la carte
+    this.playMusicForMap(mapKey);
+
+}
+
+  createTeleportZones() {
+      if (!this.player) {
+          console.error("Player is not initialized. Cannot create teleport zones.");
+          return;
+      }
+
+      if (!this.map || !this.map.key) {
+          console.error("Map is not initialized. Cannot create teleport zones.");
+          return;
+      }
+
+      // Récupérez les points de téléportation pour la carte actuelle
+      const teleportPoints = this.teleportPoints[this.map.key];
+      if (!teleportPoints || teleportPoints.length === 0) {
+          console.warn(`Aucun point de téléportation défini pour la carte : ${this.map.key}`);
+          return;
+      }
+
+      // Créez les zones de téléportation
+      teleportPoints.forEach(point => {
+          const teleportZone = this.add.zone(point.x, point.y, 48, 48)
+              .setOrigin(0.5)
+              .setInteractive();
+
+          if (!teleportZone) {
+              console.error(`La zone de téléportation à (${point.x}, ${point.y}) n'a pas pu être créée.`);
+              return;
+          }
+
+          this.physics.world.enable(teleportZone);
+          this.physics.add.overlap(this.player, teleportZone, () => {
+              this.sound.play("teleportSound", { volume: 0.3});
+              this.changeMap(point.targetMap, point.targetX, point.targetY);
+          });
+      });
+  }
+
+  playMusicForMap(mapKey) {
+    const musicKey = this.mapMusic[mapKey];
+
+    if (!musicKey) {
+        console.warn(`Aucune musique définie pour la carte : ${mapKey}`);
+        return;
+    }
+
+    // Si la musique actuelle est déjà celle de la carte, ne rien faire
+    if (this.currentMusic && this.currentMusic.key === musicKey) {
+        return;
+    }
+
+    // Arrêtez la musique actuelle si elle existe
+    if (this.currentMusic) {
+        this.currentMusic.stop();
+        this.currentMusic.destroy();
+        this.currentMusic = null;
+    }
+
+    // Démarrez la nouvelle musique
+    this.currentMusic = this.sound.add(musicKey, { loop: true, volume: 0.5 });
+    this.currentMusic.play();
+  }
+
+  resetApplication() {
+    // Détruire le joueur local
+    if (this.player) {
+        this.player.destroy();
+        this.player = null;
+    }
+
+    // Détruire les joueurs distants
+    if (this.remotePlayersGroup) {
+        this.remotePlayersGroup.clear(true, true);
+    }
+    this.otherPlayers = {};
+
+    // Arrêter la musique en cours
+    if (this.currentMusic) {
+        this.currentMusic.stop();
+    }
+
+    // Supprimer les colliders
+    if (this.collisionLayer) {
+        this.collisionLayer.destroy();
+        this.collisionLayer = null;
+    }
+
+    // Réinitialiser le socket
+    if (this.socket) {
+        this.socket.disconnect();
+        this.socket = null;
+    }
+
+    // Réinitialiser les autres états
+    this.latestPlayersData = {};
+    this.myId = null;
+ }
 }

@@ -168,21 +168,22 @@ app.use(express.json());
 
 app.post('/api/players/update-position', async (req, res) => {
     try {
-        const { pseudo, posX, posY } = req.body;
+      console.log('Received update-position request:', req.body); // Log the request body
+        const { pseudo, posX, posY, mapId } = req.body;
 
-        // Validate the request body
-        if (!pseudo || posX === undefined || posY === undefined) {
+        // Valider la requête
+        if (!pseudo || posX === undefined || posY === undefined || mapId === undefined) {
             console.error("Invalid request body:", req.body);
-            return res.status(400).json({ error: 'Invalid request. Missing pseudo, posX, or posY.' });
+            return res.status(400).json({ error: 'Invalid request. Missing pseudo, posX, posY, or mapId.' });
         }
 
         const db = await connectToDatabase();
         const players = db.collection('players');
 
-        // Update the player's position in the database
+        // Mettre à jour la position et la carte
         const result = await players.updateOne(
             { pseudo },
-            { $set: { posX, posY, updatedAt: new Date() } }
+            { $set: { posX, posY, mapId, updatedAt: new Date() } }
         );
 
         if (result.matchedCount === 0) {
@@ -200,48 +201,60 @@ let players = {};
 let chatMessages = []; // Stocker les messages de chat
 
 io.on('connection', (socket) => {
-  console.log(`Client connecté : ${socket.id}`);
 
   socket.on('connect_error', (err) => {
     console.error('Erreur de connexion Socket.IO :', err.message);
   });
 
-  // Réception d'un nouveau joueur
-  socket.on('newPlayer', (data) => {
-    const { pseudo } = data;
+socket.on('newPlayer', (data) => {
+    const { pseudo, mapId = 0 } = data; // Par défaut, map1
 
     // Vérifier si le pseudo est déjà connecté
     const existingPlayerSocketId = Object.keys(players).find(
-      (id) => players[id].pseudo === pseudo
+        (id) => players[id].pseudo === pseudo
     );
 
     if (existingPlayerSocketId) {
-      // Déconnecter l'ancienne connexion
-      io.to(existingPlayerSocketId).emit('disconnectMessage', {
-        message: 'Connexion détectée sur un autre appareil.',
-      });
-      io.sockets.sockets.get(existingPlayerSocketId)?.disconnect();
+        // Déconnecter l'ancienne connexion
+        delete players[existingPlayerSocketId];
+        io.to(existingPlayerSocketId).emit('disconnectMessage', {
+            message: 'Connexion détectée sur un autre appareil.',
+        });
+        io.sockets.sockets.get(existingPlayerSocketId)?.disconnect();
     }
 
     players[socket.id] = {
         x: data.x,
         y: data.y,
-        character: data.character || `/assets/apparences/${data.pseudo}.png`, // Inclure l'apparence
+        mapId, // Ajout de mapId
+        character: data.character || `/assets/apparences/${data.pseudo}.png`,
         pseudo: data.pseudo || "Inconnu"
     };
-    console.log(`Joueur connecté : ${socket.id} avec pseudo : ${players[socket.id].pseudo}`);
-  });
+
+});
 
   
   // Mise à jour des mouvements du joueur (limitation de fréquence)
   let lastMoveTime = 0;
   socket.on('playerMove', (data) => {
-    if (players[socket.id]) {
-        players[socket.id].x = data.x;
-        players[socket.id].y = data.y;
-        players[socket.id].anim = data.anim;
-    }
-});
+      if (players[socket.id]) {
+          if (data.mapId === undefined) {
+              console.warn(`MapId non défini pour le joueur ${socket.id}. Données reçues :`, data);
+              return; // Ne pas mettre à jour si mapId est manquant
+          }
+          const previousMapId = players[socket.id].mapId;
+          players[socket.id].x = data.x;
+          players[socket.id].y = data.y;
+          players[socket.id].mapId = data.mapId; // Ajout de mapId
+          players[socket.id].anim = data.anim;
+
+          if (previousMapId !== data.mapId) {
+            io.emit('playerLeftMap', { id: socket.id, mapId: previousMapId });
+          }
+      } else {
+          console.warn(`Tentative de mise à jour pour un joueur non enregistré : ${socket.id}`);
+      }
+  });
 
   // Gestion des interactions entre joueurs
   socket.on('interaction', (data) => {
@@ -303,15 +316,20 @@ io.on('connection', (socket) => {
   socket.on('chatMessage', (data, callback) => {
     console.log(`Tentative de réception de 'chatMessage' de ${socket.id}`);
 
-    if (!data || !data.message || typeof data.message !== 'string' || !data.pseudo) {
+    // Validation des données reçues
+    if (!data || !data.message || typeof data.message !== 'string' || !data.pseudo || data.mapId === undefined) {
         console.warn(`Message invalide reçu de ${socket.id}:`, data);
         if (callback) callback({ status: 'error', message: 'Message invalide' });
         return;
     }
-    // Use pseudo from the received data
-    const message = { pseudo: data.pseudo, message: data.message };
+
+    // Inclure le mapId dans le message
+    const message = { pseudo: data.pseudo, message: data.message, mapId: data.mapId };
     chatMessages.push(message); // Ajouter le message à l'historique
-    io.emit('chatMessage', message); // Diffuser le message à tous les clients
+
+    // Diffuser le message à tous les clients
+    io.emit('chatMessage', message);
+
     if (callback) {
         callback({ status: 'ok', message: 'Message reçu par le serveur' });
     }
@@ -336,30 +354,30 @@ io.on('connection', (socket) => {
   });
 
   // Déconnexion
-  socket.on('disconnect', () => {
+    socket.on('disconnect', () => {
     console.log(`Joueur déconnecté : ${socket.id}`);
+    const disconnectedPlayer = players[socket.id];
     delete players[socket.id];
-  });
+
+    // Informer les autres joueurs de la déconnexion
+    io.emit('playerDisconnected', { id: socket.id, mapId: disconnectedPlayer?.mapId });
+
+    console.log("État actuel des joueurs après déconnexion :", players); // Log pour vérifier l'état des joueurs
+});
 });
 
-// Diffuser l'état complet des joueurs 20 fois par seconde (toutes les 50ms)
-/*let previousState = {};
-setInterval(() => {
-    const changedPlayers = {};
-    for (const id in players) {
-        if (JSON.stringify(players[id]) !== JSON.stringify(previousState[id])) {
-            changedPlayers[id] = players[id];
-        }
-    }
-    previousState = { ...players };
-    if (Object.keys(changedPlayers).length > 0) {
-        io.emit('playersUpdate', changedPlayers);
-    }
-}, 50);*/
 
 // Diffuser l'état complet des joueurs 20 fois par seconde (toutes les 50ms)
 setInterval(() => {
-  io.emit('playersUpdate', players); // Inclure les données d'apparence dans les mises à jour
+    const playersWithMapId = Object.keys(players).reduce((result, id) => {
+        result[id] = {
+            ...players[id],
+            mapId: players[id].mapId || 0, // Ajout de mapId avec une valeur par défaut si manquant
+        };
+        return result;
+    }, {});
+
+    io.emit('playersUpdate', playersWithMapId); // Inclure mapId dans les mises à jour
 }, 50);
 
 server.listen(PORT, () => {
