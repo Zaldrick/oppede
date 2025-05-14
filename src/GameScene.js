@@ -3,7 +3,7 @@ import io from 'socket.io-client';
 import PlayerService from './services/PlayerService';
 
 const CONFIG = {
-  maxSpeed: 200,
+  maxSpeed: 350,
   worldBounds: { width: 860, height: 430 },
   joystick: {
     baseColor: 0x888888,
@@ -23,8 +23,9 @@ export class GameScene extends Phaser.Scene {
   constructor() {
     super("GameScene"); // Removed plugin registration
     this.inventory = []; // Initialize an empty inventory for the player
+    this.isSpeedBoosted = false; // Ajout de l'état pour le boost de vitesse
+
     // Associez les cartes à leurs identifiants
-    
     this.mapIds = {
       map: 0,   // Carte de base
       map2: 1,  // Deuxième carte
@@ -146,11 +147,13 @@ export class GameScene extends Phaser.Scene {
     if (!this.player || !this.cursors) {
         return;
     }
+    
+    const now = Date.now(); // Ajoute cette ligne
 
     this.handlePlayerMovement();
     this.updateRemotePlayers();
         // Envoi de la position à chaque frame (20-60 fois/seconde selon le framerate)
-    if (this.socket && this.myId) {
+    if (this.socket && this.myId && now - this.lastMoveSent > 50) {
         const currentMapId = PlayerService.getPlayerData()?.mapId;
         this.socket.emit('playerMove', {
             x: this.player.x,
@@ -158,6 +161,7 @@ export class GameScene extends Phaser.Scene {
             anim: this.currentAnim,
             mapId: currentMapId,
         });
+        this.lastMoveSent = now;
     }
   }
 
@@ -271,6 +275,14 @@ createAnimations(textureKey) {
 
   setupControls() {
     this.scale.on("resize", this.handleResize, this);
+
+        // Ajout gestion touche Shift
+    this.input.keyboard.on('keydown-SHIFT', () => {
+        this.isSpeedBoosted = true;
+    });
+    this.input.keyboard.on('keyup-SHIFT', () => {
+        this.isSpeedBoosted = false;
+    });
     //this.input.once("pointerup", this.handlePointerUp, this);
     //window.addEventListener("orientationchange", this.handleOrientationChange);
   }
@@ -425,7 +437,9 @@ createAnimations(textureKey) {
     const buttonBRadius = gameWidth * 0.07 / this.zoomFactor;
     this.buttonB = this.add.circle(gameWidth * 0.75, gameHeight * 0.85, buttonBRadius, 0x808080)
         .setInteractive()
-        .on('pointerdown', () => this.handleButtonB());
+        .on('pointerdown', () => { this.isSpeedBoosted = true; }) // Active le boost à l'appui
+        .on('pointerup', () => { this.isSpeedBoosted = false; })   // Désactive le boost au relâchement
+        .on('pointerout', () => { this.isSpeedBoosted = false; }); // Désactive si le curseur sort du bouton
     this.buttonBText = this.add.text(gameWidth * 0.75, gameHeight * 0.85, "B", {
         font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
         fill: "#ffffff",
@@ -455,22 +469,24 @@ createAnimations(textureKey) {
     let newAnim = "";
     let keyboardActive = false;
 
+    const speed = this.isSpeedBoosted ? 300 : 180;
+
     if (this.cursors.left?.isDown) {
         keyboardActive = true;
         newAnim = "walk-left";
-        this.player.setVelocity(-200, 0);
+        this.player.setVelocity(-speed, 0); // Utilise speed ici
     } else if (this.cursors.right?.isDown) {
         keyboardActive = true;
         newAnim = "walk-right";
-        this.player.setVelocity(200, 0);
+        this.player.setVelocity(speed, 0);
     } else if (this.cursors.up?.isDown) {
         keyboardActive = true;
         newAnim = "walk-up";
-        this.player.setVelocity(0, -200);
+        this.player.setVelocity(0, -speed);
     } else if (this.cursors.down?.isDown) {
         keyboardActive = true;
         newAnim = "walk-down";
-        this.player.setVelocity(0, 200);
+        this.player.setVelocity(0, speed);
     }
 
     if (!keyboardActive && this.joystick && this.joystick.force > 0) {
