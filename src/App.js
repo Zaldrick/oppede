@@ -1,6 +1,7 @@
 import { GameScene } from "./GameScene";
 import { InventoryScene } from "./InventoryScene";
 import { MainMenuScene } from "./MainMenuScene";
+import { TripleTriadSelectScene } from './TripleTriadSelectScene';
 import Phaser from "phaser";
 import React, { useEffect, useRef, useState } from "react";
 import VirtualJoystickPlugin from "phaser3-rex-plugins/plugins/virtualjoystick-plugin.js";
@@ -35,7 +36,7 @@ const Game = () => {
             dom: {
                 createContainer: true, // Enable DOM elements
             },
-            scene: [MainMenuScene, GameScene, InventoryScene],
+            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene],
             plugins: {
                 global: [
                     {

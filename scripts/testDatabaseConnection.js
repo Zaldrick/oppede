@@ -10,6 +10,7 @@ async function testDatabaseConnection() {
 
     const db = client.db("oppede");
     const items = await db.collection("items").find().toArray();
+    
     console.log("Items in the database:", items);
   } catch (error) {
     console.error("Error connecting to MongoDB or fetching items:", error);

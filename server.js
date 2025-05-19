@@ -5,7 +5,6 @@ if (process.env.NODE_ENV === 'production') {
   require('dotenv').config(); // Charger les variables d'environnement par défaut
 }
 
-console.log('Loaded FRONTEND_URL:', process.env.FRONTEND_URL); // Log pour vérifier FRONTEND_URL
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -15,6 +14,7 @@ const { MongoClient, ObjectId } = require('mongodb'); // Add ObjectId here
 const app = express();
 const http = require('http');
 const https = require('https');
+const bodyParser = require('body-parser');
 
 const PORT = process.env.BACKEND_PORT || 3000; // Default port for backend
 const isProduction = process.env.NODE_ENV === 'production';
@@ -39,7 +39,7 @@ const corsOptions = {
 
 // Enable CORS for all routes
 app.use(cors(corsOptions));
-
+app.use(bodyParser.json()); 
 // Create HTTP or HTTPS server based on the environment
 let server;
 if (isProduction) {
@@ -457,5 +457,86 @@ app.get('/api/inventory/:playerId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching inventory:', error);
     res.status(500).json({ error: 'Failed to fetch inventory' });
+  }
+});
+
+app.get('/api/world-events', async (req, res) => {
+    const mapKey = req.query.mapKey;
+    if (!mapKey) return res.status(400).json({ error: "mapKey is required" });
+
+    try {
+        const db = await connectToDatabase();
+        const events = await db.collection("worldEvents").find({ mapKey }).toArray();
+        res.json(events);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Database error" });
+    }
+});
+
+app.post('/api/world-events/:id/state', async (req, res) => {
+    const eventId = req.params.id;
+    const newState = req.body; // Par exemple { opened: true }
+
+    if (!eventId) return res.status(400).json({ error: "eventId is required" });
+
+    try {
+        const db = await connectToDatabase();
+        const result = await db.collection("worldEvents").updateOne(
+            { _id: new ObjectId(eventId) },
+            { $set: { state: newState } }
+        );
+        if (result.modifiedCount === 0) {
+            return res.status(404).json({ error: "Event not found or not updated" });
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Database error" });
+    }
+});
+
+app.get('/api/cards/:playerId', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const db = await connectToDatabase();
+
+    // Agrégation pour récupérer les cartes du joueur
+    const cards = await db.collection('inventory').aggregate([
+      { $match: { player_id: new ObjectId(playerId) } },
+      {
+        $lookup: {
+          from: 'items',
+          localField: 'item_id',
+          foreignField: '_id',
+          as: 'item'
+        }
+      },
+      { $unwind: '$item' },
+      { $match: { 'item.type': 'card' } },
+      {
+        $project: {
+          _id: '$item._id',
+          nom: '$item.nom',
+          image: '$item.image',
+          quantity: '$quantité',
+          rarity: '$item.rarity',
+          powerUp: '$item.powerUp',
+          powerLeft: '$item.powerLeft',
+          powerRight: '$item.powerRight',
+          powerDown: '$item.powerDown',
+          description: '$item.description'
+        }
+      }
+    ]).toArray();
+
+    if (!cards || cards.length === 0) {
+      return res.status(404).json({ error: 'No cards found for this player.' });
+    }
+
+    res.json(cards);
+  } catch (e) {
+    console.error('Error fetching cards:', e);
+    res.status(500).json({ error: e.message });
   }
 });

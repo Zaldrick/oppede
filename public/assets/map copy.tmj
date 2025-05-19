@@ -5,50 +5,11 @@
         {
          "id":2,
          "image":"..\/interieur.png",
-         "imageheight":2160,
+         "imageheight":2164,
          "imagewidth":1536,
          "name":"fond",
          "opacity":1,
          "type":"imagelayer",
-         "visible":true,
-         "x":0,
-         "y":0
-        }, 
-        {
-         "draworder":"topdown",
-         "id":5,
-         "name":"events",
-         "objects":[
-                {
-                 "gid":513,
-                 "height":48,
-                 "id":8,
-                 "name":"",
-                 "properties":[
-                        {
-                         "name":"Collision",
-                         "type":"bool",
-                         "value":true
-                        }, 
-                        {
-                         "name":"eventId",
-                         "type":"string",
-                         "value":"chest1"
-                        }, 
-                        {
-                         "name":"type",
-                         "type":"string",
-                         "value":"chest"
-                        }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":48,
-                 "x":240,
-                 "y":1104
-                }],
-         "opacity":1,
-         "type":"objectgroup",
          "visible":true,
          "x":0,
          "y":0
@@ -109,8 +70,8 @@
          "x":0,
          "y":0
         }],
- "nextlayerid":6,
- "nextobjectid":12,
+ "nextlayerid":5,
+ "nextobjectid":3,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",
@@ -119,7 +80,7 @@
         {
          "columns":16,
          "firstgid":1,
-         "image":"Inside_B.png",
+         "image":"./Inside_B.png",
          "imageheight":768,
          "imagewidth":768,
          "margin":0,
@@ -142,7 +103,7 @@
         {
          "columns":16,
          "firstgid":257,
-         "image":"Inside_B.png",
+         "image":"./Inside_B.png",
          "imageheight":768,
          "imagewidth":768,
          "margin":0,
@@ -160,19 +121,6 @@
                          "value":true
                         }]
                 }],
-         "tilewidth":48
-        }, 
-        {
-         "columns":1,
-         "firstgid":513,
-         "image":"!Chest.png",
-         "imageheight":192,
-         "imagewidth":48,
-         "margin":0,
-         "name":"!Chest",
-         "spacing":0,
-         "tilecount":4,
-         "tileheight":48,
          "tilewidth":48
         }],
  "tilewidth":48,

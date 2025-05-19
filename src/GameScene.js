@@ -137,9 +137,25 @@ export class GameScene extends Phaser.Scene {
     this.setupControls();
     this.setupSocket();
     this.createUI();
-
     // Periodically update the player's position in the database
     this.positionUpdateInterval = setInterval(() => this.updatePlayer(), 2000);
+
+
+        // Gestion du clic pour récupérer les coordonnées de la tuile
+    this.input.on('pointerdown', function (pointer) {
+        let worldPoint = pointer.positionToCamera(this.cameras.main);
+
+        // Calcul des coordonnées de la tuile
+        let tileX = Math.floor(worldPoint.x / 48);
+        let tileY = Math.floor(worldPoint.y / 48);
+
+        // Calcul du centre de la tuile
+        let centerX = (tileX * 48) + 24;
+        let centerY = (tileY * 48) + 24;
+
+        console.log(`Tuile cliquée : x=${tileX}, y=${tileY}`);
+        console.log(`Centre de la tuile : x=${centerX}, y=${centerY}`);
+    }, this);
 }
 
   update() {
@@ -174,6 +190,7 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 48,
       frameHeight: 48,
     }); // Preload default player spritesheet
+    this.load.spritesheet('!Chest', '/assets/maps/!Chest.png', {frameWidth: 48,frameHeight: 48});
     this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
     this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj"); // Nouvelle carte
     this.load.image("Inside_B", "/assets/maps/Inside_B.png");
@@ -199,6 +216,91 @@ export class GameScene extends Phaser.Scene {
 }
 
   
+
+async loadWorldEvents() {
+    // 1. Récupère les objets de la couche "events" de Tiled
+    const eventsLayer = this.map.getObjectLayer("events");
+    if (!eventsLayer) {
+        console.warn("Pas de couche 'events' dans la map !");
+        return;
+    }
+
+    // 2. Récupère l'état dynamique depuis la BDD via une API REST
+    const mapKey = this.map.key;
+    let worldEvents = [];
+    try {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/api/world-events?mapKey=${mapKey}`);
+        worldEvents = await res.json();
+    } catch (e) {
+        console.error("Erreur lors du chargement des worldEvents :", e);
+    }
+
+    // 3. Fusionne les deux sources par eventId ou (x, y)
+    this.activeEvents = [];
+    eventsLayer.objects.forEach(obj => {
+        // Cherche l'event dynamique correspondant
+        const eventId = obj.properties?.find(p => p.name === "eventId")?.value;
+        const type = obj.type || obj.properties?.find(p => p.name === "type")?.value;
+        const x = obj.x, y = obj.y;
+
+        let dynamicEvent = null;
+        if (eventId) {
+            dynamicEvent = worldEvents.find(e => e.properties?.chestId === eventId || e.properties?.doorId === eventId);
+        } else {
+            dynamicEvent = worldEvents.find(e => e.x === x && e.y === y && e.type === type);
+        }
+        if (!dynamicEvent) return;
+
+        // Instancie le sprite selon le type et l'état dynamique
+        if (type === "chest") {
+            const chest = this.physics.add.sprite(x + obj.width/2, y - obj.height/2, "!Chest", 0);
+            chest.setImmovable(true);
+            chest.eventData = dynamicEvent;
+            chest.setInteractive();
+            this.activeEvents.push(chest);
+
+            this.addCollisionIfNeeded(obj, chest);
+
+            if (dynamicEvent.state.opened) {
+                chest.setFrame(3); // Affiche directement la frame ouverte
+            }
+        }
+        // Ajoute d'autres types ici (porte, npc, etc.)
+    });
+
+    // 4. Gère les interactions avec le joueur
+
+
+}
+
+handleChestInteraction(chest) {
+    const { eventData } = chest;
+    if (eventData.state.opened) {
+        this.displayMessage("Ce coffre est déjà ouvert !");
+        return;
+    }
+
+    // Joue l'animation d'ouverture
+    chest.anims.play('chest-open');
+    chest.once('animationcomplete', () => {
+        chest.setFrame(4); // Reste sur la dernière frame (ouvert)
+    });
+
+    this.displayMessage(`Vous trouvez : ${eventData.properties.loot}`);
+
+    // Mets à jour l'état en BDD
+    fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${eventData._id}/state`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opened: true })
+    });
+
+    // Ajoute l'objet à l'inventaire du joueur (à adapter selon ta logique)
+    this.addItemToInventory({ nom: eventData.properties.loot, quantité: 1 });
+    // Mets à jour localement
+    eventData.state.opened = true;
+}
+
   async loadPlayers() {
     try {
 
@@ -264,6 +366,14 @@ createAnimations(textureKey) {
         frameRate: 8,
         repeat: -1,
     });
+    if (!this.anims.exists('chest-open')) {
+        this.anims.create({
+            key: 'chest-open',
+            frames: this.anims.generateFrameNumbers('!Chest', { start: 0, end: 3 }), // Ajuste end selon ta ligne
+            frameRate: 10,
+            repeat: 0
+        });
+    }
 });
 }
 
@@ -747,6 +857,13 @@ createRemotePlayer(id, data, textureKey) {
 }
 
   handleButtonA = () => {
+    // Vérifie s'il y a un event interactif proche (coffre, porte, etc.)
+    const obj = this.getNearbyEventObject();
+    if (obj && obj.eventData && obj.eventData.type === "chest") {
+        this.handleChestInteraction(obj);
+        return;
+    }
+    // Sinon, interaction joueur classique
     let targetId = this.getNearestRemotePlayer();
     if (targetId) {
         this.showInteractionMenu(targetId);
@@ -868,7 +985,7 @@ showInteractionMenu = (targetId) => {
     const options = [
         { label: "Inventaire", action: () => this.openInventory() },
         { label: "Profil", action: () => this.openProfile() },
-        { label: "Message", action: () => this.openMessages() },
+        { label: "Triple Triad", action: () => this.openTripleTriad() },
         { label: "Retour", action: () => this.closeMenu() }
     ];
 
@@ -1086,10 +1203,20 @@ attachItemClickEvent(icon, item, detailsContainer, iconPath, gameWidth, gameHeig
   });
 }
 
-openMessages = () => {    
-  this.displayMessage("Messages ...");
-  // Add logic to open the profile
+openTripleTriad = () => {    
   this.closeMenu();
+
+  // Récupère l'id du joueur depuis le registre (adapte selon ta logique)
+  const playerData = this.registry.get("playerData");
+  const playerId = playerData && playerData._id ? playerData._id : null;
+
+  if (!playerId) {
+    this.displayMessage("Impossible de trouver l'identifiant du joueur.");
+    return;
+  }
+
+  this.scene.launch("TripleTriadSelectScene", { playerId });
+  this.scene.pause();
 }
 
 
@@ -1106,6 +1233,14 @@ openMessages = () => {
     });
     return (minDistance < 100) ? nearestId : null;
   }
+
+    getNearbyEventObject() {
+        if (!this.activeEvents) return null;
+        const threshold = 48; // Distance max pour interagir
+        return this.activeEvents.find(obj =>
+            Phaser.Math.Distance.Between(this.player.x, this.player.y, obj.x, obj.y) < threshold
+        );
+    }
 
   displayMessage(text) {
     const gameWidth = this.scale.width;
@@ -1183,7 +1318,7 @@ openMessages = () => {
     console.log("Updated inventory:", PlayerService.getInventory());
   }
 
-changeMap(mapKey, spawnX, spawnY) {
+async changeMap(mapKey, spawnX, spawnY) {
     if (!this.cache.tilemap.has(mapKey)) {
         return;
     }
@@ -1255,6 +1390,8 @@ changeMap(mapKey, spawnX, spawnY) {
     if (!tile) {
         console.warn(`Le joueur est positionné sur une tuile invalide : (${this.player.x}, ${this.player.y})`);
     } 
+
+    await this.loadWorldEvents();
     this.createTeleportZones();
     this.cameras.main.fadeIn(500, 0, 0, 0); // 500ms de fondu depuis le noir
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
@@ -1310,6 +1447,14 @@ changeMap(mapKey, spawnX, spawnY) {
           });
       });
   }
+
+  addCollisionIfNeeded(obj, sprite) {
+    // Vérifie si l'objet Tiled a une propriété Collision à true
+    const hasCollision = obj.properties?.find(p => p.name === "Collision" && p.value === true);
+    if (hasCollision) {
+        this.physics.add.collider(this.player, sprite);
+    }
+}
 
   playMusicForMap(mapKey) {
     const musicKey = this.mapMusic[mapKey];

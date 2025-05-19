@@ -154,31 +154,35 @@ export class MainMenuScene extends Phaser.Scene {
 
         // Show connection UI on click anywhere
         fullScreenZone.on("pointerdown", () => {
-            // Animate "Appuyez pour Démarrer" text
-            this.tweens.add({
-                targets: startText,
-                scale: 1.2, // Slightly enlarge the text
-                alpha: 0, // Fade out the text
-                duration: 500, // Animation duration in milliseconds
-                ease: "Power2", // Smooth easing
-                onComplete: () => {
-                    startText.setVisible(false); // Hide "Appuyez pour Démarrer" after animation
-                    fullScreenZone.disableInteractive(); // Disable further clicks
+//            if (savedPseudo) {setTimeout(() => {submitButton.emit("pointerdown");}, 500);}
+            if (savedPseudo) {submitButton.emit("pointerdown");}
+            else {
+                // Animate "Appuyez pour Démarrer" text
+                this.tweens.add({
+                    targets: startText,
+                    scale: 1.2, // Slightly enlarge the text
+                    alpha: 0, // Fade out the text
+                    duration: 500, // Animation duration in milliseconds
+                    ease: "Power2", // Smooth easing
+                    onComplete: () => {
+                        startText.setVisible(false); // Hide "Appuyez pour Démarrer" after animation
+                        fullScreenZone.disableInteractive(); // Disable further clicks
 
-                    // Animate the appearance of the hidden fields
-                    [titleText, pseudoInput, errorText, submitButton].forEach((element, index) => {
-                        this.tweens.add({
-                            targets: element,
-                            alpha: { from: 0, to: 1 }, // Fade in
-                            y: `+=20`, // Slide down slightly
-                            duration: 500,
-                            delay: index * 100, // Stagger animations
-                            ease: "Power2",
-                            onStart: () => element.setVisible(true), // Make the element visible
+                        // Animate the appearance of the hidden fields
+                        [titleText, pseudoInput, errorText, submitButton].forEach((element, index) => {
+                            this.tweens.add({
+                                targets: element,
+                                alpha: { from: 0, to: 1 }, // Fade in
+                                y: `+=20`, // Slide down slightly
+                                duration: 500,
+                                delay: index * 100, // Stagger animations
+                                ease: "Power2",
+                                onStart: () => element.setVisible(true), // Make the element visible
+                            });
                         });
-                    });
-                },
-            });
+                    },
+                });
+            }
         });
 
         submitButton.on("pointerdown", async () => {
@@ -235,6 +239,5 @@ export class MainMenuScene extends Phaser.Scene {
             errorText.setBackgroundColor(this.pseudoError ? "#ffffff" : null); // Show or hide background
         });
 
-        if (savedPseudo) {setTimeout(() => {submitButton.emit("pointerdown");}, 500);}
     }
 }

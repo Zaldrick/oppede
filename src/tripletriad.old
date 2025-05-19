@@ -1,0 +1,161 @@
+import Phaser from "phaser";
+
+async function getPlayerCards(playerId) {
+    const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:5000";
+    const res = await fetch(`${apiUrl}/api/cards/${playerId}`);
+    if (!res.ok) throw new Error('Erreur API');
+    return await res.json();
+}
+
+export class TripleTriadSelectScene extends Phaser.Scene {
+    constructor() {
+        super("TripleTriadSelectScene");
+        this.playerId = null;
+        this.selected = [];
+        this.cards = [];
+        this.cardSprites = [];
+    }
+
+    init(data) {
+        this.playerId = data.playerId;
+        // Récupère la sélection précédente si elle existe
+        const previousSelection = this.registry.get("tripleTriadSelection");
+        this.selected = Array.isArray(previousSelection) ? [...previousSelection] : [];
+        this.cards = [];
+    }
+
+    async create() {
+        const { width, height } = this.sys.game.canvas;
+
+        // Fond semi-transparent qui couvre tout l'écran
+        this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
+
+        this.cards = await getPlayerCards(this.playerId);
+        this.drawUI();
+    }
+
+    drawUI() {
+        const { width, height } = this.sys.game.canvas;
+
+        // Responsive : adapte la taille des cartes et l'espacement
+        const cardsPerRow = Math.min(4, this.cards.length); // max 4 par ligne sur mobile
+        const cardWidth = Math.min(80, (width - 80) / cardsPerRow - 10);
+        const cardHeight = cardWidth * 1.5;
+        const cardSpacingX = cardWidth + 20;
+        const cardSpacingY = cardHeight + 30;
+
+        // Conteneur principal centré
+        const container = this.add.container(width / 2, height / 2);
+
+        // Titre
+        container.add(
+            this.add.text(0, -height / 2 + 60, "Choisis tes 5 cartes", {
+                font: `${Math.round(width * 0.045)}px Arial`,
+                fill: "#fff"
+            }).setOrigin(0.5)
+        );
+
+        // Affiche les cartes du joueur
+        this.cardSprites = [];
+        this.cards.forEach((card, idx) => {
+            const col = idx % cardsPerRow;
+            const row = Math.floor(idx / cardsPerRow);
+            const x = -((cardsPerRow - 1) * cardSpacingX) / 2 + col * cardSpacingX;
+            const y = -80 + row * cardSpacingY;
+
+            // Image de la carte (assure-toi que les assets sont préchargés)
+            const cardImg = this.add.image(x, y, card.image)
+                .setDisplaySize(cardWidth, cardHeight)
+                .setInteractive()
+                .setAlpha(1)
+                .on('pointerdown', () => this.toggleCard(card._id.toString(), cardImg));
+
+            // Nom et quantité
+            const label = this.add.text(x, y + cardHeight / 2 + 10, `${card.nom} (x${card.quantity})`, {
+                font: `${Math.round(width * 0.03)}px Arial`,
+                fill: "#fff"
+            }).setOrigin(0.5, 0);
+
+            container.add(cardImg);
+            container.add(label);
+            this.cardSprites.push({ id: card._id.toString(), sprite: cardImg });
+            
+        });
+        this.cardSprites.forEach(({ id, sprite }) => {
+        if (this.selected.includes(id)) {
+            sprite.setAlpha(0.5); // Visuel de sélection
+        }
+
+        // Zone pour la main sélectionnée
+        this.selectedZone = this.add.text(0, height / 2 - 120, "Main sélectionnée (0/5): ", {
+            font: `${Math.round(width * 0.035)}px Arial`,
+            fill: "#fff"
+        }).setOrigin(0.5);
+        container.add(this.selectedZone);
+
+        // Bouton valider
+        this.validateBtn = this.add.text(width / 4, height / 2 - 150, "Valider", {
+            font: `${Math.round(width * 0.04)}px Arial`,
+            fill: "#0f0",
+            backgroundColor: "#222"
+        })
+            .setOrigin(0.5)
+            .setPadding(10, 5, 10, 5)
+            .setInteractive()
+            .on('pointerdown', () => this.validate())
+            .setAlpha(0.5);
+        container.add(this.validateBtn);
+
+        // Bouton annuler
+        this.cancelBtn = this.add.text(-width / 4, height / 2 - 150, "Annuler", {
+            font: `${Math.round(width * 0.04)}px Arial`,
+            fill: "#f00",
+            backgroundColor: "#222"
+        })
+            .setOrigin(0.5)
+            .setPadding(10, 5, 10, 5)
+            .setInteractive()
+            .on('pointerdown', () => this.close());
+        container.add(this.cancelBtn);
+
+        this.updateSelectedZone();
+
+});
+    }
+
+    toggleCard(cardId, cardImg) {
+        if (this.selected.includes(cardId)) {
+            this.selected = this.selected.filter(id => id !== cardId);
+            cardImg.setAlpha(1);
+        } else if (this.selected.length < 5) {
+            this.selected.push(cardId);
+            cardImg.setAlpha(0.5); // Visuel de sélection
+        }
+        this.updateSelectedZone();
+    }
+
+    updateSelectedZone() {
+        const selectedNames = this.selected.map(id => {
+            const card = this.cards.find(c => c._id.toString() === id);
+            return card ? card.nom : '';
+        });
+        this.selectedZone.setText(`Main sélectionnée (${this.selected.length}/5): ${selectedNames.join(', ')}`);
+        this.validateBtn.setAlpha(this.selected.length === 5 ? 1 : 0.5);
+    }
+
+    validate() {
+        if (this.selected.length === 5) {
+            // Stocke la sélection dans le registry Phaser
+            this.registry.set("tripleTriadSelection", this.selected);
+
+            this.scene.stop();
+            this.scene.resume("GameScene");
+        }
+    }
+
+    close() {
+        this.scene.stop();
+        // Reprend la scène précédente (GameScene)
+        this.scene.resume("GameScene");
+    }
+}

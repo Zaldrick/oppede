@@ -1,0 +1,64 @@
+{
+    "activeFile": "",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+        "": {
+            "scaleInDock": 1
+        },
+        "Inside_B.tsx": {
+            "scaleInDock": 1
+        },
+        "exterieur.tmj": {
+            "scale": 1.3412152777777777,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 720.2423175499002,
+                "y": 599.8291350609677
+            }
+        },
+        "exterieur.tmj#Inside_B": {
+            "scaleInDock": 1
+        },
+        "map copy.tmj": {
+            "scale": 0.862037037037037,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 767.9484425349087,
+                "y": 1079.419978517723
+            }
+        },
+        "map copy.tmj#Inside_B": {
+            "scaleInDock": 1
+        },
+        "map.tmj": {
+            "scale": 3,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 353.33333333333326,
+                "y": 1099.5
+            }
+        },
+        "map.tmj#!Chest": {
+            "scaleInDock": 1
+        },
+        "map.tmj#Inside_B": {
+            "scaleInDock": 1
+        }
+    },
+    "last.imagePath": "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps",
+    "openFiles": [
+    ],
+    "project": "oppede.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "map.tmj",
+        "exterieur.tmj",
+        "map copy.tmj"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 48,
+        "width": 48
+    }
+}
