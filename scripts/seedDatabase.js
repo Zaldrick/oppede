@@ -42,7 +42,7 @@ async function seedDatabase() {
       // Cartes Triple Triad
       {
         nom: "Ifrit",
-        image: "ifrit.png",
+        image: "ifrit",
         type: "card",
         powerUp: 7,
         powerLeft: 2,
@@ -54,7 +54,7 @@ async function seedDatabase() {
       },
       {
         nom: "Shiva",
-        image: "shiva.png",
+        image: "shiva",
         type: "card",
         powerUp: 3,
         powerLeft: 7,
@@ -66,7 +66,7 @@ async function seedDatabase() {
       },
       {
         nom: "Chocobo",
-        image: "chocobo.png",
+        image: "chocobo",
         type: "card",
         powerUp: 2,
         powerLeft: 3,
@@ -78,7 +78,7 @@ async function seedDatabase() {
       },
       {
         nom: "Bahamut",
-        image: "bahamut.png",
+        image: "bahamut",
         type: "card",
         powerUp: 8,
         powerLeft: 8,
@@ -90,7 +90,7 @@ async function seedDatabase() {
       },
       {
         nom: "Sephirtoh",
-        image: "sephiroth.png",
+        image: "sephiroth",
         type: "card",
         powerUp: 9,
         powerLeft: 9,
@@ -102,7 +102,7 @@ async function seedDatabase() {
       },
       {
         nom: "Odin",
-        image: "odin.png",
+        image: "odin",
         type: "card",
         powerUp: 2,
         powerLeft: 7,
