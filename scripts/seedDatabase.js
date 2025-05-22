@@ -111,6 +111,102 @@ async function seedDatabase() {
         rarity: 2,
         prix: 20,
         description: "Le beau odin blanc ou le bodin noir ?"
+      },
+      {
+        nom: "Tomberry",
+        image: "tomberry",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 4,
+        powerRight: 5,
+        powerDown: 6,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Bomb",
+        image: "bomb",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 4,
+        powerRight: 5,
+        powerDown: 5,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Malboro",
+        image: "malboro",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 7,
+        powerRight: 7,
+        powerDown: 5,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Lightning",
+        image: "lightning",
+        type: "card",
+        powerUp: 9,
+        powerLeft: 7,
+        powerRight: 7,
+        powerDown: 5,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Tidus",
+        image: "tidus",
+        type: "card",
+        powerUp: 4,
+        powerLeft: 8,
+        powerRight: 9,
+        powerDown: 5,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Squall",
+        image: "squall",
+        type: "card",
+        powerUp: 7,
+        powerLeft: 7,
+        powerRight: 7,
+        powerDown: 7,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Cloud",
+        image: "cloud",
+        type: "card",
+        powerUp: 9,
+        powerLeft: 2,
+        powerRight: 4,
+        powerDown: 9,
+        rarity: 2,
+        prix: 20,
+        description: ""
+      },
+      {
+        nom: "Zidane",
+        image: "zidane",
+        type: "card",
+        powerUp: 5,
+        powerLeft: 8,
+        powerRight: 8,
+        powerDown: 5,
+        rarity: 2,
+        prix: 20,
+        description: ""
       }
     ];
 
@@ -168,6 +264,31 @@ async function seedDatabase() {
       {
         player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
         item_id: insertedItems.insertedIds[12], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[13], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[14], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[15], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[16], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[17], //
         quantité: 1,
       },
       {
