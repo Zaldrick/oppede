@@ -398,26 +398,37 @@ createAnimations(textureKey) {
   }
 
   setupSocket() {
-    this.socket = io(process.env.REACT_APP_SOCKET_URL);
+    this.socket = this.registry.get("socket"); // Récupère la même instance !
     this.otherPlayers = {};
     this.latestPlayersData = {};
-    this.socket.on('connect', () => {
-        if (this.socket && this.socket.id) {
+
+    
+    // Ajoute ce bloc :
+    if (this.socket.connected) {
+        // Si déjà connecté, envoie newPlayer tout de suite
+        const currentMapId = PlayerService.getPlayerData().mapId;
+        this.myId = this.socket.id;
+        this.socket.emit('newPlayer', {
+            x: this.player.x,
+            y: this.player.y,
+            character: '/assets/apparences/' + this.registry.get("playerPseudo") + '.png',
+            pseudo: this.registry.get("playerPseudo") || "Player",
+            mapId: currentMapId,
+        });
+    } else {
+        // Sinon, attends l'event 'connect'
+        this.socket.on('connect', () => {
             this.myId = this.socket.id;
-
             const currentMapId = PlayerService.getPlayerData().mapId;
-
             this.socket.emit('newPlayer', {
                 x: this.player.x,
                 y: this.player.y,
-                character: '/assets/apparences/'+this.registry.get("playerPseudo")+'.png',
+                character: '/assets/apparences/' + this.registry.get("playerPseudo") + '.png',
                 pseudo: this.registry.get("playerPseudo") || "Player",
                 mapId: currentMapId,
             });
-        } else {
-            console.error("Socket connection failed or socket ID is undefined.");
-        }
-    });
+        });
+    }
 
     // Écouter l'événement disconnectMessage
     this.socket.on('disconnectMessage', (data) => {
@@ -503,6 +514,33 @@ createAnimations(textureKey) {
             delete this.otherPlayers[data.id];
         }
     });
+
+
+// ...dans setupSocket()...
+this.socket.on('challenge:received', ({ challengerId }) => {
+    console.log("Défi reçu côté client de", challengerId, "sur socket", this.socket.id);
+    this.displayChallengePopup(challengerId);
+});
+
+this.socket.on('challenge:accepted', ({ opponentId, opponentPlayerId }) => {
+    const playerData = this.registry.get("playerData");
+    const playerId = playerData && playerData._id ? playerData._id : null;
+    this.scene.launch("TripleTriadSelectScene", {
+        playerId,
+        mode: "pvp",
+        opponentId: opponentPlayerId // Utilise le vrai playerId de l'adversaire
+    });
+    this.scene.pause();
+});
+
+this.socket.on('challenge:cancelled', ({ challengerId, challengedId }) => {
+    this.displayMessage("Le défi a été annulé.");
+    if (this.challengePopup) {
+        this.challengePopup.destroy();
+        this.challengePopup = null;
+    }
+});
+
 }
 
 
@@ -922,14 +960,22 @@ showInteractionMenu = (targetId) => {
     this.interactionMenu.add(option3);
 
     // Add events for each option
-    option1.on("pointerdown", () => {
-        this.displayMessage(`Vous avez défié \nle joueur ${targetId}`);
-        if (this.socket) {
-            this.socket.emit("interaction", { from: this.myId, to: targetId, action: "defier" });
-        }
-        this.interactionMenu.destroy();
-        this.interactionMenu = null; // Ensure proper cleanup
-    });
+option1.on("pointerdown", () => {
+    this.displayMessage(`Vous avez défié \nle joueur ${targetId}`);
+    if (this.socket) {
+        // Récupère le vrai playerId de l'adversaire
+        const myPlayerId = this.registry.get("playerData")?._id;
+        const targetPlayerId = this.latestPlayersData[targetId]?.playerId; // À adapter selon ta structure
+        this.socket.emit("challenge:send", {
+            challengerId: this.myId,
+            challengedId: targetId,
+            challengerPlayerId: myPlayerId,
+            challengedPlayerId: targetPlayerId
+        });
+    }
+    this.interactionMenu.destroy();
+    this.interactionMenu = null;
+});
 
     option2.on("pointerdown", () => {
         this.displayMessage(`Vous avez fait signe \nau joueur ${targetId}`);
@@ -1515,4 +1561,77 @@ async changeMap(mapKey, spawnX, spawnY) {
     this.latestPlayersData = {};
     this.myId = null;
  }
+displayChallengePopup(challengerId) {
+    if (this.challengePopup) {
+        this.challengePopup.destroy();
+    }
+
+    let popupX = this.scale.width / 2;
+    let popupY = this.scale.height / 2;
+    let challengerPseudo = challengerId;
+
+    if (this.latestPlayersData && this.latestPlayersData[challengerId]) {
+        challengerPseudo = this.latestPlayersData[challengerId].pseudo || challengerId;
+        const challengerData = this.latestPlayersData[challengerId];
+        popupX = challengerData.x;
+        popupY = challengerData.y - 60; // Décale au-dessus du joueur
+        console.log("[displayChallengePopup] Monde: popupX=", popupX, "popupY=", popupY);
+    } else {
+        console.warn("[displayChallengePopup] challengerId", challengerId, "not found in latestPlayersData");
+    }
+
+    this.challengePopup = this.add.container(popupX, popupY);
+
+    const bg = this.add.rectangle(0, 0, 340, 180, 0x222244, 0.95).setOrigin(0.5).setDepth(1003);
+    const txt = this.add.text(0, -40, `Défi reçu de ${challengerPseudo}\nAccepter le duel ?`, {
+        font: "22px Arial",
+        fill: "#fff",
+        align: "center"
+    }).setOrigin(0.5).setDepth(1004);
+
+    const btnAccept = this.add.text(-60, 40, "Accepter", {
+        font: "20px Arial",
+        fill: "#00ff00",
+        backgroundColor: "#333",
+        padding: { x: 12, y: 8 }
+    }).setOrigin(0.5).setInteractive().setDepth(1004);
+
+    const btnRefuse = this.add.text(60, 40, "Refuser", {
+        font: "20px Arial",
+        fill: "#ff3333",
+        backgroundColor: "#333",
+        padding: { x: 12, y: 8 }
+    }).setOrigin(0.5).setInteractive().setDepth(1004);
+
+    btnAccept.on("pointerdown", () => {
+        const myPlayerId = this.registry.get("playerData")?._id;
+        const challengerPlayerId = this.latestPlayersData[challengerId]?.playerId;
+        console.log("Emit challenge:accept", {
+            challengerId, 
+            challengedId: this.myId,
+            challengerPlayerId,
+            challengedPlayerId: myPlayerId
+        });
+        this.socket.emit('challenge:accept', { 
+            challengerId, 
+            challengedId: this.myId,
+            challengerPlayerId,
+            challengedPlayerId: myPlayerId
+        });
+        this.challengePopup.destroy();
+        this.challengePopup = null;
+    });
+    btnRefuse.on("pointerdown", () => {
+        this.socket.emit('challenge:cancel', { challengerId, challengedId: this.myId });
+        this.challengePopup.destroy();
+        this.challengePopup = null;
+    });
+
+    this.challengePopup.add([bg, txt, btnAccept, btnRefuse]);
+    this.challengePopup.setDepth(1005);
+
+    // Synchronise la popup avec la caméra (comme le pseudo)
+    this.challengePopup.setScrollFactor(1);
+}
+ 
 }

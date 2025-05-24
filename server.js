@@ -18,7 +18,9 @@ const bodyParser = require('body-parser');
 
 const PORT = process.env.BACKEND_PORT || 3000; // Default port for backend
 const isProduction = process.env.NODE_ENV === 'production';
-
+let challenges = {}; // { challengedSocketId: challengerSocketId }
+let matches = {}; // { matchId: { players: [socketId, socketId], state: {...} } }
+let playerIdToSocketId = {}; // { playerId: socket.id }
 // Configure CORS options dynamically
 const corsOptions = {
   origin: (origin, callback) => {
@@ -74,6 +76,7 @@ const io = require('socket.io')(server, {
   },
 });
 
+
 // MongoDB connection function
 const connectToDatabase = async () => {
   try {
@@ -81,7 +84,6 @@ const connectToDatabase = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('Connected to MongoDB successfully!');
     return connection.connection.db;
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
@@ -89,11 +91,6 @@ const connectToDatabase = async () => {
   }
 };
 
-// Log all incoming requests for debugging
-app.use((req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.url}`);
-  next();
-});
 
 app.use('/public', cors(corsOptions), express.static('public'));
 // Route pour récupérer les joueurs disponibles
@@ -168,7 +165,6 @@ app.use(express.json());
 
 app.post('/api/players/update-position', async (req, res) => {
     try {
-      console.log('Received update-position request:', req.body); // Log the request body
         const { pseudo, posX, posY, mapId } = req.body;
 
         // Valider la requête
@@ -206,13 +202,19 @@ io.on('connection', (socket) => {
     console.error('Erreur de connexion Socket.IO :', err.message);
   });
 
-socket.on('newPlayer', (data) => {
+socket.on('newPlayer', async (data) => {
     const { pseudo, mapId = 0 } = data; // Par défaut, map1
 
     // Vérifier si le pseudo est déjà connecté
     const existingPlayerSocketId = Object.keys(players).find(
         (id) => players[id].pseudo === pseudo
     );
+
+        // Récupérer le playerData depuis MongoDB
+      const db = await connectToDatabase();
+      const playersCollection = db.collection('players');
+      const playerData = await playersCollection.findOne({ pseudo });
+
 
     if (existingPlayerSocketId) {
         // Déconnecter l'ancienne connexion
@@ -228,10 +230,14 @@ socket.on('newPlayer', (data) => {
         y: data.y,
         mapId, // Ajout de mapId
         character: data.character || `/assets/apparences/${data.pseudo}.png`,
-        pseudo: data.pseudo || "Inconnu"
+        pseudo: data.pseudo || "Inconnu",
+        playerId: playerData._id
     };
-
-});
+    socket.on('registerPlayer', ({ playerId }) => {
+        if (playerId) playerIdToSocketId[playerId] = socket.id;
+        socket.playerId = playerId;
+    });
+  });
 
   
   // Mise à jour des mouvements du joueur (limitation de fréquence)
@@ -261,6 +267,12 @@ socket.on('newPlayer', (data) => {
     console.log(`Interaction reçue :`, data); // Log pour vérifier les données reçues
     console.log(`Interaction de ${data.from} vers ${data.to} : ${data.action}`);
     // Notify the emitter
+    socket.on('interaction', ({ fromPlayerId, toPlayerId, action }) => {
+    const toSocketId = playerIdToSocketId[toPlayerId];
+      if (toSocketId) {
+          io.to(toSocketId).emit('interaction', { fromPlayerId, toPlayerId, action });
+      }
+    });
     socket.emit('interactionFeedback', {
         from: data.from,
         to: data.to,
@@ -287,29 +299,7 @@ socket.on('newPlayer', (data) => {
     } else {
         console.warn(`Le joueur cible ${data.to} n'est pas connecté.`);
     }
-/*
-            // Handle player challenges
-            socket.on("challengePlayer", ({ from, to }, callback) => {
-              if (!players[to]) {
-                  callback({ status: "error", message: "Player not found" });
-                  return;
-              }
-  
-              // Notify the challenged player
-              io.to(to).emit("challengeReceived", { from });
-  
-              // Set a timeout for the response
-              const timeout = setTimeout(() => {
-                  io.to(from).emit("challengeResponse", { to, accepted: false, reason: "timeout" });
-              }, 10000); // 10 seconds
-  
-              // Listen for the response
-              socket.on("challengeResponse", ({ accepted }) => {
-                  clearTimeout(timeout); // Clear the timeout
-                  io.to(from).emit("challengeResponse", { to, accepted });
-              });
-          });
-*/
+
   });
 
   // Gestion de l'événement 'chatMessage'
@@ -357,13 +347,105 @@ socket.on('newPlayer', (data) => {
     socket.on('disconnect', () => {
     console.log(`Joueur déconnecté : ${socket.id}`);
     const disconnectedPlayer = players[socket.id];
+    if (socket.playerId) delete playerIdToSocketId[socket.playerId];
     delete players[socket.id];
 
     // Informer les autres joueurs de la déconnexion
     io.emit('playerDisconnected', { id: socket.id, mapId: disconnectedPlayer?.mapId });
 
     console.log("État actuel des joueurs après déconnexion :", players); // Log pour vérifier l'état des joueurs
+  });
+
+    socket.on('tt:startMatch', ({ matchId, playerId, opponentId, playerCards }) => {
+       console.log(`[tt:startMatch] matchId=${matchId}, playerId=${playerId}, socket.id=${socket.id}`);
+
+        // Crée ou rejoint la partie
+        if (!matches[matchId]) {
+            matches[matchId] = {
+                players: [socket.id],
+                playerIds: [playerId],
+                cards: { [playerId]: playerCards },
+                state: {
+                    board: Array.from({ length: 3 }, () => Array(3).fill(null)),
+                    turn: playerId, // Le joueur qui commence
+                    moves: [],
+                }
+            };
+        } else {
+            if (!matches[matchId].playerIds.includes(playerId)) {
+                matches[matchId].players.push(socket.id);
+                matches[matchId].playerIds.push(playerId);
+                matches[matchId].cards[playerId] = playerCards;
+            }
+            // Quand les deux joueurs sont là, envoie l'état initial
+            if (matches[matchId].players.length === 2) {
+                  const firstIdx = Math.floor(Math.random() * 2);
+                  const firstPlayerId = matches[matchId].playerIds[firstIdx];
+                  matches[matchId].state.turn = firstPlayerId;
+                matches[matchId].players.forEach((sid, idx) => {
+                    io.to(sid).emit('tt:matchReady', {
+                        matchId,
+                        playerId: matches[matchId].playerIds[idx],
+                        opponentId: matches[matchId].playerIds[1-idx],
+                        playerCards: matches[matchId].cards[matches[matchId].playerIds[idx]],
+                        opponentCards: matches[matchId].cards[matches[matchId].playerIds[1-idx]],
+                        state: matches[matchId].state
+                    });
+                });
+            }
+        }
+        console.log(`[tt:startMatch] Etat du match après ajout:`, JSON.stringify(matches[matchId], null, 2));
+
+        socket.join(matchId);
+    });
+
+    socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
+        const match = matches[matchId];
+        if (!match) return;
+        // Vérifie le tour
+        if (match.state.turn !== playerId) return;
+        // Place la carte
+        match.state.board[row][col] = { ...match.cards[playerId][cardIdx], owner: playerId };
+        match.cards[playerId][cardIdx].played = true;
+        match.state.moves.push({ playerId, cardIdx, row, col });
+        // Change de tour
+        match.state.turn = match.playerIds.find(id => id !== playerId);
+        // Diffuse le nouvel état
+        io.to(matchId).emit('tt:update', { state: match.state });
+    });
+
+    socket.on('tt:leaveMatch', ({ matchId }) => {
+        socket.leave(matchId);
+        // Optionnel : clean up match si tout le monde est parti
+    });
+
+socket.on('challenge:send', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId }) => {
+    console.log(`Défi reçu : challengerId=${challengerId}, challengedId=${challengedId}`);
+    challenges[challengedId] = challengerId;
+    io.to(challengedId).emit('challenge:received', { 
+        challengerId, 
+        challengerPlayerId // Ajoute le vrai playerId du challenger
+    });
 });
+
+socket.on('challenge:accept', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId }) => {
+    io.to(challengerId).emit('challenge:accepted', { 
+        opponentId: challengedId, 
+        opponentPlayerId: challengedPlayerId // Ajoute le vrai playerId de l'adversaire
+    });
+    io.to(challengedId).emit('challenge:accepted', { 
+        opponentId: challengerId, 
+        opponentPlayerId: challengerPlayerId // Ajoute le vrai playerId de l'adversaire
+    });
+    delete challenges[challengedId];
+});
+
+socket.on('challenge:cancel', ({ challengerId, challengedId }) => {
+    io.to(challengerId).emit('challenge:cancelled', { challengedId });
+    io.to(challengedId).emit('challenge:cancelled', { challengerId });
+    delete challenges[challengedId];
+});
+
 });
 
 

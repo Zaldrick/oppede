@@ -30,17 +30,98 @@ export class TripleTriadGameScene extends Phaser.Scene {
     }
 
     init(data) {
-        // data: { playerCards }
+        this.isPvP = data.mode === "pvp";
+        this.matchId = data.matchId || null;
+        this.playerId = data.playerId;
+        this.opponentId = data.opponentId;
         this.playerCards = data.playerCards || [];
-        // Pour les tests : l'IA utilise les mêmes cartes que le joueur
-        this.opponentCards = this.playerCards.map(card => ({ ...card, played: false }));
+        this.opponentCards = data.opponentCards || [];
         this.board = this.createEmptyBoard();
         this.activePlayer = 0;
+        this.socket = this.registry.get("socket");
+        if (!this.socket) {
+            // Fallback pour debug si jamais le registry n'est pas set
+            this.socket = window.socket;
+        }
+            if (data.mode === "ai" && (!this.opponentCards || this.opponentCards.length === 0)) {
+        // Prends 5 cartes aléatoires différentes parmi toutes les cartes possibles
+        const allCards = [
+            { image: 'ifrit', powerUp: 7, powerDown: 2, powerLeft: 6, powerRight: 3 },
+            { image: 'shiva', powerUp: 5, powerDown: 7, powerLeft: 2, powerRight: 6 },
+            { image: 'odin', powerUp: 6, powerDown: 5, powerLeft: 7, powerRight: 2 },
+            { image: 'chocobo', powerUp: 3, powerDown: 6, powerLeft: 5, powerRight: 7 },
+            { image: 'sephiroth', powerUp: 8, powerDown: 8, powerLeft: 8, powerRight: 8 },
+            { image: 'bahamut', powerUp: 7, powerDown: 8, powerLeft: 6, powerRight: 7 },
+            { image: 'cloud', powerUp: 6, powerDown: 7, powerLeft: 7, powerRight: 6 },
+            { image: 'zidane', powerUp: 5, powerDown: 6, powerLeft: 8, powerRight: 5 },
+            { image: 'squall', powerUp: 7, powerDown: 5, powerLeft: 6, powerRight: 8 },
+            { image: 'malboro', powerUp: 4, powerDown: 7, powerLeft: 5, powerRight: 6 },
+            { image: 'bomb', powerUp: 6, powerDown: 4, powerLeft: 7, powerRight: 5 },
+            { image: 'lightning', powerUp: 8, powerDown: 5, powerLeft: 4, powerRight: 7 },
+            { image: 'tidus', powerUp: 5, powerDown: 8, powerLeft: 6, powerRight: 4 },
+            { image: 'tomberry', powerUp: 4, powerDown: 6, powerLeft: 5, powerRight: 8 }
+        ];
+        // Mélange et prend 5 cartes
+        this.opponentCards = Phaser.Utils.Array.Shuffle(allCards).slice(0, 5).map(card => ({ ...card, played: false }));
+    }
     }
 
-    create() {
-        // Ajout d'un garde pour éviter de créer si la scène est finie ou détruite
-        if (this.gameEnded || !this.sys || !this.sys.game) return;
+create() {
+    // On attend que le serveur nous dise que le match est prêt
+    if (this.isPvP) {
+        // Affiche un message d'attente
+        this.waitText = this.add.text(
+            this.sys.game.canvas.width / 2,
+            this.sys.game.canvas.height * 0.4,
+            "En attente de l'adversaire...",
+            { font: "32px Arial", fill: "#fff" }
+        ).setOrigin(0.5);
+
+        this.socket.emit('tt:startMatch', {
+            matchId: this.matchId,
+            playerId: this.playerId,
+            opponentId: this.opponentId,
+            playerCards: this.playerCards
+        });
+
+        this.socket.once('tt:matchReady', (data) => {
+            // Retire le message d'attente
+            if (this.waitText) this.waitText.destroy();
+
+            // Affiche "C'est l'heure du duel !" animé
+            const duelText = this.add.text(
+                this.sys.game.canvas.width / 2,
+                this.sys.game.canvas.height / 2,
+                "C'est l'heure du duel !",
+                { font: "bold 40px Arial", fill: "#ff0", stroke: "#000", strokeThickness: 6 }
+            ).setOrigin(0.5).setAlpha(0);
+
+            this.tweens.add({
+                targets: duelText,
+                alpha: 1,
+                scale: { from: 0.7, to: 1.1 },
+                duration: 700,
+                yoyo: true,
+                hold: 700,
+                onComplete: () => {
+                    duelText.destroy();
+                    // Initialise la partie avec les bonnes mains et l'état du plateau
+                    this.playerCards = data.playerCards;
+                    this.opponentCards = data.opponentCards;
+                    this.board = data.state.board;
+                    this.activePlayer = data.state.turn === this.playerId ? 0 : 1;
+                    this.redrawAll();
+                }
+            });
+        });
+
+        this.socket.on('tt:update', ({ state }) => {
+            this.board = state.board;
+            this.activePlayer = state.turn === this.playerId ? 0 : 1;
+            this.redrawAll();
+        });
+    } else {
+        // Mode IA : pas d'attente
         this.resize();
         this.drawBackground();
         this.drawOpponentHand();
@@ -52,6 +133,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.endText = null;
         this.gameEnded = false;
     }
+}
 
     createEmptyBoard() {
         // 3x3 array, null = case vide
@@ -70,12 +152,16 @@ export class TripleTriadGameScene extends Phaser.Scene {
         });
     }
 
-    redrawAll() {
-        // Ajout d'un garde pour éviter de redessiner si la scène est finie ou détruite
-        if (this.gameEnded || !this.sys || !this.sys.game) return;
-        this.container && this.container.destroy();
-        this.create();
-    }
+redrawAll() {
+    if (this.gameEnded || !this.sys || !this.sys.game) return;
+    if (this.container) this.container.destroy();
+    this.container = null;
+    this.drawBackground();
+    this.drawOpponentHand();
+    this.drawBoard();
+    this.drawPlayerHand();
+    this.drawUI();
+}
 
     drawBackground() {
         const { width, height } = this.sys.game.canvas;
@@ -110,8 +196,8 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const topMargin = cardH*.72;
         const bottomMargin = cardH + 24;
         const availableHeight = height - topMargin - bottomMargin;
-        // Plateau élargi : prend toute la largeur possible
-        const cellW = (width * 0.95) / 3;
+        // Plateau réduit : prend 80% de la largeur possible
+        const cellW = (width * 0.80) / 3;
         const cellH = cellW * 1.5;
         const boardW = cellW * 3;
         const boardH = cellH * 3;
@@ -132,7 +218,16 @@ export class TripleTriadGameScene extends Phaser.Scene {
             for (let col = 0; col < 3; col++) {
                 const x = boardX + col * cellW + cellW / 2;
                 const y = boardY + row * cellH + cellH / 2;
-                const cell = this.add.rectangle(x, y, cellW - 8, cellH - 8, 0x333366, 0.85)
+                const card = this.board[row][col];
+                // Couleur de fond selon propriétaire
+                let cellColor = 0x333366;
+                let cellAlpha = 0.85;
+                if (card) {
+                    if (card.owner === "player") cellColor = 0x99ccff;
+                    else if (card.owner === "opponent") cellColor = 0xffbbbb;
+                    cellAlpha = 0.55;
+                }
+                const cell = this.add.rectangle(x, y, cellW - 8, cellH - 8, cellColor, cellAlpha)
                     .setOrigin(0.5)
                     .setStrokeStyle(2, 0xffffff)
                     .setInteractive({ dropZone: true });
@@ -140,13 +235,11 @@ export class TripleTriadGameScene extends Phaser.Scene {
                 this.boardCells[row][col] = cell;
 
                 // Affiche la carte posée si besoin
-                const card = this.board[row][col];
                 if (card) {
                     const img = this.add.image(x, y, card.image)
                         .setDisplaySize(cellW * 0.9, cellH * 0.9)
                         .setOrigin(0.5);
-                    // Tint plus léger
-                    img.setTint(card.owner === "player" ? 0x99ccff : 0xff9999);
+                    // Pas de tint sur la carte !
                     this.container.add(img);
 
                     // Affiche les valeurs en bas à droite de la carte posée, resserré et petit, sans cadre
@@ -290,26 +383,23 @@ export class TripleTriadGameScene extends Phaser.Scene {
                 for (let row = 0; row < 3; row++) {
                     for (let col = 0; col < 3; col++) {
                         if (this.boardCells[row][col] === dropZone && !this.board[row][col]) {
-                            // Ajoute owner à la carte posée
+                            // Pose directe sans animation pour le joueur local
                             const card = { ...this.playerCards[this.draggedCardIdx], owner: "player" };
                             this.playerCards[this.draggedCardIdx].played = true;
                             this.lastPlayedCard = card;
-                            // Animation de pose de carte
-                            this.animateCardPlacement(card, row, col, "player", () => {
-                                this.board[row][col] = card;
-                                // Capture logique
-                                this.captureCards(row, col, card, true);
-                                this.activePlayer = 1;
-                                this.draggedCardIdx = null;
-                                this.redrawAll();
-                                // Vérifie fin de partie
-                                if (this.isBoardFull()) {
-                                    this.endGame();
-                                } else {
-                                    // Déclenche le tour IA après un court délai
-                                    this.time.delayedCall(600, () => this.aiPlay(), [], this);
-                                }
-                            });
+                            this.board[row][col] = card;
+                            // Capture logique
+                            this.captureCards(row, col, card, true);
+                            this.activePlayer = 1;
+                            this.draggedCardIdx = null;
+                            this.redrawAll();
+                            // Vérifie fin de partie
+                            if (this.isBoardFull()) {
+                                this.endGame();
+                            } else {
+                                // Déclenche le tour IA après un court délai
+                                this.time.delayedCall(600, () => this.aiPlay(), [], this);
+                            }
                             return;
                         }
                     }
@@ -329,7 +419,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const fromY = handY;
 
         // Destination sur le plateau
-        const cellW = (width * 0.95) / 3;
+        const cellW = (width * 0.80) / 3;
         const cellH = cellW * 1.5;
         const boardW = cellW * 3;
         const boardH = cellH * 3;
@@ -371,7 +461,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const { width, height } = this.sys.game.canvas;
         const cardW = Math.min(60, width / 8);
         const cardH = cardW * 1.5;
-        const cellW = (width * 0.95) / 3;
+        const cellW = (width * 0.80) / 3;
         const cellH = cellW * 1.5;
         const boardW = cellW * 3;
         const boardH = cellH * 3;
@@ -411,7 +501,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
     animateCapture(row, col, newOwner) {
         const { width, height } = this.sys.game.canvas;
         const cardW = Math.min(60, width / 8);
-        const cellW = (width * 0.95) / 3;
+        const cellW = (width * 0.80) / 3;
         const cellH = cellW * 1.5;
         const boardW = cellW * 3;
         const boardX = width / 2 - boardW / 2;
@@ -420,7 +510,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const y = boardY + row * cellH + cellH / 2;
 
         // Ajoute un effet visuel temporaire
-        const flash = this.add.rectangle(x, y, cellW * 0.9, cellH * 0.9, newOwner === "player" ? 0x99ccff : 0xff9999, 0.5)
+        const flash = this.add.rectangle(x, y, cellW * 0.9, cellH * 0.9, newOwner === "player" ?  0x3399ff : 0xff3333, 0.5)
             .setOrigin(0.5)
             .setDepth(1001);
         this.tweens.add({
@@ -574,7 +664,7 @@ cleanUp() {
         const { width, height } = this.sys.game.canvas;
         // Ajoute ici les scores, le tour, etc.
         this.container.add(
-            this.add.text(width / 2, 20, `Tour: ${this.activePlayer === 0 ? "Joueur" : "Adversaire"}`, {
+            this.add.text(width / 2, height*0.15, `Tour: ${this.activePlayer === 0 ? "Joueur" : "Adversaire"}`, {
                 font: `${Math.round(width * 0.04)}px Arial`,
                 fill: "#fff",
                 fontStyle: "bold"
@@ -582,18 +672,44 @@ cleanUp() {
         );
     }
 
-    handleCellClick(row, col) {
+handleCellClick(row, col) {
+    // Si la case est déjà occupée, on ne fait rien
+    if (this.board[row][col]) return;
+
+    // Si aucune carte n'est sélectionnée, on ne fait rien
+    if (this.draggedCardIdx === null) return;
+
+    // PvP : on envoie l'action au serveur
+    if (this.isPvP) {
+        // Vérifie que c'est bien le tour du joueur
+        if (this.activePlayer !== 0) return; // 0 = joueur local, 1 = adversaire
+
+        this.socket.emit('tt:playCard', {
+            matchId: this.matchId,
+            playerId: this.playerId,
+            cardIdx: this.draggedCardIdx,
+            row,
+            col
+        });
+        this.draggedCardIdx = null;
+        // On attend la mise à jour du serveur (pas de modif locale ici)
+        return;
+    }
         // Logique pour poser une carte sur la grille
-        if (this.board[row][col] === null && this.activePlayer === 0) {
-            const cardToPlay = this.playerCards.find(card => !card.played);
-            if (cardToPlay) {
-                this.board[row][col] = cardToPlay;
-                cardToPlay.played = true;
-                this.activePlayer = 1;
-                this.redrawAll();
-            }
+    if (this.board[row][col] === null && this.activePlayer === 0) {
+        const cardToPlay = this.playerCards.find(card => !card.played);
+        if (cardToPlay) {
+            this.board[row][col] = cardToPlay;
+            cardToPlay.played = true;
+            this.activePlayer = 1;
+            this.redrawAll();
         }
     }
+    // Lancer le tour de l'IA si besoin
+    if (this.mode === "ai") {
+        this.time.delayedCall(600, () => this.aiPlay());
+    }
+}
 
     handlePlayerCardClick(cardIdx) {
         // Logique pour sélectionner une carte à jouer

@@ -46,12 +46,14 @@ export class TripleTriadSelectScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.playerId = data.playerId;
-        const previousSelection = this.registry.get("tripleTriadSelection");
-        this.selected = Array.isArray(previousSelection) ? [...previousSelection] : [];
-        this.cards = [];
-        this.focusedCardIdx = 0;
-        this.dragOffset = 0;
+    this.playerId = data.playerId;
+    this.mode = data.mode || "ai";
+    this.opponentId = data.opponentId || null;
+    const previousSelection = this.registry.get("tripleTriadSelection");
+    this.selected = Array.isArray(previousSelection) ? [...previousSelection] : [];
+    this.cards = [];
+    this.focusedCardIdx = 0;
+    this.dragOffset = 0;
     }
 
     async create() {
@@ -421,21 +423,37 @@ this.container.add(this.validateBtn);
         this.drawUI();
     }
 
-    validate() {
-        if (this.selected.length === 5) {
-            this.registry.set("tripleTriadSelection", this.selected);
-            // Sauvegarde la sélection dans localStorage (comme pour le pseudo)
-            window.localStorage.setItem("tripleTriadSelection", JSON.stringify(this.selected));
-            // (optionnel) aussi dans les cookies pour compatibilité
-            setCookie("tripleTriadSelection", JSON.stringify(this.selected));
-            // Lance la scène de jeu avec la sélection du joueur
-            this.scene.stop();
-            this.scene.start("TripleTriadGameScene", {
-                playerCards: this.cards.filter(c => this.selected.includes(c._id.toString()))
-                // Ajoute ici d'autres données nécessaires (ex: opponentCards)
+validate() {
+    if (this.selected.length === 5) {
+        this.registry.set("tripleTriadSelection", this.selected);
+        window.localStorage.setItem("tripleTriadSelection", JSON.stringify(this.selected));
+        setCookie("tripleTriadSelection", JSON.stringify(this.selected));
+        this.scene.stop();
+
+        const selectedCards = this.cards.filter(c => this.selected.includes(c._id.toString()));
+
+        if (this.mode === "pvp") {
+            // Crée un matchId unique pour la partie PvP
+            console.log("DEBUG matchId", { playerId: this.playerId, opponentId: this.opponentId });
+            const matchId = [this.playerId, this.opponentId].sort().join("_");
+            this.scene.launch("TripleTriadGameScene", {
+                mode: "pvp",
+                matchId,
+                playerId: this.playerId,
+                opponentId: this.opponentId,
+                playerCards: selectedCards,
+                // socket: this.socket // à passer si besoin
+            });
+        } else {
+            // Partie contre l’IA
+            this.scene.launch("TripleTriadGameScene", {
+                mode: "ai",
+                playerId: this.playerId,
+                playerCards: selectedCards
             });
         }
     }
+}
 
     close() {
         this.scene.stop();

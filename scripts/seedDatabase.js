@@ -291,6 +291,61 @@ async function seedDatabase() {
         item_id: insertedItems.insertedIds[17], //
         quantité: 1,
       },
+           {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[7], // 
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[8], // 
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[9], //
+        quantité: 2,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[10], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[11], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[12], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[13], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[14], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[15], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[16], //
+        quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
+        item_id: insertedItems.insertedIds[17], //
+        quantité: 1,
+      },
       {
         player_id: insertedPlayers.insertedIds[1], // Lien avec le deuxième joueur
         item_id: insertedItems.insertedIds[2], // Lien avec "Clef"

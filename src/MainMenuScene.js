@@ -206,7 +206,7 @@ export class MainMenuScene extends Phaser.Scene {
                         // Initialize WebSocket connection
                         this.socket = io(process.env.REACT_APP_SOCKET_URL);
                         this.registry.set("socket", this.socket);
-
+                        this.socket.emit('registerPlayer', { playerId: this.pseudo });
                         // Show chat and input elements when transitioning to GameScene
                         if (chatElement) chatElement.style.display = "block";
                         if (inputElement) inputElement.style.display = "block";
