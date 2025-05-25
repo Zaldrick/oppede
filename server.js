@@ -344,80 +344,151 @@ socket.on('newPlayer', async (data) => {
   });
 
   // Déconnexion
-    socket.on('disconnect', () => {
-    console.log(`Joueur déconnecté : ${socket.id}`);
-    const disconnectedPlayer = players[socket.id];
-    if (socket.playerId) delete playerIdToSocketId[socket.playerId];
-    delete players[socket.id];
+  socket.on('disconnect', () => {
+      console.log(`Joueur déconnecté : ${socket.id}`);
+      const disconnectedPlayer = players[socket.id];
+      if (socket.playerId) delete playerIdToSocketId[socket.playerId];
+      delete players[socket.id];
 
-    // Informer les autres joueurs de la déconnexion
-    io.emit('playerDisconnected', { id: socket.id, mapId: disconnectedPlayer?.mapId });
+      // Nettoyage des matchs
+      for (const matchId in matches) {
+          const match = matches[matchId];
+          const idx = match.players.indexOf(socket.id);
+          if (idx !== -1) {
+              match.players.splice(idx, 1);
+              match.playerIds.splice(idx, 1);
+          }
+          // Si plus aucun joueur, supprime le match
+          if (match.players.length === 0) {
+              delete matches[matchId];
+          }
+      }
 
-    console.log("État actuel des joueurs après déconnexion :", players); // Log pour vérifier l'état des joueurs
+      // Nettoyage des challenges
+      for (const challengedId in challenges) {
+          if (challengedId === socket.id || challenges[challengedId] === socket.id) {
+              delete challenges[challengedId];
+          }
+      }
+
+      // Informer les autres joueurs de la déconnexion
+      io.emit('playerDisconnected', { id: socket.id, mapId: disconnectedPlayer?.mapId });
+
+      console.log("État actuel des joueurs après déconnexion :", players);
   });
 
-    socket.on('tt:startMatch', ({ matchId, playerId, opponentId, playerCards }) => {
-       console.log(`[tt:startMatch] matchId=${matchId}, playerId=${playerId}, socket.id=${socket.id}`);
 
-        // Crée ou rejoint la partie
-        if (!matches[matchId]) {
-            matches[matchId] = {
-                players: [socket.id],
-                playerIds: [playerId],
-                cards: { [playerId]: playerCards },
-                state: {
-                    board: Array.from({ length: 3 }, () => Array(3).fill(null)),
-                    turn: playerId, // Le joueur qui commence
-                    moves: [],
+  socket.on('tt:startMatch', ({ matchId, playerId, opponentId, playerCards }) => {
+      console.log(`[tt:startMatch] matchId=${matchId}, playerId=${playerId}, socket.id=${socket.id}`);
+
+      // Crée ou rejoint la partie
+      if (!matches[matchId]) {
+          matches[matchId] = {
+              players: [socket.id],
+              playerIds: [playerId],
+              cards: { [playerId]: playerCards },
+              state: {
+                  board: Array.from({ length: 3 }, () => Array(3).fill(null)),
+                  turn: playerId, // Le joueur qui commence
+                  moves: [],
+              }
+          };
+      } else {
+          if (!matches[matchId].playerIds.includes(playerId)) {
+              matches[matchId].players.push(socket.id);
+              matches[matchId].playerIds.push(playerId);
+              matches[matchId].cards[playerId] = playerCards;
+          }
+          // Quand les deux joueurs sont là, envoie l'état initial
+          if (matches[matchId].players.length === 2) {
+                const firstIdx = Math.floor(Math.random() * 2);
+                const firstPlayerId = matches[matchId].playerIds[firstIdx];
+                matches[matchId].state.turn = firstPlayerId;
+              matches[matchId].players.forEach((sid, idx) => {
+                  io.to(sid).emit('tt:matchReady', {
+                      matchId,
+                      playerId: matches[matchId].playerIds[idx],
+                      opponentId: matches[matchId].playerIds[1-idx],
+                      playerCards: matches[matchId].cards[matches[matchId].playerIds[idx]],
+                      opponentCards: matches[matchId].cards[matches[matchId].playerIds[1-idx]],
+                      state: matches[matchId].state
+                  });
+              });
+          }
+      }
+      console.log(`[tt:startMatch] Etat du match après ajout:`, JSON.stringify(matches[matchId], null, 2));
+
+      socket.join(matchId);
+  });
+
+socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
+    const match = matches[matchId];
+    if (!match) return;
+    // Vérifie le tour
+    if (match.state.turn !== playerId) return;
+    // Vérifie que la case est vide
+    if (match.state.board[row][col]) return;
+
+    // Place la carte
+    const card = { ...match.cards[playerId][cardIdx], owner: playerId };
+    match.cards[playerId][cardIdx].played = true;
+    match.state.board[row][col] = card;
+    match.state.moves.push({ playerId, cardIdx, row, col });
+
+    // Logique de capture Triple Triad
+    const dirs = [
+        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
+        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
+        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
+        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
+    ];
+    for (const { dr, dc, self, opp } of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+            const neighbor = match.state.board[nr][nc];
+            if (neighbor && neighbor.owner !== playerId) {
+                if (parseInt(card[self]) > parseInt(neighbor[opp])) {
+                    neighbor.owner = playerId;
                 }
-            };
-        } else {
-            if (!matches[matchId].playerIds.includes(playerId)) {
-                matches[matchId].players.push(socket.id);
-                matches[matchId].playerIds.push(playerId);
-                matches[matchId].cards[playerId] = playerCards;
-            }
-            // Quand les deux joueurs sont là, envoie l'état initial
-            if (matches[matchId].players.length === 2) {
-                  const firstIdx = Math.floor(Math.random() * 2);
-                  const firstPlayerId = matches[matchId].playerIds[firstIdx];
-                  matches[matchId].state.turn = firstPlayerId;
-                matches[matchId].players.forEach((sid, idx) => {
-                    io.to(sid).emit('tt:matchReady', {
-                        matchId,
-                        playerId: matches[matchId].playerIds[idx],
-                        opponentId: matches[matchId].playerIds[1-idx],
-                        playerCards: matches[matchId].cards[matches[matchId].playerIds[idx]],
-                        opponentCards: matches[matchId].cards[matches[matchId].playerIds[1-idx]],
-                        state: matches[matchId].state
-                    });
-                });
             }
         }
-        console.log(`[tt:startMatch] Etat du match après ajout:`, JSON.stringify(matches[matchId], null, 2));
+    }
 
-        socket.join(matchId);
-    });
+    // Change de tour
+    match.state.turn = match.playerIds.find(id => id !== playerId);
 
-    socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
-        const match = matches[matchId];
-        if (!match) return;
-        // Vérifie le tour
-        if (match.state.turn !== playerId) return;
-        // Place la carte
-        match.state.board[row][col] = { ...match.cards[playerId][cardIdx], owner: playerId };
-        match.cards[playerId][cardIdx].played = true;
-        match.state.moves.push({ playerId, cardIdx, row, col });
-        // Change de tour
-        match.state.turn = match.playerIds.find(id => id !== playerId);
-        // Diffuse le nouvel état
-        io.to(matchId).emit('tt:update', { state: match.state });
-    });
+    // Vérifie fin de partie
+    const isFull = match.state.board.flat().every(cell => cell);
+    if (isFull) {
+        // Calcul du score
+        const score = { [match.playerIds[0]]: 0, [match.playerIds[1]]: 0 };
+        for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 3; c++) {
+                const cell = match.state.board[r][c];
+                if (cell && cell.owner) score[cell.owner]++;
+            }
+        }
+        match.state.scores = score;
+        match.state.gameEnded = true;
+    }
 
-    socket.on('tt:leaveMatch', ({ matchId }) => {
-        socket.leave(matchId);
-        // Optionnel : clean up match si tout le monde est parti
-    });
+    // Diffuse le nouvel état
+    io.to(matchId).emit('tt:update', { state: match.state });
+});
+
+  socket.on('tt:leaveMatch', ({ matchId }) => {
+      socket.leave(matchId);
+      if (matches[matchId]) {
+          const idx = matches[matchId].players.indexOf(socket.id);
+          if (idx !== -1) {
+              matches[matchId].players.splice(idx, 1);
+              matches[matchId].playerIds.splice(idx, 1);
+          }
+          if (matches[matchId].players.length === 0) {
+              delete matches[matchId];
+          }
+      }
+  });
 
 socket.on('challenge:send', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId }) => {
     console.log(`Défi reçu : challengerId=${challengerId}, challengedId=${challengedId}`);

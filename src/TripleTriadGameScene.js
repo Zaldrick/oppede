@@ -77,12 +77,6 @@ create() {
             { font: "32px Arial", fill: "#fff" }
         ).setOrigin(0.5);
 
-        this.socket.emit('tt:startMatch', {
-            matchId: this.matchId,
-            playerId: this.playerId,
-            opponentId: this.opponentId,
-            playerCards: this.playerCards
-        });
 
         this.socket.once('tt:matchReady', (data) => {
             // Retire le message d'attente
@@ -114,12 +108,99 @@ create() {
                 }
             });
         });
-
-        this.socket.on('tt:update', ({ state }) => {
-            this.board = state.board;
-            this.activePlayer = state.turn === this.playerId ? 0 : 1;
-            this.redrawAll();
+        
+        this.socket.emit('tt:startMatch', {
+            matchId: this.matchId,
+            playerId: this.playerId,
+            opponentId: this.opponentId,
+            playerCards: this.playerCards
         });
+
+    this.socket.on('tt:update', ({ state }) => {
+        const previousBoard = JSON.parse(JSON.stringify(this.board));
+        this.board = state.board;
+        this.activePlayer = state.turn === this.playerId ? 0 : 1;
+
+            // Mets à jour les cartes jouées dans la main du joueur
+        if (this.isPvP) {
+            // Retire les cartes jouées de la main du joueur
+            if (state.moves && Array.isArray(state.moves)) {
+                state.moves.forEach(move => {
+                    if (move.playerId === this.playerId && this.playerCards[move.cardIdx]) {
+                        this.playerCards[move.cardIdx].played = true;
+                    }
+                    if (move.playerId === this.opponentId && this.opponentCards[move.cardIdx]) {
+                        this.opponentCards[move.cardIdx].played = true;
+                    }
+                });
+            }
+        }
+
+        // Animation de pose/capture en PvP
+        if (this.isPvP) {
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const prev = previousBoard[row][col];
+                    const curr = this.board[row][col];
+                    // Pose d'une nouvelle carte
+                    if (!prev && curr) {
+                        this.animateCardPlacement(curr, row, col, curr.owner === this.playerId ? "player" : "opponent");
+                    }
+                    // Capture d'une carte
+                    if (prev && curr && prev.owner !== curr.owner) {
+                        this.animateCapture(row, col, curr.owner === this.playerId ? "player" : "opponent");
+                    }
+                }
+            }
+        }
+        this.redrawAll();
+        // Si le serveur indique que la partie est finie, affiche le résultat
+        if (state.gameEnded) {
+            const myScore = state.scores?.[this.playerId] ?? 0;
+            const oppScore = state.scores?.[this.opponentId] ?? 0;
+            let resultText = "";
+            let color = "#fff";
+            if (myScore > oppScore) {
+                resultText = "VICTOIRE";
+                color = "#33ff33";
+            } else if (myScore < oppScore) {
+                resultText = "DEFAITE";
+                color = "#ff3333";
+            } else {
+                resultText = "EGALITÉ";
+                color = "#ffff33";
+            }
+            const { width, height } = this.sys.game.canvas;
+            this.endText = this.add.text(width / 2, height / 2, resultText, {
+                font: `bold ${Math.round(width * 0.13)}px Arial`,
+                fill: color,
+                stroke: "#000",
+                strokeThickness: 8
+            }).setOrigin(0.5).setAlpha(0).setScale(0.7);
+
+            this.container.add(this.endText);
+
+            this.tweens.add({
+                targets: this.endText,
+                alpha: 1,
+                scale: 1,
+                duration: 420,
+                ease: 'Back.easeOut'
+            });
+
+            this.gameEnded = true;
+
+            // Quitte la scène après 2.5s
+            this.time.delayedCall(2500, () => {
+                this.cleanUp();
+                this.scene.stop();
+                this.scene.resume("GameScene");
+            });
+        }
+
+
+    });
+
     } else {
         // Mode IA : pas d'attente
         this.resize();
@@ -223,8 +304,8 @@ redrawAll() {
                 let cellColor = 0x333366;
                 let cellAlpha = 0.85;
                 if (card) {
-                    if (card.owner === "player") cellColor = 0x99ccff;
-                    else if (card.owner === "opponent") cellColor = 0xffbbbb;
+                    if (card.owner === this.playerId) cellColor = 0x99ccff;
+                    else if (card.owner === this.opponentId) cellColor = 0xffbbbb;
                     cellAlpha = 0.55;
                 }
                 const cell = this.add.rectangle(x, y, cellW - 8, cellH - 8, cellColor, cellAlpha)
@@ -277,127 +358,145 @@ redrawAll() {
         }
     }
 
-    drawScores(width, height) {
-        // Score joueur en bas à droite, adversaire en haut à droite
-        const playerScore = this.countOwnedCards("player");
-        const opponentScore = this.countOwnedCards("opponent");
-        const fontSize = Math.round(width * 0.1);
-
-        // Joueur
-        this.container.add(this.add.text(width *.96, height*.92, `${playerScore}`, {
-            font: `${fontSize}px Arial`,
-            fill: "#3399ff",
-            fontStyle: "bold"
-        }).setOrigin(1, 1));
-
-        // Adversaire
-        this.container.add(this.add.text(width *.96, height*.05, `${opponentScore}`, {
-            font: `${fontSize}px Arial`,
-            fill: "#ff3333",
-            fontStyle: "bold"
-        }).setOrigin(1, 0));
+drawScores(width, height) {
+    let playerScore, opponentScore;
+    if (this.isPvP && this.board && this.board.length && this.gameEnded && this.board[0][0] && this.board[0][0].owner) {
+        // Utilise les scores du serveur si dispo
+        playerScore = this.lastState?.scores?.[this.playerId] ?? this.countOwnedCards("player");
+        opponentScore = this.lastState?.scores?.[this.opponentId] ?? this.countOwnedCards("opponent");
+    } else {
+        playerScore = this.countOwnedCards("player");
+        opponentScore = this.countOwnedCards("opponent");
     }
+    const fontSize = Math.round(width * 0.1);
 
-    countOwnedCards(owner) {
-        let count = 0;
-        for (let row = 0; row < 3; row++)
-            for (let col = 0; col < 3; col++)
-                if (this.board[row][col] && this.board[row][col].owner === owner)
-                    count++;
-        return count;
-    }
+    // Joueur
+    this.container.add(this.add.text(width *.96, height*.92, `${playerScore}`, {
+        font: `${fontSize}px Arial`,
+        fill: "#3399ff",
+        fontStyle: "bold"
+    }).setOrigin(1, 1));
 
-    drawPlayerHand() {
-        const { width, height } = this.sys.game.canvas;
-        const cardW = Math.min(60, width / 8);
-        const cardH = cardW * 1.5;
-        const handY = height - cardH - 20; // Remonte la main du joueur
-        const startX = width / 2 - ((cardW + 8) * 5 - 8) / 2;
+    // Adversaire
+    this.container.add(this.add.text(width *.96, height*.05, `${opponentScore}`, {
+        font: `${fontSize}px Arial`,
+        fill: "#ff3333",
+        fontStyle: "bold"
+    }).setOrigin(1, 0));
+}
 
-        this.playerCards.forEach((card, i) => {
-            const x = startX + i * (cardW + 8);
-            const img = this.add.image(x, handY, card.image)
-                .setDisplaySize(cardW, cardH)
-                .setOrigin(0.5)
-                .setAlpha(card.played ? 0.3 : 1)
-                .setInteractive({ draggable: !card.played && this.activePlayer === 0 });
+countOwnedCards(owner) {
+    let count = 0;
+    for (let row = 0; row < 3; row++)
+        for (let col = 0; col < 3; col++)
+            if (this.board[row][col]) {
+                if (owner === "player" && this.board[row][col].owner === this.playerId) count++;
+                else if (owner === "opponent" && this.board[row][col].owner === this.opponentId) count++;
+            }
+    return count;
+}
 
-            // Effet de survol (hover/touch)
-            img.on('pointerover', () => {
-                if (!card.played && this.activePlayer === 0) {
-                    this.tweens.add({
-                        targets: img,
-                        scale: 1.12,
-                        duration: 120,
-                        ease: 'Quad.easeOut'
-                    });
-                }
-            });
-            img.on('pointerout', () => {
-                if (!card.played && this.activePlayer === 0) {
-                    this.tweens.add({
-                        targets: img,
-                        scale: 1,
-                        duration: 120,
-                        ease: 'Quad.easeIn'
-                    });
-                }
-            });
+drawPlayerHand() {
+    const { width, height } = this.sys.game.canvas;
+    const cardW = Math.min(60, width / 8);
+    const cardH = cardW * 1.5;
+    const handY = height - cardH - 20;
+    const startX = width / 2 - ((cardW + 8) * 5 - 8) / 2;
 
-            // Drag events
-            img.on('dragstart', (pointer) => {
-                if (!card.played && this.activePlayer === 0) {
-                    this.draggedCardIdx = i;
-                    img.setAlpha(0.7);
-                }
-            });
-            img.on('drag', (pointer, dragX, dragY) => {
-                if (!card.played && this.activePlayer === 0) {
-                    img.x = dragX;
-                    img.y = dragY;
-                }
-            });
-            img.on('dragend', (pointer, dropX, dropY, dropped) => {
-                if (!card.played && this.activePlayer === 0) {
-                    img.setAlpha(1);
-                    img.x = x;
-                    img.y = handY;
-                    if (!dropped) this.draggedCardIdx = null;
-                }
-            });
+    this.playerCards.forEach((card, i) => {
+        const x = startX + i * (cardW + 8);
+        const img = this.add.image(x, handY, card.image)
+            .setDisplaySize(cardW, cardH)
+            .setOrigin(0.5)
+            .setAlpha(card.played ? 0.3 : 1)
+            .setInteractive({ draggable: !card.played && this.activePlayer === 0 && !this.gameEnded });
 
-            this.input.setDraggable(img);
-
-            this.container.add(img);
-
-            // Affiche les valeurs autour de la carte
-            this.drawCardValues(x, handY, cardW, cardH, card);
+        // Effet de survol
+        img.on('pointerover', () => {
+            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
+                this.tweens.add({
+                    targets: img,
+                    scale: 1.12,
+                    duration: 120,
+                    ease: 'Quad.easeOut'
+                });
+            }
+        });
+        img.on('pointerout', () => {
+            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
+                this.tweens.add({
+                    targets: img,
+                    scale: 1,
+                    duration: 120,
+                    ease: 'Quad.easeIn'
+                });
+            }
         });
 
-        // Retire tout listener 'drop' précédent pour éviter les doublons
-        this.input.off('drop');
+        // Drag events
+        img.on('dragstart', (pointer) => {
+            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
+                this.draggedCardIdx = i;
+                img.setAlpha(0.7);
+            }
+        });
+        img.on('drag', (pointer, dragX, dragY) => {
+            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
+                img.x = dragX;
+                img.y = dragY;
+            }
+        });
+        img.on('dragend', (pointer, dropX, dropY, dropped) => {
+            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
+                img.setAlpha(1);
+                img.x = x;
+                img.y = handY;
+                if (!dropped) this.draggedCardIdx = null;
+            }
+        });
 
-        // Drop zones pour chaque case du plateau
-        this.input.on('drop', (pointer, gameObject, dropZone) => {
-            if (this.draggedCardIdx !== null && this.activePlayer === 0 && !this.gameEnded) {
-                for (let row = 0; row < 3; row++) {
-                    for (let col = 0; col < 3; col++) {
-                        if (this.boardCells[row][col] === dropZone && !this.board[row][col]) {
-                            // Pose directe sans animation pour le joueur local
+        this.input.setDraggable(img);
+
+        this.container.add(img);
+
+        // Affiche les valeurs autour de la carte
+        this.drawCardValues(x, handY, cardW, cardH, card);
+    });
+
+    // Retire tout listener 'drop' précédent pour éviter les doublons
+    this.input.off('drop');
+
+    // Drop zones pour chaque case du plateau
+    this.input.on('drop', (pointer, gameObject, dropZone) => {
+        if (this.draggedCardIdx !== null && this.activePlayer === 0 && !this.gameEnded) {
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    if (this.boardCells[row][col] === dropZone && !this.board[row][col]) {
+                        if (this.isPvP) {
+                            // En PvP, on envoie l'action au serveur, pas de modif locale
+                            this.socket.emit('tt:playCard', {
+                                matchId: this.matchId,
+                                playerId: this.playerId,
+                                cardIdx: this.draggedCardIdx,
+                                row,
+                                col
+                            });
+                            this.draggedCardIdx = null;
+                            // On attend la mise à jour du serveur via 'tt:update'
+                            return;
+                        } else {
+                            // Mode IA/local : logique locale
                             const card = { ...this.playerCards[this.draggedCardIdx], owner: "player" };
                             this.playerCards[this.draggedCardIdx].played = true;
                             this.lastPlayedCard = card;
                             this.board[row][col] = card;
-                            // Capture logique
                             this.captureCards(row, col, card, true);
                             this.activePlayer = 1;
                             this.draggedCardIdx = null;
                             this.redrawAll();
-                            // Vérifie fin de partie
                             if (this.isBoardFull()) {
                                 this.endGame();
                             } else {
-                                // Déclenche le tour IA après un court délai
                                 this.time.delayedCall(600, () => this.aiPlay(), [], this);
                             }
                             return;
@@ -405,8 +504,9 @@ redrawAll() {
                     }
                 }
             }
-        });
-    }
+        }
+    });
+}
 
     // Animation de pose de carte (vol depuis la main vers la case)
     animateCardPlacement(card, row, col, owner, onComplete) {
