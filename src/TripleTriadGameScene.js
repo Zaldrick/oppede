@@ -116,6 +116,7 @@ create() {
                     this.board = data.state.board;
                     this.activePlayer = data.state.turn === this.playerId ? 0 : 1;
                     this.redrawAll();
+                    this.showStartingArrow(this.activePlayer, () => {            });
                 }
             });
         });
@@ -261,6 +262,7 @@ this.socket.on('tt:update', ({ state }) => {
 
     } else {
         // Mode IA : pas d'attente
+        this.activePlayer = Math.random() < 0.5 ? 0 : 1;
         this.resize();
         this.drawBackground();
         this.drawOpponentHand();
@@ -272,6 +274,14 @@ this.socket.on('tt:update', ({ state }) => {
         this.endText = null;
         this.gameEnded = false;
         MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
+            // Ajoute ceci pour afficher la flèche avant le début de la partie
+        this.showStartingArrow(this.activePlayer, () => {
+            // Quand l'animation est terminée, lance le tour IA si besoin
+            if (this.activePlayer === 1) {
+                this.aiPlay();
+            }
+            // Sinon, le joueur peut jouer directement
+        });
     }
 }
 
@@ -799,17 +809,64 @@ captureCards(row, col, card, animate = false, onAllFlipsDone) {
             }
         }
     }
-        if (animate && flipsToDo > 0) {
-            flips.forEach(flip => {
-                this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
-                    flipsDone++;
-                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
-                });
+    if (animate && flipsToDo > 0) {
+        flips.forEach(flip => {
+            this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
+                flipsDone++;
+                if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
             });
-        } else if (onAllFlipsDone) {
-            onAllFlipsDone();
-        }
+        });
+    } else if (onAllFlipsDone) {
+        onAllFlipsDone();
+    }
 }
+showStartingArrow(startingPlayer, onComplete) {
+    const { width, height } = this.sys.game.canvas;
+    // Crée la flèche (triangle épais)
+    const arrowLength = Math.min(width, height) * 0.22;
+    const arrowWidth = arrowLength * 0.38;
+    const graphics = this.add.graphics({ x: width / 2, y: height / 2 });
+    graphics.fillStyle(0xffff00, 1);
+    graphics.lineStyle(8, 0x222222, 1);
+    graphics.beginPath();
+    graphics.moveTo(0, -arrowLength);
+    graphics.lineTo(arrowWidth / 2, 0);
+    graphics.lineTo(-arrowWidth / 2, 0);
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+
+    graphics.setDepth(9999);
+
+    // Détermine l'angle cible (0 = haut, 180 = bas)
+    const targetAngle = startingPlayer === 0 ? 180 : 0;
+
+    // Animation de rotation
+    const spins = 3 + Math.floor(Math.random() * 2); // 3 ou 4 tours complets
+    const totalAngle = 360 * spins + targetAngle;
+    this.tweens.add({
+        targets: graphics,
+        angle: totalAngle,
+        duration: 1800,
+        ease: 'Cubic.easeOut',
+        onComplete: () => {
+            // Petit effet de scale pour l'arrêt
+            this.tweens.add({
+                targets: graphics,
+                scale: { from: 1.1, to: 1 },
+                duration: 220,
+                yoyo: true,
+                onComplete: () => {
+                    this.time.delayedCall(700, () => {
+                        graphics.destroy();
+                        if (onComplete) onComplete();
+                    });
+                }
+            });
+        }
+    });
+}
+
 aiPlay() {
     if (this.activePlayer !== 1 || this.gameEnded) return;
     // IA joue une carte au hasard sur une case libre
@@ -825,56 +882,32 @@ aiPlay() {
         const card = { ...this.opponentCards[cardIdx], owner: "opponent" };
         this.opponentCards[cardIdx].played = true;
         this.lastPlayedCard = card;
-        // --- AJOUTE LA CARTE AU BOARD AVANT LES ANIMATIONS ---
         this.board[pos.row][pos.col] = card;
-        // --- Compte les animations à faire (pose + flips) ---
-        let animsToDo = 1; // la pose
+
+        let animsToDo = 2; // 1 pour la pose, 1 pour la fin de tous les flips
         let animsDone = 0;
-        // On simule la capture pour savoir combien de flips il y aura
-        const dirs = [
-            { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
-            { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
-            { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
-            { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
-        ];
-        for (const { dr, dc, self, opp } of dirs) {
-            const nr = pos.row + dr, nc = pos.col + dc;
-            if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-                const neighbor = this.board[nr][nc];
-                if (neighbor && neighbor.owner !== card.owner) {
-                    if (parseInt(card[self]) > parseInt(neighbor[opp])) {
-                        animsToDo++;
-                    }
-                }
-            }
-        }
 
+        let poseDone = false;
+        let flipsDone = false;
 
-
-        // Fonction de fin de tour IA, appelée UNE SEULE FOIS quand toutes les anims sont faites
         const finish = () => {
-            if (this.activePlayer !== 1) return; // Empêche double appel
-            this.activePlayer = 0;
-            this.redrawAll();
-            if (this.isBoardFull()) this.endGame();
-            else this.time.delayedCall(600, () => this.aiPlay(), [], this);
+            if (poseDone && flipsDone && this.activePlayer === 1) {
+                this.activePlayer = 0;
+                this.redrawAll();
+                if (this.isBoardFull()) this.endGame();
+                else this.time.delayedCall(600, () => this.aiPlay(), [], this);
+            }
         };
 
-        // --- Animation de pose ---
         this.animateCardPlacementAI(card, pos.row, pos.col, () => {
-            animsDone++;
-            // S'il y a des flips à faire, redraw tout de suite pour afficher la carte IA sur le plateau
-            if (animsToDo > 1 && animsDone === 1) {
-                this.redrawAll();
-            }
-            if (animsDone === animsToDo) finish();
+            poseDone = true;
+            this.redrawAll();
+            finish();
         });
 
-        // --- Animation de capture (chaque flip appelle ce callback) ---
-        // On modifie captureCards pour qu'elle appelle le callback autant de fois qu'il y a de flips
         this.captureCards(pos.row, pos.col, card, true, () => {
-            animsDone++;
-            if (animsDone === animsToDo) finish();
+            flipsDone = true;
+            finish();
         });
     }
 }
