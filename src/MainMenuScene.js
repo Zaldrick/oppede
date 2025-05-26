@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import io from "socket.io-client"; // Import io from socket.io-client
+import MusicManager from './MusicManager';
 
 export class MainMenuScene extends Phaser.Scene {
     constructor() {
@@ -124,8 +125,7 @@ export class MainMenuScene extends Phaser.Scene {
             padding: { x: 10, y: 5 },
         }).setOrigin(0.5).setInteractive().setVisible(false);
 
-        // Prepare background music
-        this.backgroundMusic = this.sound.add("mainMenuMusic", { loop: true, volume: 0.5 });
+        MusicManager.play(this, 'mainMenuMusic', { loop: true, volume: 0.5 });
 
         // Unlock AudioContext with a silent sound
         const silentSound = this.sound.add("silentSound", { volume: 0 });
@@ -212,9 +212,7 @@ export class MainMenuScene extends Phaser.Scene {
                         if (inputElement) inputElement.style.display = "block";
 
                         // Stop background music before transitioning to GameScene
-                        if (this.backgroundMusic) {
-                            this.backgroundMusic.stop();
-                        }
+                        MusicManager.stop();
 
                         // Add fade-out effect before transitioning to GameScene
                         this.cameras.main.fadeOut(1000, 0, 0, 0); // 1-second fade to black

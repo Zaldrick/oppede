@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import MusicManager from './MusicManager';
 
 export class TripleTriadGameScene extends Phaser.Scene {
     constructor() {
@@ -27,17 +28,26 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.load.image('lightning', 'assets/cards/lightning.png');
         this.load.image('tidus', 'assets/cards/tidus.png');
         this.load.image('tomberry', 'assets/cards/tomberry.png');
+        this.load.image('back', 'assets/cards/back.png');
+        
+        this.load.audio('tripleTriadMusic', 'assets/musics/tripleTriadMusic.mp3');
+        this.load.audio('card_place', 'assets/sounds/cardPlaced.mp3');
+        this.load.audio('card_capture', 'assets/sounds/cardCaptured.mp3');
+        this.load.audio('victoryMusic', 'assets/musics/victoryMusic.mp3');
+        this.load.audio('defeatMusic', 'assets/musics/defeatMusic.mp3');
     }
 
     init(data) {
         this.isPvP = data.mode === "pvp";
-        this.matchId = data.matchId || null;
+        this.matchId = data.matchId || this.generateMatchId();;
         this.playerId = data.playerId;
         this.opponentId = data.opponentId;
         this.playerCards = data.playerCards || [];
         this.opponentCards = data.opponentCards || [];
         this.board = this.createEmptyBoard();
         this.activePlayer = 0;
+        this.playerScore = 5;
+        this.opponentScore = 5;
         this.socket = this.registry.get("socket");
         if (!this.socket) {
             // Fallback pour debug si jamais le registry n'est pas set
@@ -90,6 +100,7 @@ create() {
                 { font: "bold 40px Arial", fill: "#ff0", stroke: "#000", strokeThickness: 6 }
             ).setOrigin(0.5).setAlpha(0);
 
+            MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
             this.tweens.add({
                 targets: duelText,
                 alpha: 1,
@@ -116,90 +127,137 @@ create() {
             playerCards: this.playerCards
         });
 
-    this.socket.on('tt:update', ({ state }) => {
-        const previousBoard = JSON.parse(JSON.stringify(this.board));
-        this.board = state.board;
-        this.activePlayer = state.turn === this.playerId ? 0 : 1;
-
-            // Mets à jour les cartes jouées dans la main du joueur
-        if (this.isPvP) {
-            // Retire les cartes jouées de la main du joueur
-            if (state.moves && Array.isArray(state.moves)) {
-                state.moves.forEach(move => {
-                    if (move.playerId === this.playerId && this.playerCards[move.cardIdx]) {
-                        this.playerCards[move.cardIdx].played = true;
-                    }
-                    if (move.playerId === this.opponentId && this.opponentCards[move.cardIdx]) {
-                        this.opponentCards[move.cardIdx].played = true;
-                    }
-                });
-            }
+this.socket.on('tt:update', ({ state }) => {
+    const previousBoard = JSON.parse(JSON.stringify(this.board));
+    this.board = state.board;
+    this.activePlayer = state.turn === this.playerId ? 0 : 1;
+    this.lastState = state;
+    this.playerScore = state.scores?.[this.playerId] ?? 0;
+    this.opponentScore = state.scores?.[this.opponentId] ?? 0;
+    // Mets à jour les cartes jouées dans la main du joueur
+    if (this.isPvP) {
+        if (state.moves && Array.isArray(state.moves)) {
+            state.moves.forEach(move => {
+                if (move.playerId === this.playerId && this.playerCards[move.cardIdx]) {
+                    this.playerCards[move.cardIdx].played = true;
+                }
+                if (move.playerId === this.opponentId && this.opponentCards[move.cardIdx]) {
+                    this.opponentCards[move.cardIdx].played = true;
+                }
+            });
         }
+    }
 
-        // Animation de pose/capture en PvP
-        if (this.isPvP) {
-            for (let row = 0; row < 3; row++) {
-                for (let col = 0; col < 3; col++) {
-                    const prev = previousBoard[row][col];
-                    const curr = this.board[row][col];
-                    // Pose d'une nouvelle carte
-                    if (!prev && curr) {
-                        this.animateCardPlacement(curr, row, col, curr.owner === this.playerId ? "player" : "opponent");
-                    }
-                    // Capture d'une carte
-                    if (prev && curr && prev.owner !== curr.owner) {
-                        this.animateCapture(row, col, curr.owner === this.playerId ? "player" : "opponent");
-                    }
+        let animsToDo = 0;
+        let poseToDo = 0;
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                const prev = previousBoard[row][col];
+                const curr = this.board[row][col];
+                if (!prev && curr) {
+                    animsToDo++;
+                    poseToDo++; // Compte les poses
+                } else if (prev && curr && prev.owner !== curr.owner) {
+                    animsToDo++;
                 }
             }
         }
-        this.redrawAll();
-        // Si le serveur indique que la partie est finie, affiche le résultat
-        if (state.gameEnded) {
-            const myScore = state.scores?.[this.playerId] ?? 0;
-            const oppScore = state.scores?.[this.opponentId] ?? 0;
-            let resultText = "";
-            let color = "#fff";
-            if (myScore > oppScore) {
-                resultText = "VICTOIRE";
-                color = "#33ff33";
-            } else if (myScore < oppScore) {
-                resultText = "DEFAITE";
-                color = "#ff3333";
-            } else {
-                resultText = "EGALITÉ";
-                color = "#ffff33";
+
+        let animsDone = 0;
+        let poseDone = 0;
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                const prev = previousBoard[row][col];
+                const curr = this.board[row][col];
+                if (!prev && curr) {
+                    this.animateCardPlacement(
+                        curr, row, col, curr.owner === this.playerId ? "player" : "opponent",
+                        () => {
+                            animsDone++;
+                            poseDone++;
+                            // Si flips à venir, redraw tout de suite après la pose pour afficher la carte posée
+                            if (animsToDo > poseToDo && poseDone === poseToDo) {
+                                this.redrawAll();
+                            }
+                            if (animsDone === animsToDo) this.redrawAll();
+                        }
+                    );
+                } else if (prev && curr && prev.owner !== curr.owner) {
+                    this.animateCapture(
+                        row, col, curr.owner === this.playerId ? "player" : "opponent",
+                        () => {
+                            animsDone++;
+                            if (animsDone === animsToDo) this.redrawAll();
+                        }
+                    );
+                }
             }
-            const { width, height } = this.sys.game.canvas;
-            this.endText = this.add.text(width / 2, height / 2, resultText, {
-                font: `bold ${Math.round(width * 0.13)}px Arial`,
-                fill: color,
-                stroke: "#000",
-                strokeThickness: 8
-            }).setOrigin(0.5).setAlpha(0).setScale(0.7);
-
-            this.container.add(this.endText);
-
-            this.tweens.add({
-                targets: this.endText,
-                alpha: 1,
-                scale: 1,
-                duration: 420,
-                ease: 'Back.easeOut'
-            });
-
-            this.gameEnded = true;
-
-            // Quitte la scène après 2.5s
-            this.time.delayedCall(2500, () => {
-                this.cleanUp();
-                this.scene.stop();
-                this.scene.resume("GameScene");
-            });
         }
 
+    // Si aucune animation, redraw tout de suite
+    if (animsToDo === 0) {
+        this.redrawAll();
+    }
 
-    });
+    MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
+
+    // Si le serveur indique que la partie est finie, affiche le résultat
+    if (state.gameEnded) {
+        console.log("[TripleTriad] Fin de partie reçue !", state.scores, state);
+
+        // Sécurité : si pas de scores, force le calcul local (en dernier recours)
+        let myScore = state.scores?.[this.playerId];
+        let oppScore = state.scores?.[this.opponentId];
+        if (myScore === undefined || oppScore === undefined) {
+            // Fallback ultra défensif (devrait être inutile si serveur ok)
+            myScore = this.countOwnedCards("player");
+            oppScore = this.countOwnedCards("opponent");
+            console.warn("[TripleTriad] Scores manquants, fallback local :", myScore, oppScore);
+        }
+
+        let resultText = "";
+        let color = "#fff";
+        let musicKey = null;
+        if (myScore > oppScore) {
+            resultText = "VICTOIRE";
+            color = "#33ff33";
+            musicKey = "victoryMusic";
+        } else if (myScore < oppScore) {
+            resultText = "DEFAITE";
+            color = "#ff3333";
+            musicKey = "defeatMusic";
+        } else {
+            resultText = "EGALITÉ";
+            color = "#ffff33";
+            musicKey = "defeatMusic";
+        }
+        const { width, height } = this.sys.game.canvas;
+        this.endText = this.add.text(width / 2, height / 2, resultText, {
+            font: `bold ${Math.round(width * 0.13)}px Arial`,
+            fill: color,
+            stroke: "#000",
+            strokeThickness: 8
+        }).setOrigin(0.5).setAlpha(0).setScale(0.7);
+        this.redrawAll();
+        this.container.add(this.endText);
+        MusicManager.stop();
+        MusicManager.play(this, musicKey, { loop: false, volume: 0.5 });
+
+        this.tweens.add({
+            targets: this.endText,
+            alpha: 1,
+            scale: 1,
+            duration: 420,
+            ease: 'Back.easeOut'
+        });
+
+        this.gameEnded = true;
+
+    this.showEndAndFadeOut();
+    }
+});
+
+
 
     } else {
         // Mode IA : pas d'attente
@@ -213,6 +271,7 @@ create() {
         this.lastPlayedCard = null;
         this.endText = null;
         this.gameEnded = false;
+        MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
     }
 }
 
@@ -233,9 +292,19 @@ create() {
         });
     }
 
+
 redrawAll() {
     if (this.gameEnded || !this.sys || !this.sys.game) return;
-    if (this.container) this.container.destroy();
+    if (this.container) {
+        // Stoppe tous les tweens sur les enfants du container
+        this.container.iterate(child => {
+            if (child && child.active) {
+                this.tweens.killTweensOf(child);
+            }
+        });
+        this.container.destroy(true);
+        this.container = null;
+    }
     this.container = null;
     this.drawBackground();
     this.drawOpponentHand();
@@ -261,12 +330,22 @@ redrawAll() {
 
         this.opponentCards.forEach((card, i) => {
             const x = startX + i * (cardW + 8);
-            this.container.add(
-                this.add.image(x, y, card.image)
-                    .setDisplaySize(cardW, cardH)
-                    .setOrigin(0.5)
-                    .setAlpha(card.played ? 0.3 : 1)
-            );
+
+
+             const img = this.add.image(x, y, card.image)
+                .setDisplaySize(cardW, cardH)
+                .setOrigin(0.5)
+                .setAlpha(card.played ? 0.3 : 1);
+
+            if (this.activePlayer === 1 && !card.played && !this.gameEnded) {
+                this.applyGlowEffect(img, x, y, cardW, cardH, 0xeacbcb, 0.5, 1.03);
+               img.setTint(0xeacbcb); // Optionnel : teinte pour l'adversaire
+             }
+
+            this.container.add(img);
+
+            // Affiche les valeurs autour de la carte si besoin
+            this.drawCardValues(x, y, cardW, cardH, card);
         });
     }
 
@@ -287,9 +366,9 @@ redrawAll() {
 
         // Fond du plateau
         this.container.add(
-            this.add.rectangle(width / 2, boardY + boardH / 2, boardW, boardH, 0x222244, 0.95)
+            this.add.rectangle(width / 2, boardY + boardH / 2, boardW, boardH, 0xA6A6A6, 0.95)
                 .setOrigin(0.5)
-                .setStrokeStyle(4, 0xffffff)
+                .setStrokeStyle(4, 0xB0B0B0 )
         );
 
         // Grille 3x3 de rectangles
@@ -301,11 +380,16 @@ redrawAll() {
                 const y = boardY + row * cellH + cellH / 2;
                 const card = this.board[row][col];
                 // Couleur de fond selon propriétaire
-                let cellColor = 0x333366;
-                let cellAlpha = 0.85;
+                let cellColor = 0x626262;
+                let cellAlpha = 0.7;
                 if (card) {
-                    if (card.owner === this.playerId) cellColor = 0x99ccff;
-                    else if (card.owner === this.opponentId) cellColor = 0xffbbbb;
+                    if (this.isPvP) {
+                        if (card.owner === this.playerId) cellColor = 0x99ccff;
+                        else if (card.owner === this.opponentId) cellColor = 0xffbbbb;
+                    } else {
+                        if (card.owner === "player") cellColor = 0x99ccff;
+                        else if (card.owner === "opponent") cellColor = 0xffbbbb;
+                    }
                     cellAlpha = 0.55;
                 }
                 const cell = this.add.rectangle(x, y, cellW - 8, cellH - 8, cellColor, cellAlpha)
@@ -319,7 +403,8 @@ redrawAll() {
                 if (card) {
                     const img = this.add.image(x, y, card.image)
                         .setDisplaySize(cellW * 0.9, cellH * 0.9)
-                        .setOrigin(0.5);
+                        .setOrigin(0.5)
+                        .clearTint();
                     // Pas de tint sur la carte !
                     this.container.add(img);
 
@@ -328,14 +413,14 @@ redrawAll() {
                     const valueH = cellH * 0.28;
                     const dx = x + cellW * 0.9 / 2 - valueW ;
                     const dy = y + cellH * 0.9 / 2 - valueH ;
-                    const statFont = `${Math.round(valueH * 0.34)}px Arial`;
+                    const statFont = `${Math.round(valueH * 0.55)}px Arial`;
 
                     // Haut
-                    this.container.add(this.add.text(dx + valueW / 2, dy + 4, card.powerUp, {
+                    this.container.add(this.add.text(dx + valueW / 2, dy - 6, card.powerUp, {
                         font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 2
                     }).setOrigin(0.5, 0));
                     // Bas
-                    this.container.add(this.add.text(dx + valueW / 2, dy + valueH - 4, card.powerDown, {
+                    this.container.add(this.add.text(dx + valueW / 2, dy + valueH + 6, card.powerDown, {
                         font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 2
                     }).setOrigin(0.5, 1));
                     // Gauche
@@ -353,32 +438,26 @@ redrawAll() {
         // Affiche les scores
         this.drawScores(width, height);
         // Affiche le texte de fin si besoin
-        if (this.endText) {
+        if (this.endText && this.endText.scene) {
             this.container.add(this.endText);
         }
     }
 
 drawScores(width, height) {
-    let playerScore, opponentScore;
-    if (this.isPvP && this.board && this.board.length && this.gameEnded && this.board[0][0] && this.board[0][0].owner) {
-        // Utilise les scores du serveur si dispo
-        playerScore = this.lastState?.scores?.[this.playerId] ?? this.countOwnedCards("player");
-        opponentScore = this.lastState?.scores?.[this.opponentId] ?? this.countOwnedCards("opponent");
-    } else {
-        playerScore = this.countOwnedCards("player");
-        opponentScore = this.countOwnedCards("opponent");
-    }
+    // Utilise toujours les scores locaux (nouvelle règle)
+    const playerScore = this.playerScore;
+    const opponentScore = this.opponentScore;
     const fontSize = Math.round(width * 0.1);
 
-    // Joueur
-    this.container.add(this.add.text(width *.96, height*.92, `${playerScore}`, {
+    // Score du joueur (en bas à droite)
+    this.container.add(this.add.text(width * 0.96, height * 0.92, `${playerScore}`, {
         font: `${fontSize}px Arial`,
         fill: "#3399ff",
         fontStyle: "bold"
     }).setOrigin(1, 1));
 
-    // Adversaire
-    this.container.add(this.add.text(width *.96, height*.05, `${opponentScore}`, {
+    // Score de l'adversaire (en haut à droite)
+    this.container.add(this.add.text(width * 0.96, height * 0.05, `${opponentScore}`, {
         font: `${fontSize}px Arial`,
         fill: "#ff3333",
         fontStyle: "bold"
@@ -390,8 +469,13 @@ countOwnedCards(owner) {
     for (let row = 0; row < 3; row++)
         for (let col = 0; col < 3; col++)
             if (this.board[row][col]) {
-                if (owner === "player" && this.board[row][col].owner === this.playerId) count++;
-                else if (owner === "opponent" && this.board[row][col].owner === this.opponentId) count++;
+                if (this.isPvP) {
+                    if (owner === "player" && this.board[row][col].owner === this.playerId) count++;
+                    else if (owner === "opponent" && this.board[row][col].owner === this.opponentId) count++;
+                } else {
+                    if (owner === "player" && this.board[row][col].owner === "player") count++;
+                    else if (owner === "opponent" && this.board[row][col].owner === "opponent") count++;
+                }
             }
     return count;
 }
@@ -403,7 +487,7 @@ drawPlayerHand() {
     const handY = height - cardH - 20;
     const startX = width / 2 - ((cardW + 8) * 5 - 8) / 2;
 
-    this.playerCards.forEach((card, i) => {
+    this.playerCards.forEach((card, i) => {     
         const x = startX + i * (cardW + 8);
         const img = this.add.image(x, handY, card.image)
             .setDisplaySize(cardW, cardH)
@@ -411,27 +495,10 @@ drawPlayerHand() {
             .setAlpha(card.played ? 0.3 : 1)
             .setInteractive({ draggable: !card.played && this.activePlayer === 0 && !this.gameEnded });
 
-        // Effet de survol
-        img.on('pointerover', () => {
-            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
-                this.tweens.add({
-                    targets: img,
-                    scale: 1.12,
-                    duration: 120,
-                    ease: 'Quad.easeOut'
-                });
-            }
-        });
-        img.on('pointerout', () => {
-            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
-                this.tweens.add({
-                    targets: img,
-                    scale: 1,
-                    duration: 120,
-                    ease: 'Quad.easeIn'
-                });
-            }
-        });
+           // --- Effet lumineux si c'est au joueur de jouer et la carte n'est pas jouée ---
+        if (this.activePlayer === 0 && !card.played && !this.gameEnded) {
+                this.applyGlowEffect(img, x, handY, cardW, cardH, 0xcbe2ea, 0.5, 1.12);
+        }
 
         // Drag events
         img.on('dragstart', (pointer) => {
@@ -490,15 +557,19 @@ drawPlayerHand() {
                             this.playerCards[this.draggedCardIdx].played = true;
                             this.lastPlayedCard = card;
                             this.board[row][col] = card;
-                            this.captureCards(row, col, card, true);
+                            if (this.sound) this.sound.play('card_place', { volume: 1 });
                             this.activePlayer = 1;
                             this.draggedCardIdx = null;
                             this.redrawAll();
-                            if (this.isBoardFull()) {
-                                this.endGame();
-                            } else {
-                                this.time.delayedCall(600, () => this.aiPlay(), [], this);
-                            }
+                            // --- ATTEND LA FIN DES FLIPS AVANT REDRAW ET TOUR IA ---
+                            this.captureCards(row, col, card, true, () => {
+                                this.redrawAll();
+                                if (this.isBoardFull()) {
+                                    this.endGame();
+                                } else {
+                                    this.time.delayedCall(600, () => this.aiPlay(), [], this);
+                                }
+                            });
                             return;
                         }
                     }
@@ -533,7 +604,7 @@ drawPlayerHand() {
             .setOrigin(0.5)
             .setDepth(1000);
         img.setTint(owner === "player" ? 0x99ccff : 0xff9999);
-
+        if (this.sound) this.sound.play('card_place', { volume: 1 });
         this.tweens.add({
             targets: img,
             x: toX,
@@ -575,7 +646,7 @@ drawPlayerHand() {
             .setOrigin(0.5)
             .setDepth(1000);
         img.setTint(0xff9999);
-
+        if (this.sound) this.sound.play('card_place', { volume: 1 });
         this.tweens.add({
             targets: img,
             y: toY,
@@ -597,99 +668,237 @@ drawPlayerHand() {
         });
     }
 
-    // Animation de capture : pulse + flash couleur
-    animateCapture(row, col, newOwner) {
-        const { width, height } = this.sys.game.canvas;
-        const cardW = Math.min(60, width / 8);
-        const cellW = (width * 0.80) / 3;
-        const cellH = cellW * 1.5;
-        const boardW = cellW * 3;
-        const boardX = width / 2 - boardW / 2;
-        const boardY = cardW*1.5*.72 + ((height - cardW*1.5*.72 - (cardW*1.5 + 24)) - cellH*3) / 2;
-        const x = boardX + col * cellW + cellW / 2;
-        const y = boardY + row * cellH + cellH / 2;
 
-        // Ajoute un effet visuel temporaire
-        const flash = this.add.rectangle(x, y, cellW * 0.9, cellH * 0.9, newOwner === "player" ?  0x3399ff : 0xff3333, 0.5)
-            .setOrigin(0.5)
-            .setDepth(1001);
-        this.tweens.add({
-            targets: flash,
-            alpha: 0,
-            scale: 1.3,
-            duration: 350,
-            ease: 'Cubic.easeOut',
-            onComplete: () => flash.destroy()
-        });
+animateCapture(row, col, newOwner, onComplete) {
+    const { width, height } = this.sys.game.canvas;
+    const cardW = Math.min(60, width / 8);
+    const cellW = (width * 0.80) / 3;
+    const cellH = cellW * 1.5;
+    const boardW = cellW * 3;
+    const boardX = width / 2 - boardW / 2;
+    const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
+    const x = boardX + col * cellW + cellW / 2;
+    const y = boardY + row * cellH + cellH / 2;
+
+    // Cherche l'image de la carte sur le plateau
+    let cardImg = null;
+    this.container.iterate(child => {
+        if (child.texture && child.x === x && child.y === y && child.displayWidth === cellW * 0.9) {
+            cardImg = child;
+        }
+    });
+    if (!cardImg) return;
+
+    // Animation de flip 360°
+    this.tweens.add({
+        targets: cardImg,
+        scaleX: 0,
+        duration: 220,
+        ease: 'Cubic.easeIn',
+        onComplete: () => {
+            // Change la texture au milieu du flip
+            cardImg.setTexture(this.board[row][col].image);
+            cardImg.setTint(newOwner === "player" ? 0x99ccff : 0xffbbbb);
+            if (this.sound) this.sound.play('card_capture', { volume: 1 });
+            // Optionnel : petit flash couleur
+            const flash = this.add.rectangle(x, y, cellW * 0.9, cellH * 0.9, newOwner === "player" ? 0x3399ff : 0xff3333, 0.5)
+                .setOrigin(0.5)
+                .setDepth(1001);
+            this.tweens.add({
+                targets: cardImg,
+                scaleX: 1,
+                duration: 220,
+                ease: 'Cubic.easeOut',
+                onComplete: () => {
+                    cardImg.scaleX = 1;
+                    cardImg.displayWidth = cellW * 0.9;
+                    cardImg.displayHeight = cellH * 0.9;
+                    cardImg.clearTint();
+                    this.tweens.add({
+                        targets: flash,
+                        alpha: 0,
+                        scale: 1.3,
+                        duration: 350,
+                        ease: 'Cubic.easeOut',
+                        onComplete: () => {
+                            flash.destroy();
+                            if (onComplete) onComplete();
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+
+
+applyGlowEffect(img, x, y, cardW, cardH, color = 0xffff00, alpha = 0.22, scale = 1.4) {
+    const glowW = cardW * scale;
+    const glowH = cardH * scale;
+    const steps = 22;
+
+    // Crée le RenderTexture centré sur (x, y)
+    const rt = this.add.renderTexture(x, y, glowW, glowH).setOrigin(0.5, 0.5);
+
+    for (let i = steps; i > 0; i--) {
+        const t = i / steps;
+        const ellipseW = glowW * t;
+        const ellipseH = glowH * t;
+        const stepAlpha = alpha * t * t;
+        const g = this.make.graphics({ x: 0, y: 0, add: false });
+        g.fillStyle(color, stepAlpha);
+        g.fillEllipse(glowW / 2, glowH / 2, ellipseW, ellipseH);
+        rt.draw(g, 0, 0);
+        g.destroy();
     }
+    rt.setDepth(img.depth ? img.depth - 1 : -100);
+    this.container.add(rt);
+
+    // Effet de pulsation doux
+    this.tweens.add({
+        targets: rt,
+        alpha: { from: 0.7, to: 1 },
+        duration: 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+    });
+}
 
     // Capture logique avec animation
-    captureCards(row, col, card, animate = false) {
-        const dirs = [
-            { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },    // haut
-            { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },     // bas
-            { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" }, // gauche
-            { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }   // droite
-        ];
-        for (const { dr, dc, self, opp } of dirs) {
-            const nr = row + dr, nc = col + dc;
-            if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-                const neighbor = this.board[nr][nc];
-                if (neighbor && neighbor.owner !== card.owner) {
-                    if (parseInt(card[self]) > parseInt(neighbor[opp])) {
-                        neighbor.owner = card.owner;
-                        if (animate) this.animateCapture(nr, nc, card.owner);
+captureCards(row, col, card, animate = false, onAllFlipsDone) {
+    const dirs = [
+        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
+        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
+        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
+        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
+    ];
+    let flipsToDo = 0, flipsDone = 0;
+    const flips = [];
+    for (const { dr, dc, self, opp } of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+            const neighbor = this.board[nr][nc];
+            if (neighbor && neighbor.owner !== card.owner) {
+                if (parseInt(card[self]) > parseInt(neighbor[opp])) {
+                    const previousOwner = neighbor.owner;
+                    neighbor.owner = card.owner;
+                    if (animate) {
+                        flipsToDo++;
+                        flips.push({ nr, nc, owner: card.owner });
+                    }
+                    // MAJ SCORE SELON LA NOUVELLE RÈGLE
+                    if (card.owner === "player" || card.owner === this.playerId) {
+                        this.playerScore++;
+                        this.opponentScore--;
+                    } else {
+                        this.opponentScore++;
+                        this.playerScore--;
                     }
                 }
             }
         }
     }
-
-    aiPlay() {
-        if (this.activePlayer !== 1 || this.gameEnded) return;
-        // IA joue une carte au hasard sur une case libre
-        const available = [];
-        for (let row = 0; row < 3; row++) {
-            for (let col = 0; col < 3; col++) {
-                if (!this.board[row][col]) available.push({ row, col });
-            }
-        }
-        const cardIdx = this.opponentCards.findIndex(c => !c.played);
-        if (available.length && cardIdx !== -1) {
-            const pos = available[Math.floor(Math.random() * available.length)];
-            const card = { ...this.opponentCards[cardIdx], owner: "opponent" };
-            this.opponentCards[cardIdx].played = true;
-            this.lastPlayedCard = card;
-            // Animation IA (similaire à animateCardPlacement, mais plus simple)
-            this.animateCardPlacementAI(card, pos.row, pos.col, () => {
-                this.board[pos.row][pos.col] = card;
-                // Capture logique IA avec animation
-                this.captureCards(pos.row, pos.col, card, true);
-                this.activePlayer = 0;
-                this.redrawAll();
-                // Vérifie fin de partie
-                if (this.isBoardFull()) {
-                    this.endGame();
-                }
+        if (animate && flipsToDo > 0) {
+            flips.forEach(flip => {
+                this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
+                    flipsDone++;
+                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
+                });
             });
+        } else if (onAllFlipsDone) {
+            onAllFlipsDone();
+        }
+}
+aiPlay() {
+    if (this.activePlayer !== 1 || this.gameEnded) return;
+    // IA joue une carte au hasard sur une case libre
+    const available = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            if (!this.board[row][col]) available.push({ row, col });
         }
     }
+    const cardIdx = this.opponentCards.findIndex(c => !c.played);
+    if (available.length && cardIdx !== -1) {
+        const pos = available[Math.floor(Math.random() * available.length)];
+        const card = { ...this.opponentCards[cardIdx], owner: "opponent" };
+        this.opponentCards[cardIdx].played = true;
+        this.lastPlayedCard = card;
+        // --- AJOUTE LA CARTE AU BOARD AVANT LES ANIMATIONS ---
+        this.board[pos.row][pos.col] = card;
+        // --- Compte les animations à faire (pose + flips) ---
+        let animsToDo = 1; // la pose
+        let animsDone = 0;
+        // On simule la capture pour savoir combien de flips il y aura
+        const dirs = [
+            { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
+            { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
+            { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
+            { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
+        ];
+        for (const { dr, dc, self, opp } of dirs) {
+            const nr = pos.row + dr, nc = pos.col + dc;
+            if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+                const neighbor = this.board[nr][nc];
+                if (neighbor && neighbor.owner !== card.owner) {
+                    if (parseInt(card[self]) > parseInt(neighbor[opp])) {
+                        animsToDo++;
+                    }
+                }
+            }
+        }
+
+
+
+        // Fonction de fin de tour IA, appelée UNE SEULE FOIS quand toutes les anims sont faites
+        const finish = () => {
+            if (this.activePlayer !== 1) return; // Empêche double appel
+            this.activePlayer = 0;
+            this.redrawAll();
+            if (this.isBoardFull()) this.endGame();
+            else this.time.delayedCall(600, () => this.aiPlay(), [], this);
+        };
+
+        // --- Animation de pose ---
+        this.animateCardPlacementAI(card, pos.row, pos.col, () => {
+            animsDone++;
+            // S'il y a des flips à faire, redraw tout de suite pour afficher la carte IA sur le plateau
+            if (animsToDo > 1 && animsDone === 1) {
+                this.redrawAll();
+            }
+            if (animsDone === animsToDo) finish();
+        });
+
+        // --- Animation de capture (chaque flip appelle ce callback) ---
+        // On modifie captureCards pour qu'elle appelle le callback autant de fois qu'il y a de flips
+        this.captureCards(pos.row, pos.col, card, true, () => {
+            animsDone++;
+            if (animsDone === animsToDo) finish();
+        });
+    }
+}
 
     endGame() {
         this.gameEnded = true;
-        const playerScore = this.countOwnedCards("player");
-        const opponentScore = this.countOwnedCards("opponent");
+        const playerScore = this.playerScore;
+        const opponentScore = this.opponentScore;
         let resultText = "";
         let color = "#fff";
+        let musicKey = null;
+        console.log(`Fin de partie : Joueur ${playerScore} - Adversaire ${opponentScore}`);
         if (playerScore > opponentScore) {
             resultText = "VICTOIRE";
             color = "#33ff33";
+            musicKey = "victoryMusic";
         } else if (playerScore < opponentScore) {
             resultText = "DEFAITE";
             color = "#ff3333";
+            musicKey = "defeatMusic";
         } else {
             resultText = "EGALITÉ";
             color = "#ffff33";
+            musicKey = "defeatMusic";
         }
         const { width, height } = this.sys.game.canvas;
         this.endText = this.add.text(width / 2, height / 2, resultText, {
@@ -700,6 +909,8 @@ drawPlayerHand() {
         }).setOrigin(0.5).setAlpha(0).setScale(0.7);
 
         this.container.add(this.endText);
+        MusicManager.stop();
+        MusicManager.play(this, musicKey, { loop: false, volume: 0.7 });
 
         // Animation d'apparition du texte de fin
         this.tweens.add({
@@ -709,18 +920,39 @@ drawPlayerHand() {
             duration: 420,
             ease: 'Back.easeOut'
         });
+    this.showEndAndFadeOut();
+    }
 
-        // Quitte la scène après 2.5s
-        this.time.delayedCall(2500, () => {
+
+showEndAndFadeOut() {
+const { width, height } = this.sys.game.canvas;
+this.time.delayedCall(4300, () => {
+    const fadeRect = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0)
+        .setOrigin(0.5)
+        .setDepth(9999);
+    this.tweens.add({
+        targets: fadeRect,
+        alpha: 1,
+        duration: 700,
+        onComplete: () => {
             this.cleanUp();
             this.scene.stop();
+            MusicManager.stop();
             this.scene.resume("GameScene");
-        });
-    }
+        }
+    });
+});
+}
 
 cleanUp() {
     // Détruit tous les objets graphiques
     if (this.container) {
+        // Stoppe tous les tweens sur les enfants du container
+        this.container.iterate(child => {
+            if (child && child.active) {
+                this.tweens.killTweensOf(child);
+            }
+        });
         this.container.destroy(true);
         this.container = null;
     }
@@ -734,34 +966,39 @@ cleanUp() {
     this.lastPlayedCard = null;
     this.endText = null;
     this.gameEnded = false;
-
+    this.playerScore = 5;
+    this.opponentScore = 5;
     // Retire les listeners éventuels
     window.removeEventListener("resize", this._resizeHandler);
     this.input.off('drop');
+    if (this.socket) {
+        this.socket.off('tt:update');
+        this.socket.off('tt:matchReady');
+    }
 }
 
     drawCardValues(x, y, w, h, card) {
         const valueFont = `${Math.round(w * 0.38)}px Arial`;
         // Haut
         this.container.add(this.add.text(x, y - h / 2 + 16, card.powerUp, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 4
+            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(0.5, 1));
         // Bas
         this.container.add(this.add.text(x, y + h / 2 - 16, card.powerDown, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 4
+            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(0.5, 0));
         // Gauche
         this.container.add(this.add.text(x - w / 2 + 14, y, card.powerLeft, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 4
+            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(1, 0.5));
         // Droite
         this.container.add(this.add.text(x + w / 2 - 14, y, card.powerRight, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 4
+            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(0, 0.5));
     }
 
     drawUI() {
-        const { width, height } = this.sys.game.canvas;
+        /*const { width, height } = this.sys.game.canvas;
         // Ajoute ici les scores, le tour, etc.
         this.container.add(
             this.add.text(width / 2, height*0.15, `Tour: ${this.activePlayer === 0 ? "Joueur" : "Adversaire"}`, {
@@ -769,7 +1006,7 @@ cleanUp() {
                 fill: "#fff",
                 fontStyle: "bold"
             }).setOrigin(0.5)
-        );
+        );*/
     }
 
 handleCellClick(row, col) {
@@ -801,6 +1038,7 @@ handleCellClick(row, col) {
         if (cardToPlay) {
             this.board[row][col] = cardToPlay;
             cardToPlay.played = true;
+            if (this.sound) this.sound.play('card_place', { volume: 1 });
             this.activePlayer = 1;
             this.redrawAll();
         }
@@ -834,19 +1072,19 @@ handleCellClick(row, col) {
         const statFont = `${Math.round(detailH * 0.22)}px Arial`;
         // Haut
         this.container.add(this.add.text(x + detailW / 2, y + 12, card.powerUp, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 3
+            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(0.5, 0));
         // Bas
         this.container.add(this.add.text(x + detailW / 2, y + detailH - 12, card.powerDown, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 3
+            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(0.5, 1));
         // Gauche
         this.container.add(this.add.text(x + 12, y + detailH / 2, card.powerLeft, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 3
+            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(1, 0.5));
         // Droite
         this.container.add(this.add.text(x + detailW - 12, y + detailH / 2, card.powerRight, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 3
+            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
         }).setOrigin(0, 0.5));
     }
 
@@ -855,5 +1093,10 @@ handleCellClick(row, col) {
             for (let col = 0; col < 3; col++)
                 if (!this.board[row][col]) return false;
         return true;
+    }
+
+    generateMatchId() {
+        // Utilise timestamp + random pour éviter les collisions
+        return `tt-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
     }
 }

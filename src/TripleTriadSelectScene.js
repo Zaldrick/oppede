@@ -54,6 +54,12 @@ export class TripleTriadSelectScene extends Phaser.Scene {
     this.cards = [];
     this.focusedCardIdx = 0;
     this.dragOffset = 0;
+
+    
+        // DEBUG : sélectionne automatiquement les 5 premières cartes si aucune sélection
+        if (!this.selected.length && this.cards && this.cards.length >= 5) {
+            this.selected = this.cards.slice(0, 5).map(c => c._id.toString());
+        }
     }
 
     async create() {
@@ -73,6 +79,10 @@ export class TripleTriadSelectScene extends Phaser.Scene {
         }
         this.focusedCardIdx = 0;
         this.dragOffset = 0;
+        // DEBUG : sélectionne automatiquement les 5 premières cartes si aucune sélection
+        if (!this.selected.length && this.cards.length >= 5) {
+            this.selected = this.cards.slice(0, 5).map(c => c._id.toString());
+        }
         this.drawUI();
     }
 
@@ -433,9 +443,7 @@ validate() {
         const selectedCards = this.cards.filter(c => this.selected.includes(c._id.toString()));
 
         if (this.mode === "pvp") {
-            // Crée un matchId unique pour la partie PvP
-            console.log("DEBUG matchId", { playerId: this.playerId, opponentId: this.opponentId });
-            const matchId = [this.playerId, this.opponentId].sort().join("_");
+            const matchId = this.registry.get('ttMatchId');
             this.scene.launch("TripleTriadGameScene", {
                 mode: "pvp",
                 matchId,

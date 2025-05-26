@@ -92,6 +92,7 @@ const connectToDatabase = async () => {
 };
 
 
+
 app.use('/public', cors(corsOptions), express.static('public'));
 // Route pour récupérer les joueurs disponibles
     app.get('/api/players', async (req, res) => {
@@ -384,6 +385,7 @@ socket.on('newPlayer', async (data) => {
       // Crée ou rejoint la partie
       if (!matches[matchId]) {
           matches[matchId] = {
+              createdAt: Date.now(), // Ajoute la date de création
               players: [socket.id],
               playerIds: [playerId],
               cards: { [playerId]: playerCards },
@@ -453,6 +455,28 @@ socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
             }
         }
     }
+    
+// Calcul du score : cartes restantes en main + cartes sur le plateau
+const score = { [match.playerIds[0]]: 0, [match.playerIds[1]]: 0 };
+
+// Comptage des cartes restantes en main
+for (const pid of match.playerIds) {
+    const hand = match.cards[pid];
+    if (hand) {
+        score[pid] += hand.filter(card => !card.played).length;
+    }
+}
+
+// Comptage des cartes sur le plateau
+for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+        const cell = match.state.board[r][c];
+        if (cell && cell.owner && score[cell.owner] !== undefined) {
+            score[cell.owner]++;
+        }
+    }
+}
+match.state.scores = score;
 
     // Change de tour
     match.state.turn = match.playerIds.find(id => id !== playerId);
@@ -460,14 +484,26 @@ socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
     // Vérifie fin de partie
     const isFull = match.state.board.flat().every(cell => cell);
     if (isFull) {
-        // Calcul du score
+        // Calcul du score final : cartes sur le plateau + cartes restantes en main
         const score = { [match.playerIds[0]]: 0, [match.playerIds[1]]: 0 };
+
+        // Cartes sur le plateau
         for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
                 const cell = match.state.board[r][c];
-                if (cell && cell.owner) score[cell.owner]++;
+                if (cell && cell.owner && score[cell.owner] !== undefined) {
+                    score[cell.owner]++;
+                }
             }
         }
+        // Cartes restantes en main
+        for (const pid of match.playerIds) {
+            const hand = match.cards[pid];
+            if (hand) {
+                score[pid] += hand.filter(card => !card.played).length;
+            }
+        }
+
         match.state.scores = score;
         match.state.gameEnded = true;
     }
@@ -490,23 +526,25 @@ socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
       }
   });
 
-socket.on('challenge:send', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId }) => {
-    console.log(`Défi reçu : challengerId=${challengerId}, challengedId=${challengedId}`);
-    challenges[challengedId] = challengerId;
+socket.on('challenge:send', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId, matchId }) => {
+    challenges[challengedId] = { challengerId, matchId };
     io.to(challengedId).emit('challenge:received', { 
         challengerId, 
-        challengerPlayerId // Ajoute le vrai playerId du challenger
+        challengerPlayerId, // Ajoute le vrai playerId du challenger
+        matchId // Passe le matchId au défié
     });
 });
 
-socket.on('challenge:accept', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId }) => {
+socket.on('challenge:accept', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId, matchId }) => {
     io.to(challengerId).emit('challenge:accepted', { 
         opponentId: challengedId, 
-        opponentPlayerId: challengedPlayerId // Ajoute le vrai playerId de l'adversaire
+        opponentPlayerId: challengedPlayerId, // Ajoute le vrai playerId de l'adversaire
+        matchId // Passe le matchId au challenger
     });
     io.to(challengedId).emit('challenge:accepted', { 
         opponentId: challengerId, 
-        opponentPlayerId: challengerPlayerId // Ajoute le vrai playerId de l'adversaire
+        opponentPlayerId: challengerPlayerId, // Ajoute le vrai playerId de l'adversaire
+        matchId // Passe le matchId au challenger
     });
     delete challenges[challengedId];
 });
@@ -692,4 +730,5 @@ app.get('/api/cards/:playerId', async (req, res) => {
     console.error('Error fetching cards:', e);
     res.status(500).json({ error: e.message });
   }
+  
 });

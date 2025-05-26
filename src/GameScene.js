@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import io from 'socket.io-client';
 import PlayerService from './services/PlayerService';
+import MusicManager from './MusicManager';
 
 const CONFIG = {
   maxSpeed: 350,
@@ -102,6 +103,12 @@ export class GameScene extends Phaser.Scene {
       }
     });
 }
+
+    resume() {
+        if (!MusicManager.isPlaying('gameMusic')) {
+            MusicManager.play(this, 'gameMusic', { loop: true, volume: 0.5 });
+        }
+    }
 
   async create() {
     // Notify app about the active scene
@@ -516,15 +523,16 @@ createAnimations(textureKey) {
     });
 
 
-// ...dans setupSocket()...
-this.socket.on('challenge:received', ({ challengerId }) => {
-    console.log("Défi reçu côté client de", challengerId, "sur socket", this.socket.id);
+this.socket.on('challenge:received', ({ challengerId, matchId }) => {
+    this.registry.set('ttMatchId', matchId); 
     this.displayChallengePopup(challengerId);
 });
 
-this.socket.on('challenge:accepted', ({ opponentId, opponentPlayerId }) => {
+this.socket.on('challenge:accepted', ({ opponentId, opponentPlayerId, matchId }) => {
     const playerData = this.registry.get("playerData");
     const playerId = playerData && playerData._id ? playerData._id : null;
+    this.registry.set('ttMatchId', matchId);
+    console.log("Match ID reçu :", matchId);
     this.scene.launch("TripleTriadSelectScene", {
         playerId,
         mode: "pvp",
@@ -963,14 +971,18 @@ showInteractionMenu = (targetId) => {
 option1.on("pointerdown", () => {
     this.displayMessage(`Vous avez défié \nle joueur ${targetId}`);
     if (this.socket) {
-        // Récupère le vrai playerId de l'adversaire
         const myPlayerId = this.registry.get("playerData")?._id;
-        const targetPlayerId = this.latestPlayersData[targetId]?.playerId; // À adapter selon ta structure
+        const targetPlayerId = this.latestPlayersData[targetId]?.playerId;
+        // Génère le matchId ici
+        const matchId = `tt-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+        // Stocke-le dans le registry pour le challenger
+        this.registry.set('ttMatchId', matchId);
         this.socket.emit("challenge:send", {
             challengerId: this.myId,
             challengedId: targetId,
             challengerPlayerId: myPlayerId,
-            challengedPlayerId: targetPlayerId
+            challengedPlayerId: targetPlayerId,
+            matchId // <-- ENVOIE le matchId au serveur
         });
     }
     this.interactionMenu.destroy();
@@ -1502,7 +1514,7 @@ async changeMap(mapKey, spawnX, spawnY) {
     }
 }
 
-  playMusicForMap(mapKey) {
+playMusicForMap(mapKey) {
     const musicKey = this.mapMusic[mapKey];
 
     if (!musicKey) {
@@ -1511,21 +1523,14 @@ async changeMap(mapKey, spawnX, spawnY) {
     }
 
     // Si la musique actuelle est déjà celle de la carte, ne rien faire
-    if (this.currentMusic && this.currentMusic.key === musicKey) {
+    if (this.currentMusicKey === musicKey) {
         return;
     }
 
-    // Arrêtez la musique actuelle si elle existe
-    if (this.currentMusic) {
-        this.currentMusic.stop();
-        this.currentMusic.destroy();
-        this.currentMusic = null;
-    }
-
-    // Démarrez la nouvelle musique
-    this.currentMusic = this.sound.add(musicKey, { loop: true, volume: 0.5 });
-    this.currentMusic.play();
-  }
+    MusicManager.stop(); // Arrêtez la musique précédente si elle est en cours
+    MusicManager.play(this, musicKey, { loop: true, volume: 0.5 });
+    this.currentMusicKey = musicKey;
+}
 
   resetApplication() {
     // Détruire le joueur local
@@ -1606,17 +1611,13 @@ displayChallengePopup(challengerId) {
     btnAccept.on("pointerdown", () => {
         const myPlayerId = this.registry.get("playerData")?._id;
         const challengerPlayerId = this.latestPlayersData[challengerId]?.playerId;
-        console.log("Emit challenge:accept", {
-            challengerId, 
-            challengedId: this.myId,
-            challengerPlayerId,
-            challengedPlayerId: myPlayerId
-        });
+        const matchId = this.registry.get('ttMatchId'); // <-- récupère le matchId du registry
         this.socket.emit('challenge:accept', { 
             challengerId, 
             challengedId: this.myId,
             challengerPlayerId,
-            challengedPlayerId: myPlayerId
+            challengedPlayerId: myPlayerId,
+            matchId 
         });
         this.challengePopup.destroy();
         this.challengePopup = null;
