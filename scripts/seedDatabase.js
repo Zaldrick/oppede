@@ -137,8 +137,8 @@ async function seedDatabase() {
         description: "Carte monstre de base."
       },
       {
-        nom: "Carnidéa",
-        image: "Carnidéa.png",
+        nom: "Carnidea",
+        image: "Carnidea.png",
         type: "card",
         powerUp: 2,
         powerLeft: 1,
