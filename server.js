@@ -165,6 +165,45 @@ app.get('/api/players/:pseudo', async (req, res) => {
 // Middleware to parse JSON request bodies
 app.use(express.json());
 
+// Express route à ajouter dans server.js
+app.post('/api/inventory/remove-item', async (req, res) => {
+    const { playerId, itemId } = req.body;
+    console.log("[remove-item] Appel reçu avec:", { playerId, itemId });
+
+    if (!playerId || !itemId) {
+        console.warn("[remove-item] playerId ou itemId manquant !");
+        return res.status(400).json({ error: "playerId et itemId requis" });
+    }
+    try {
+        const db = await connectToDatabase();
+        const inventory = db.collection('inventory');
+        console.log("[remove-item] Connexion BDD OK");
+
+        const item = await inventory.findOne({ player_id: new ObjectId(playerId), item_id: new ObjectId(itemId) });
+        console.log("[remove-item] Résultat findOne:", item);
+
+        if (!item) {
+            console.warn("[remove-item] Item non trouvé dans l'inventaire !");
+            return res.status(404).json({ error: "Item not found" });
+        }
+
+        if (item.quantité > 1) {
+            const updateRes = await inventory.updateOne(
+                { player_id: new ObjectId(playerId), item_id: new ObjectId(itemId) },
+                { $inc: { quantité: -1 } }
+            );
+            console.log(`[remove-item] Décrément quantité, résultat:`, updateRes);
+        } else {
+            const deleteRes = await inventory.deleteOne({ player_id: new ObjectId(playerId), item_id: new ObjectId(itemId) });
+            console.log(`[remove-item] Suppression item, résultat:`, deleteRes);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error("[remove-item] Erreur serveur:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/players/update-position', async (req, res) => {
     try {
         const { pseudo, posX, posY, mapId } = req.body;
@@ -697,6 +736,85 @@ app.post('/api/world-events/:id/state', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "Database error" });
+    }
+});
+
+app.get('/api/cards', async (req, res) => {
+  try {
+    const db = await connectToDatabase();
+    // Récupère toutes les cartes (type: "card") depuis la collection items
+    const cards = await db.collection('items').find({ type: "card" }).project({
+      _id: 1,
+      nom: 1,
+      image: 1,
+      rarity: 1,
+      powerUp: 1,
+      powerLeft: 1,
+      powerRight: 1,
+      powerDown: 1,
+      description: 1
+    }).toArray();
+
+    if (!cards || cards.length === 0) {
+      return res.status(404).json({ error: 'No cards found.' });
+    }
+
+    res.json(cards);
+  } catch (e) {
+    console.error('Error fetching all cards:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/inventory/add-cards', async (req, res) => {
+    try {
+        const { playerId, cards } = req.body;
+        console.log("[add-cards] Reçu:", { playerId, cards: cards && cards.map(c => c._id) });
+        if (!playerId || !Array.isArray(cards) || !cards.length) {
+            console.warn("[add-cards] playerId ou cards manquants !");
+            return res.status(400).json({ error: "playerId et cards requis" });
+        }
+        const db = await connectToDatabase();
+        const inventory = db.collection('inventory');
+
+        for (const card of cards) {
+            if (!card._id) {
+                console.warn("[add-cards] Carte sans _id:", card);
+                continue;
+            }
+            let playerObjId, cardObjId;
+            try {
+                playerObjId = new ObjectId(playerId);
+                cardObjId = new ObjectId(card._id);
+            } catch (e) {
+                console.error("[add-cards] Mauvais ObjectId:", playerId, card._id, e);
+                continue;
+            }
+
+            // Vérifie si la carte existe déjà dans l'inventaire du joueur
+            const existing = await inventory.findOne({
+                player_id: playerObjId,
+                item_id: cardObjId
+            });
+            if (existing) {
+                console.log(`[add-cards] Carte déjà présente, incrémentation: ${card._id}`);
+                await inventory.updateOne(
+                    { _id: existing._id },
+                    { $inc: { quantité: 1 } }
+                );
+            } else {
+                console.log(`[add-cards] Nouvelle carte ajoutée: ${card._id}`);
+                await inventory.insertOne({
+                    player_id: playerObjId,
+                    item_id: cardObjId,
+                    quantité: 1
+                });
+            }
+        }
+        res.json({ success: true });
+    } catch (err) {
+        console.error("[add-cards] Erreur ajout cartes:", err);
+        res.status(500).json({ error: "Erreur serveur lors de l'ajout des cartes" });
     }
 });
 

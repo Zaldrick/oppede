@@ -41,177 +41,8 @@ async function seedDatabase() {
       { nom: "Gaara", image: "Gaara.png", is_echangeable: false, prix: 999, type: "item" },
       // Cartes Triple Triad
       {
-        nom: "Ifrit",
-        image: "ifrit",
-        type: "card",
-        powerUp: 9,
-        powerLeft: 8,
-        powerRight: 6,
-        powerDown: 2,
-        rarity: 4,
-        prix: 100,
-        description: "Un démon de feu légendaire."
-      },
-      {
-        nom: "Shiva",
-        image: "shiva",
-        type: "card",
-        powerUp: 6,
-        powerLeft: 9,
-        powerRight: 7,
-        powerDown: 4,
-        rarity: 4,
-        prix: 100,
-        description: "La reine de la glace."
-      },
-      {
-        nom: "Chocobo",
-        image: "chocobo",
-        type: "card",
-        powerUp: 2,
-        powerLeft: 3,
-        powerRight: 4,
-        powerDown: 5,
-        rarity: 5,
-        prix: 20,
-        description: "Un oiseau rapide et fidèle."
-      },
-      {
-        nom: "Bahamut",
-        image: "bahamut",
-        type: "card",
-        powerUp: 8,
-        powerLeft: 8,
-        powerRight: 4,
-        powerDown: 5,
-        rarity: 5,
-        prix: 20,
-        description: "Gros Baha."
-      },
-      {
-        nom: "Sephiroth",
-        image: "sephiroth",
-        type: "card",
-        powerUp: 9,
-        powerLeft: 9,
-        powerRight: 9,
-        powerDown: 9,
-        rarity: 5,
-        prix: 20,
-        description: "SEPHIROOOTH."
-      },
-      {
-        nom: "Odin",
-        image: "odin",
-        type: "card",
-        powerUp: 2,
-        powerLeft: 7,
-        powerRight: 7,
-        powerDown: 5,
-        rarity: 5,
-        prix: 20,
-        description: "Le beau odin blanc ou le bodin noir ?"
-      },
-      {
-        nom: "Tomberry",
-        image: "tomberry",
-        type: "card",
-        powerUp: 2,
-        powerLeft: 4,
-        powerRight: 5,
-        powerDown: 6,
-        rarity: 2,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Bomb",
-        image: "bomb",
-        type: "card",
-        powerUp: 2,
-        powerLeft: 4,
-        powerRight: 5,
-        powerDown: 5,
-        rarity: 2,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Malboro",
-        image: "malboro",
-        type: "card",
-        powerUp: 2,
-        powerLeft: 7,
-        powerRight: 7,
-        powerDown: 5,
-        rarity: 3,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Lightning",
-        image: "lightning",
-        type: "card",
-        powerUp: 9,
-        powerLeft: 7,
-        powerRight: 7,
-        powerDown: 5,
-        rarity: 5,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Tidus",
-        image: "tidus",
-        type: "card",
-        powerUp: 4,
-        powerLeft: 8,
-        powerRight: 9,
-        powerDown: 5,
-        rarity: 5,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Squall",
-        image: "squall",
-        type: "card",
-        powerUp: 7,
-        powerLeft: 7,
-        powerRight: 7,
-        powerDown: 7,
-        rarity: 5,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Cloud",
-        image: "cloud",
-        type: "card",
-        powerUp: 9,
-        powerLeft: 2,
-        powerRight: 4,
-        powerDown: 9,
-        rarity: 5,
-        prix: 20,
-        description: ""
-      },
-      {
-        nom: "Zidane",
-        image: "zidane",
-        type: "card",
-        powerUp: 5,
-        powerLeft: 8,
-        powerRight: 8,
-        powerDown: 5,
-        rarity: 5,
-        prix: 20,
-        description: ""
-      },
-      // Nouvelles cartes ajoutées (niveau 1 FF8, noms FR, puissances corrigées)
-      {
         nom: "Boguomile",
-        image: "Bogomile",
+        image: "Bogomile.png",
         type: "card",
         powerUp: 1,
         powerLeft: 5,
@@ -223,7 +54,7 @@ async function seedDatabase() {
       },
       {
         nom: "Fungus",
-        image: "Fungus",
+        image: "Fungus.png",
         type: "card",
         powerUp: 5,
         powerLeft: 3,
@@ -235,7 +66,7 @@ async function seedDatabase() {
       },
       {
         nom: "Elmidea",
-        image: "Elmidea",
+        image: "Elmidea.png",
         type: "card",
         powerUp: 1,
         powerLeft: 5,
@@ -247,7 +78,7 @@ async function seedDatabase() {
       },
       {
         nom: "Nocturnus",
-        image: "Nocturnus",
+        image: "Nocturnus.png",
         type: "card",
         powerUp: 6,
         powerLeft: 2,
@@ -259,7 +90,7 @@ async function seedDatabase() {
       },
       {
         nom: "Incube",
-        image: "Incube",
+        image: "Incube.png",
         type: "card",
         powerUp: 2,
         powerLeft: 5,
@@ -271,7 +102,7 @@ async function seedDatabase() {
       },
       {
         nom: "Aphide",
-        image: "Aphide",
+        image: "Aphide.png",
         type: "card",
         powerUp: 2,
         powerLeft: 4,
@@ -283,7 +114,7 @@ async function seedDatabase() {
       },
       {
         nom: "Elastos",
-        image: "Elastos",
+        image: "Elastos.png",
         type: "card",
         powerUp: 1,
         powerLeft: 1,
@@ -295,7 +126,7 @@ async function seedDatabase() {
       },
       {
         nom: "Diodon",
-        image: "Diodon",
+        image: "Diodon.png",
         type: "card",
         powerUp: 3,
         powerLeft: 1,
@@ -307,7 +138,7 @@ async function seedDatabase() {
       },
       {
         nom: "Carnidéa",
-        image: "Carnidéa",
+        image: "Carnidéa.png",
         type: "card",
         powerUp: 2,
         powerLeft: 1,
@@ -319,7 +150,7 @@ async function seedDatabase() {
       },
       {
         nom: "Larva",
-        image: "Larva",
+        image: "Larva.png",
         type: "card",
         powerUp: 4,
         powerLeft: 3,
@@ -331,7 +162,7 @@ async function seedDatabase() {
       },
       {
         nom: "Gallus",
-        image: "Gallus",
+        image: "Gallus.png",
         type: "card",
         powerUp: 2,
         powerLeft: 6,
@@ -356,13 +187,14 @@ async function seedDatabase() {
       image: "boosterPack.png",
       type: "booster",
       cardCount: 5,
+      prix:100,
+      is_echangeable: false,
       rarityChances: {
-        fourStar: 0.3,
-        fivesStars: 0.7
+        oneStar:1
       },
       // Vérifie bien que possibleCards contient des objets complets (avec nom, image, rarity, etc)
-      possibleCards: [...fourStarCardsFull, ...fivesStarCardsFull],
-      description: "Un booster contenant 5 cartes de niveau 1 ou 2."
+      possibleCards: [...oneStarCardsFull],
+      description: "Un booster contenant 5 cartes de niveau 1"
     };
 
     const booster2 = {
@@ -412,116 +244,6 @@ async function seedDatabase() {
         quantité: 1,
       },
       {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[7], // 
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[8], // 
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[9], //
-        quantité: 2,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[10], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[11], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[12], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[13], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[14], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[15], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[16], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[0], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[17], //
-        quantité: 1,
-      },
-           {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[7], // 
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[8], // 
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[9], //
-        quantité: 2,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[10], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[11], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[12], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[13], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[14], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[15], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[16], //
-        quantité: 1,
-      },
-      {
-        player_id: insertedPlayers.insertedIds[1], // Lien avec le premier joueur
-        item_id: insertedItems.insertedIds[17], //
-        quantité: 1,
-      },
-      {
         player_id: insertedPlayers.insertedIds[1], // Lien avec le deuxième joueur
         item_id: insertedItems.insertedIds[2], // Lien avec "Clef"
         quantité: 2,
@@ -548,6 +270,16 @@ async function seedDatabase() {
       },
       {
         player_id: insertedPlayers.insertedIds[3], // Marin
+        item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
+        quantité: 3,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[0], // Marin
+        item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
+        quantité: 3,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[1], // Marin
         item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
         quantité: 3,
       }

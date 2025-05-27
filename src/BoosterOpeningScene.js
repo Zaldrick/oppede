@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-
+import { loadCardImages } from "./utils/loadCardImages.js";
 export class BoosterOpeningScene extends Phaser.Scene {
     constructor() {
         super("BoosterOpeningScene");
@@ -37,17 +37,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             console.log("Cartes fetch depuis l'API:", cardsData);
             this.booster.possibleCards = cardsData;
         }
-
-        console.log("possibleCards utilisés pour preload:", this.booster.possibleCards);
-
-        if (this.booster && this.booster.possibleCards) {
-            this.booster.possibleCards.forEach(card => {
-                console.log("Préload image carte:", card.image);
-                if (card.image && !this.textures.exists(card.image)) {
-                    this.load.image(card.image, `/assets/cards/${card.image}.png`);
-                }
-            });
-        }
+        loadCardImages(this, this.cards);
     }
 
     create() {
@@ -262,62 +252,67 @@ export class BoosterOpeningScene extends Phaser.Scene {
             this.showRecap();
             return;
         }
-        // Affiche les cartes restantes empilées (décalées)
-        const stackOffset = 20; // augmente le décalage pour les rendre visibles
-        const stackScale = 2.5; // augmente la taille pour qu'elles soient visibles
-        for (let i = this.cards.length - 1; i > this.revealIdx; i--) {
-            const stackImg = this.add.image(
-                this.cameras.main.centerX + (i - this.revealIdx),
-                this.cameras.main.centerY - (i - this.revealIdx) * stackOffset,
-                this.cards[i].image
-            ).setScale(stackScale).setAlpha(0.7); // plus visible
-            this.revealStack.push(stackImg);
-        }
+
         
         const card = this.cards[this.revealIdx];
-        const texture = this.textures.get(card.image);
+        const texture = this.textures.get(`item_${card.image}`);
         let realWidth = 100, realHeight = 150; // fallback
         if (texture && texture.getSourceImage()) {
             realWidth = texture.getSourceImage().width;
             realHeight = texture.getSourceImage().height;
         }
-        const scale = 1; // même que mainImg
-        const bgRect = this.add.rectangle(
-            this.cameras.main.centerX,
-            this.cameras.main.centerY,
-            realWidth * scale,
-            realHeight * scale,
-            0xffffff,
-            0
-        ).setOrigin(0.5);
-        this.revealStack.push(bgRect);
 
-        // Augmente la taille d'affichage de la carte lors de l'ouverture
-        const mainImg = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, card.image)
-            .setScale(3) // <--- taille augmentée
+
+        // ...dans revealCard(), après avoir récupéré realWidth et realHeight...
+        // Calcule la taille max selon l'écran (par exemple 30% largeur, 45% hauteur)
+        const maxCardWidth = this.cameras.main.width * 0.6;
+        const maxCardHeight = this.cameras.main.height * 0.7;
+        let scale = 1;
+        if (realWidth && realHeight) {
+            const scaleW = maxCardWidth / realWidth;
+            const scaleH = maxCardHeight / realHeight;
+            scale = Math.min(scaleW, scaleH, 1);
+        }
+
+        const stackOffset = 40;
+        const stackScale = 0.8;
+        for (let i = this.cards.length - 1; i > this.revealIdx; i--) {
+            const stackImg = this.add.image(
+                this.cameras.main.centerX + (i - this.revealIdx),
+                this.cameras.main.centerY - (i - this.revealIdx) * stackOffset,
+                this.cards[i].image.replace(/\.[^/.]+$/, "") 
+            )
+            .setScale(scale * stackScale) // <-- utilise le scale dynamique
+            .setAlpha(1);
+            this.revealStack.push(stackImg);
+        }
+        // Image de la carte responsive
+        const mainImg = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, `item_${card.image}`)
+            .setScale(scale)
             .setAlpha(0);
         this.revealStack.push(mainImg);
+
 
         // Affiche les valeurs autour de la carte (style TripleTriad)
         const thumbWidth = 230; // <--- taille augmentée
         const thumbHeight = thumbWidth * 1.5;
         const x = this.cameras.main.centerX;
         const y = this.cameras.main.centerY;
-        const valueFont = `60px Press Start 2P`; // taille de police augmentée
+        const valueFont = `50px Press Start 2P`; // taille de police augmentée
         // Haut
-        const valUp = this.add.text(x*1.4, y*1.25 - thumbHeight / 10+20 , card.powerUp, {
+        const valUp = this.add.text(x*1.38, y*1.25 - thumbHeight / 10+26 , card.powerUp, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(0.5, 1).setAlpha(0);
         // Bas
-        const valDown = this.add.text(x*1.4, y*1.25 + thumbHeight / 10-20 , card.powerDown, {
+        const valDown = this.add.text(x*1.38, y*1.25 + thumbHeight / 10-26 , card.powerDown, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(0.5, 0).setAlpha(0);
         // Gauche
-        const valLeft = this.add.text(x*1.4 - thumbWidth / 10+10, y*1.25, card.powerLeft, {
+        const valLeft = this.add.text(x*1.38 - thumbWidth / 10+10, y*1.25, card.powerLeft, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(1, 0.5).setAlpha(0);
         // Droite
-        const valRight = this.add.text(x*1.4 + thumbWidth / 10-10, y*1.25, card.powerRight, {
+        const valRight = this.add.text(x*1.38 + thumbWidth / 10-10, y*1.25, card.powerRight, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(0, 0.5).setAlpha(0);
 
@@ -333,17 +328,11 @@ export class BoosterOpeningScene extends Phaser.Scene {
         nameText.setAlpha(0);
         this.revealStack.push(nameText);
 
-        // Animation d'apparition du fond et de la carte
-        this.tweens.add({
-            targets: bgRect,
-            alpha: 1,
-            duration: 200,
-            ease: 'Cubic.easeOut'
-        });
+  
         this.tweens.add({
             targets: mainImg,
             alpha: 1,
-            scale: 3.1,
+            scale: scale * 1.1,
             duration: 350,
             ease: 'Back.Out',
             onStart: () => {
@@ -369,7 +358,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
         this.input.once('pointerup', () => {
             // Animation de disparition
             this.tweens.add({
-                targets: [mainImg, bgRect,nameText, valUp, valDown, valLeft, valRight],
+                targets: [mainImg, nameText, valUp, valDown, valLeft, valRight],
                 alpha: 0,
                 scale: 0.7,
                 duration: 250,
@@ -401,18 +390,42 @@ export class BoosterOpeningScene extends Phaser.Scene {
 
         // Affiche les images et noms des cartes obtenues
         const startY = this.cameras.main.centerY - 60;
-        const cardScale = 0.45;
+
+
+        // ...dans showRecap(), juste avant la boucle this.cards.forEach...
+        const recapWidth = 420;
+        const recapHeight = 340;
+        const margin = 24;
         const cardsPerRow = 5;
-        const cardSpacing = 68; // augmenté pour plus d'espace
-        const rowSpacing = 80;
-        const totalCards = this.cards.length;
+        const rows = Math.ceil(this.cards.length / cardsPerRow);
+
+        // Calcule la taille max possible pour chaque carte selon l'espace du recap
+        const availableWidth = recapWidth - margin * 2;
+        const availableHeight = recapHeight - 120 - margin; // 120 pour le titre et le bouton
+        const cardSpacing = availableWidth / cardsPerRow;
+        const rowSpacing = availableHeight / rows;
+        const maxCardWidth = Math.min(cardSpacing * 0.85, 80);  // 80px max pour éviter trop gros
+        const maxCardHeight = Math.min(rowSpacing * 0.7, 120);  // 120px max pour éviter trop gros
+
         this.cards.forEach((card, i) => {
             const row = Math.floor(i / cardsPerRow);
             const col = i % cardsPerRow;
-            const x = this.cameras.main.centerX - ((cardsPerRow - 1) * cardSpacing) / 2 + col * cardSpacing;
+            const x = this.cameras.main.centerX - (availableWidth / 2) + cardSpacing / 2 + col * cardSpacing;
             const y = startY + row * rowSpacing;
-            this.add.image(x, y, card.image).setScale(cardScale);
-            this.add.text(x, y + 40, card.nom, {
+
+            // Calcule le scale pour ne pas dépasser la taille max
+            let scale = 1;
+            const texture = this.textures.get(`item_${card.image}`);
+            if (texture && texture.getSourceImage()) {
+                const w = texture.getSourceImage().width;
+                const h = texture.getSourceImage().height;
+                const scaleW = maxCardWidth / w;
+                const scaleH = maxCardHeight / h;
+                scale = Math.min(scaleW, scaleH, 1);
+            }
+
+            this.add.image(x, y, `item_${card.image}`).setScale(scale);
+            this.add.text(x, y + maxCardHeight / 2 + 10, card.nom, {
                 font: "13px Arial", fill: "#fff"
             }).setOrigin(0.5);
         });
@@ -424,7 +437,17 @@ export class BoosterOpeningScene extends Phaser.Scene {
             { font: "24px Arial", fill: "#fff", backgroundColor: "#333", padding: { x: 10, y: 5 } }
         ).setOrigin(0.5).setInteractive();
 
-        continueBtn.on('pointerup', () => {
+        continueBtn.on('pointerup', async () => {
+            // Ajoute les cartes à l'inventaire de InventoryScene si elle existe
+            const inventoryScene = this.scene.get("InventoryScene");
+            if (inventoryScene && typeof inventoryScene.addCardsToInventory === "function") {
+                await inventoryScene.addCardsToInventory(this.cards);
+                // Recharge l'inventaire pour forcer l'affichage à jour
+                await inventoryScene.reloadInventory();
+                await inventoryScene.ensureInventoryImagesLoaded();
+                inventoryScene.drawInventory();
+            }
+            
             this.scene.stop();
             // Ferme proprement la scène et reprend la précédente
             if (this.scene.isPaused("InventoryScene")) {

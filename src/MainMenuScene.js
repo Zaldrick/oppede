@@ -1,10 +1,11 @@
 import Phaser from "phaser";
 import io from "socket.io-client"; // Import io from socket.io-client
 import MusicManager from './MusicManager';
-
+import { loadCardImages } from "./utils/loadCardImages.js";
 export class MainMenuScene extends Phaser.Scene {
     constructor() {
         super("MainMenuScene"); // Removed plugin registration
+        this.allCards = [];
     }
 
     init() {
@@ -21,7 +22,27 @@ export class MainMenuScene extends Phaser.Scene {
         this.load.image("logo", "/assets/logo.png"); // Load the logo image
     }
 
-    create() {
+    async create() {
+        // 1. Récupère toutes les cartes de la BDD
+        const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        let allCards = [];
+        try {
+            const res = await fetch(`${apiUrl}/api/cards`);
+            allCards = await res.json();
+        } catch (e) {
+            allCards = [];
+        }
+        this.registry.set("allCards", allCards);
+
+        // 2. Charge dynamiquement toutes les images de cartes
+        loadCardImages(this, allCards);
+        this.load.once('complete', () => {
+            // Les images sont prêtes, tu peux lancer la suite du menu ici si besoin
+        });
+        this.load.start();
+
+
+
         const gameWidth = this.scale.width;
         const gameHeight = this.scale.height;
 

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-
+import { loadCardImages } from "./utils/loadCardImages.js";
 async function getPlayerCards(playerId) {
     const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:5000";
     const res = await fetch(`${apiUrl}/api/cards/${playerId}`);
@@ -16,20 +16,6 @@ function setCookie(name, value, days = 365) {
 export class TripleTriadSelectScene extends Phaser.Scene {
 
     preload() {
-        this.load.image('ifrit', 'assets/cards/ifrit.png');
-        this.load.image('shiva', 'assets/cards/shiva.png');
-        this.load.image('odin', 'assets/cards/odin.png');
-        this.load.image('chocobo', 'assets/cards/chocobo.png');
-        this.load.image('sephiroth', 'assets/cards/sephiroth.png');
-        this.load.image('bahamut', 'assets/cards/bahamut.png');
-        this.load.image('cloud', 'assets/cards/cloud.png');
-        this.load.image('zidane', 'assets/cards/zidane.png');
-        this.load.image('squall', 'assets/cards/squall.png');
-        this.load.image('malboro', 'assets/cards/malboro.png');
-        this.load.image('bomb', 'assets/cards/bomb.png');
-        this.load.image('lightning', 'assets/cards/lightning.png');
-        this.load.image('tidus', 'assets/cards/tidus.png');
-        this.load.image('tomberry', 'assets/cards/tomberry.png');
 
         // Ajoute toutes tes cartes ici
     }
@@ -79,6 +65,17 @@ export class TripleTriadSelectScene extends Phaser.Scene {
         }
         this.focusedCardIdx = 0;
         this.dragOffset = 0;
+
+            loadCardImages(this, this.cards);
+            this.load.once('complete', () => {
+            this.focusedCardIdx = 0;
+            this.dragOffset = 0;
+            if (!this.selected.length && this.cards.length >= 5) {
+                this.selected = this.cards.slice(0, 5).map(c => c._id.toString());
+            }
+            this.drawUI();
+        });
+        this.load.start();
         // DEBUG : sélectionne automatiquement les 5 premières cartes si aucune sélection
         if (!this.selected.length && this.cards.length >= 5) {
             this.selected = this.cards.slice(0, 5).map(c => c._id.toString());
@@ -189,7 +186,7 @@ for (let idx = startIdx; idx < endIdx; idx++) {
     const x = startX + leftPadding + col * cardSpan + thumbWidth / 2;
     const y = carouselY + row * rowSpacing;
 
-    const thumb = this.add.image(x, y, card.image)
+    const thumb = this.add.image(x, y, `item_${card.image}`)
         .setDisplaySize(thumbWidth, thumbHeight)
         .setInteractive({ draggable: false })
         .setAlpha(this.focusedCardIdx === idx ? 1 : 0.7);
@@ -242,7 +239,7 @@ for (let idx = startIdx; idx < endIdx; idx++) {
     if (card) {
         const isSelected = this.selected.includes(card._id.toString());
         // Carte zoomée à gauche
-        const cardImg = this.add.image(detailImgX, detailImgY, card.image)
+        const cardImg = this.add.image(detailImgX, detailImgY, `item_${card.image}`)
             .setDisplaySize(detailImgW, detailImgH)
             .setOrigin(0.5)
             .setAlpha(isSelected ? 0.5 : 1)
@@ -343,7 +340,7 @@ this.container.add(selectBtn);
         if (!card) return;
         const x = selStartX + i * (selThumbW + 20);
         const y = selY;
-        const thumb = this.add.image(x, y, card.image)
+        const thumb = this.add.image(x, y, `item_${card.image}`)
             .setDisplaySize(selThumbW, selThumbH)
             .setInteractive()
             .setAlpha(1)

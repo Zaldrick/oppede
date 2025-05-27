@@ -1083,12 +1083,19 @@ closeMenu = () => {
 }
 
 openInventory = () => {
-    // Close the current menu before switching scenes
     this.closeMenu();
 
-    // Launch the InventoryScene and pass the inventory data
-    this.scene.launch("InventoryScene", { inventory: this.inventory });
-    this.scene.pause(); // Pause GameScene
+    // Récupère le vrai playerId depuis playerData
+    const playerData = this.registry.get("playerData");
+    const playerId = playerData && playerData._id ? playerData._id : null;
+
+    if (!playerId) {
+        this.displayMessage("Impossible de trouver l'identifiant du joueur.");
+        return;
+    }
+
+    this.scene.launch("InventoryScene", { playerId });
+    this.scene.pause();
 };
 
 openProfile = () => {
