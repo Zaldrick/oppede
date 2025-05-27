@@ -239,4 +239,32 @@ export class MainMenuScene extends Phaser.Scene {
         });
 
     }
+
 }
+
+// Fonction utilitaire pour ouvrir un booster
+export async function openBooster(playerId, boosterItemId) {
+    const response = await fetch(`${process.env.REACT_APP_API_URL}/api/open-booster`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, boosterItemId })
+    });
+    if (!response.ok) throw new Error('Erreur ouverture booster');
+    const data = await response.json();
+    return data.cards;
+}
+
+// Si la fonction onOpenBoosterClicked n'est pas utilisée, supprime-la ou commente-la :
+/*
+function onOpenBoosterClicked(playerId, boosterItemId) {
+    openBooster(playerId, boosterItemId)
+        .then(cards => {
+            // Affiche les cartes obtenues (popup, animation, etc.)
+            console.log("Cartes obtenues :", cards);
+            // ...ajoute ici ton affichage custom...
+        })
+        .catch(err => {
+            alert("Erreur lors de l'ouverture du booster : " + err.message);
+        });
+}
+*/

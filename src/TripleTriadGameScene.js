@@ -31,6 +31,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.load.image('back', 'assets/cards/back.png');
         
         this.load.audio('tripleTriadMusic', 'assets/musics/tripleTriadMusic.mp3');
+        this.load.audio('tripleTriadArrow', 'assets/sounds/tripleTriadArrow.mp3');
         this.load.audio('card_place', 'assets/sounds/cardPlaced.mp3');
         this.load.audio('card_capture', 'assets/sounds/cardCaptured.mp3');
         this.load.audio('victoryMusic', 'assets/musics/victoryMusic.mp3');
@@ -823,37 +824,62 @@ captureCards(row, col, card, animate = false, onAllFlipsDone) {
 showStartingArrow(startingPlayer, onComplete) {
     const { width, height } = this.sys.game.canvas;
     // Crée la flèche (triangle épais)
-    const arrowLength = Math.min(width, height) * 0.22;
-    const arrowWidth = arrowLength * 0.38;
+    const arrowLength = Math.min(width, height) * 0.17;
+    const baseWidth = arrowLength * 0.83; // Largeur de la base (plus large que haut)
     const graphics = this.add.graphics({ x: width / 2, y: height / 2 });
-    graphics.fillStyle(0xffff00, 1);
-    graphics.lineStyle(8, 0x222222, 1);
+
+    // Dégradé simulé : plusieurs triangles du plus clair au plus foncé
+    const steps = 18;
+    for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1);
+        // Interpolation de couleur du jaune clair au jaune foncé
+        const color = Phaser.Display.Color.Interpolate.ColorWithColor(
+            new Phaser.Display.Color(255, 255, 180),   // jaune très clair
+            new Phaser.Display.Color(240, 210, 60),    // jaune clair
+            steps - 1,
+            i
+        );
+        const hex = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
+        graphics.fillStyle(hex, 1);
+
+        // Triangle légèrement plus petit à chaque itération
+        const l = arrowLength * (1 - t * 0.18);
+        const w = baseWidth * (1 - t * 0.18);
+
+        graphics.beginPath();
+        graphics.moveTo(0, -l / 2);
+        graphics.lineTo(w / 2, l / 2);
+        graphics.lineTo(-w / 2, l / 2);
+        graphics.closePath();
+        graphics.fillPath();
+    }
+
+    graphics.lineStyle(5, 0x222222, 1);
     graphics.beginPath();
-    graphics.moveTo(0, -arrowLength);
-    graphics.lineTo(arrowWidth / 2, 0);
-    graphics.lineTo(-arrowWidth / 2, 0);
+    graphics.moveTo(0, -arrowLength / 2);
+    graphics.lineTo(baseWidth / 2, arrowLength / 2);
+    graphics.lineTo(-baseWidth / 2, arrowLength / 2);
     graphics.closePath();
-    graphics.fillPath();
     graphics.strokePath();
 
     graphics.setDepth(9999);
 
     // Détermine l'angle cible (0 = haut, 180 = bas)
     const targetAngle = startingPlayer === 0 ? 180 : 0;
-
-    // Animation de rotation
-    const spins = 3 + Math.floor(Math.random() * 2); // 3 ou 4 tours complets
+    const spins = 5 + Math.floor(Math.random() * 2); // 3 ou 4 tours complets
     const totalAngle = 360 * spins + targetAngle;
+       // --- Joue le son pendant la rotation ---
+    if (this.sound) this.sound.play('tripleTriadArrow', { volume: 1 });
     this.tweens.add({
         targets: graphics,
         angle: totalAngle,
-        duration: 1800,
+        duration: 1400,
         ease: 'Cubic.easeOut',
         onComplete: () => {
             // Petit effet de scale pour l'arrêt
             this.tweens.add({
                 targets: graphics,
-                scale: { from: 1.1, to: 1 },
+                scale: { from: 1.3, to: 1 },
                 duration: 220,
                 yoyo: true,
                 onComplete: () => {

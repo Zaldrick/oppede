@@ -15,6 +15,7 @@ const app = express();
 const http = require('http');
 const https = require('https');
 const bodyParser = require('body-parser');
+const boosterRoutes = require('./routes/booster');
 
 const PORT = process.env.BACKEND_PORT || 3000; // Default port for backend
 const isProduction = process.env.NODE_ENV === 'production';
@@ -597,32 +598,32 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
 
 app.get('/api/inventory/:playerId', async (req, res) => {
   try {
-    const { playerId } = req.params; // Extract playerId from the request parameters
+    const { playerId } = req.params;
     const db = await connectToDatabase();
     const inventoryCollection = db.collection('inventory');
 
     // Use aggregation to join inventory with items
     const inventory = await inventoryCollection.aggregate([
       {
-        $match: { player_id: new ObjectId(playerId) }, // Match inventory by player_id
+        $match: { player_id: new ObjectId(playerId) },
       },
       {
         $lookup: {
-          from: 'items', // Join with the items collection
-          localField: 'item_id', // Field in inventory
-          foreignField: '_id', // Field in items
-          as: 'itemDetails', // Output array field
+          from: 'items',
+          localField: 'item_id',
+          foreignField: '_id',
+          as: 'itemDetails',
         },
       },
       {
-        $unwind: '$itemDetails', // Flatten the itemDetails array
+        $unwind: '$itemDetails',
       },
       {
         $lookup: {
-          from: 'itemActions', // Join with the itemActions collection
-          localField: 'item_id', // Field in inventory
-          foreignField: 'item_id', // Field in itemActions
-          as: 'actions', // Output array field
+          from: 'itemActions',
+          localField: 'item_id',
+          foreignField: 'item_id',
+          as: 'actions',
         },
       },
       {
@@ -631,11 +632,17 @@ app.get('/api/inventory/:playerId', async (req, res) => {
           player_id: 1,
           item_id: 1,
           quantité: 1,
-          nom: '$itemDetails.nom', // Include item details
+          nom: '$itemDetails.nom',
           image: '$itemDetails.image',
           is_echangeable: '$itemDetails.is_echangeable',
           prix: '$itemDetails.prix',
-          actions: 1, // Include actions
+          actions: 1,
+          type: '$itemDetails.type',
+          // Ajoute les propriétés spécifiques aux boosters :
+          possibleCards: '$itemDetails.possibleCards',
+          cardCount: '$itemDetails.cardCount',
+          rarityChances: '$itemDetails.rarityChances',
+          description: '$itemDetails.description',
         },
       },
     ]).toArray();
@@ -644,7 +651,13 @@ app.get('/api/inventory/:playerId', async (req, res) => {
       return res.status(404).json({ error: 'Inventory not found' });
     }
 
-    res.json(inventory); // Return the enriched inventory
+    // DEBUG : log un booster si présent
+    const booster = inventory.find(i => i.type === "booster" || i.nom?.toLowerCase().includes("booster"));
+    if (booster) {
+      console.log("Booster dans l'inventaire envoyé au front:", booster);
+    }
+
+    res.json(inventory);
   } catch (error) {
     console.error('Error fetching inventory:', error);
     res.status(500).json({ error: 'Failed to fetch inventory' });
@@ -732,3 +745,5 @@ app.get('/api/cards/:playerId', async (req, res) => {
   }
   
 });
+
+app.use(boosterRoutes);

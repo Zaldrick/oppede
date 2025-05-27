@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { openBooster } from "./openBooster"; // Assure-toi que le chemin est correct
 
 export class InventoryScene extends Phaser.Scene {
     constructor() {
@@ -47,10 +48,10 @@ export class InventoryScene extends Phaser.Scene {
         const detailsContainer = this.add.container(gameWidth / 2, gameHeight * 0.75);
 
         // Create a placeholder for the large item image
+        const fixedLargeImageWidth = gameWidth * 0.28;
         const largeItemImage = this.add.image(gameWidth * 0.32, gameHeight * 0.64, null)
             .setOrigin(0.5)
-            .setDisplaySize(gameWidth * 0.18, gameWidth * 0.18)
-            .setVisible(false); // Initially hidden
+            .setVisible(false); // Fixed width, adaptive height
 
         // Populate the grid with inventory items
         for (let row = 0; row < gridRows; row++) {
@@ -74,14 +75,18 @@ export class InventoryScene extends Phaser.Scene {
 
                     // Add click event to display item details and highlight selection
                     icon.setInteractive().on("pointerdown", () => {
-                        detailsContainer.removeAll(true); // Clear previous details
-                        this.selectedItem = item; // Update the selected item
-
-                        // Highlight the selected cell
+                        detailsContainer.removeAll(true);
+                        this.selectedItem = item;
                         this.highlightSelectedCell(cellBackground);
 
                         // Display the large item image
                         largeItemImage.setTexture(iconPath).setVisible(true);
+                        // Largeur fixe, hauteur adaptée au ratio
+                        const tex = this.textures.get(iconPath).getSourceImage();
+                        if (tex) {
+                            const ratio = tex.height / tex.width;
+                            largeItemImage.setDisplaySize(fixedLargeImageWidth, fixedLargeImageWidth * ratio);
+                        }
 
                         // Display item details
                         const detailText = this.add.text(
@@ -96,7 +101,7 @@ export class InventoryScene extends Phaser.Scene {
                         ).setOrigin(0.5);
                         detailsContainer.add(detailText);
 
-                        // Add an interactive button for the first action
+                        // Ajout du bouton d'action principal
                         if (item.actions && item.actions.length > 0) {
                             const action = item.actions[0]; // Take the first action for simplicity
                             const useButton = this.add.rectangle(
@@ -121,6 +126,104 @@ export class InventoryScene extends Phaser.Scene {
 
                             useButton.on("pointerdown", () => {
                                 this.executeAction(action); // Execute the action
+                            });
+
+                            detailsContainer.add(useButton);
+                            detailsContainer.add(useText);
+                        } else if (item.type === "booster") {
+                            // Si c'est un booster, bouton "Ouvrir"
+                            const openButton = this.add.rectangle(
+                                -gameWidth * 0.22,
+                                gameHeight * 0.03,
+                                gameWidth * 0.3,
+                                gameHeight * 0.04,
+                                0x229922,
+                                0.8
+                            ).setOrigin(0.5).setInteractive();
+
+                            const openText = this.add.text(
+                                -gameWidth * 0.22,
+                                gameHeight * 0.03,
+                                "Ouvrir",
+                                {
+                                    font: `${gameWidth * 0.04}px Arial`,
+                                    fill: "#ffffff",
+                                    align: "center",
+                                }
+                            ).setOrigin(0.5);
+
+                            openButton.on("pointerdown", async () => {
+    try {
+        let action = null;
+        if (item.actions && item.actions.length > 0) {
+            action = item.actions.find(a => a.action_type === "open_scene");
+        }
+        if (!action && item.type === "booster" && this.actions) {
+            action = this.actions.find(a =>
+                (!a.item_id || a.item_id === null) &&
+                a.action_type === "open_scene"
+            );
+        }
+        if (!action && this.actions) {
+            action = this.actions.find(a =>
+                a.item_id && item._id &&
+                a.item_id.toString() === item._id.toString() &&
+                a.action_type === "open_scene"
+            );
+        }
+        // AJOUT DEBUG
+        console.log("Booster envoyé à BoosterOpeningScene:", item);
+        if (item.possibleCards) {
+            console.log("possibleCards transmis:", item.possibleCards);
+        } else {
+            console.warn("ATTENTION: item.possibleCards est manquant ou undefined !");
+        }
+        // FIN DEBUG
+        if (action && action.action_type === "open_scene") {
+            this.scene.pause();
+            this.scene.launch(
+                action.parameters.scene,
+                { booster: item }
+            );
+        } else {
+            this.displayMessage("Action inconnue.");
+        }
+    } catch (err) {
+        this.displayMessage("Erreur ouverture booster : " + err.message);
+    }
+});
+
+                            detailsContainer.add(openButton);
+                            detailsContainer.add(openText);
+                        } else if (item.utiliser && item.utiliser.scene) {
+                            // Bouton générique "Utiliser"
+                            const useButton = this.add.rectangle(
+                                -gameWidth * 0.22,
+                                gameHeight * 0.03,
+                                gameWidth * 0.3,
+                                gameHeight * 0.04,
+                                0x229922,
+                                0.8
+                            ).setOrigin(0.5).setInteractive();
+
+                            const useText = this.add.text(
+                                -gameWidth * 0.22,
+                                gameHeight * 0.03,
+                                "Utiliser",
+                                {
+                                    font: `${gameWidth * 0.04}px Arial`,
+                                    fill: "#ffffff",
+                                    align: "center",
+                                }
+                            ).setOrigin(0.5);
+
+                            useButton.on("pointerdown", async () => {
+                                try {
+                                    this.scene.pause();
+                                    this.scene.launch(item.utiliser.scene, { [item.type]: item });
+                                } catch (err) {
+                                    this.displayMessage("Erreur lors de l'utilisation : " + err.message);
+                                }
                             });
 
                             detailsContainer.add(useButton);
@@ -238,6 +341,14 @@ export class InventoryScene extends Phaser.Scene {
             case "pet":
                 this.displayMessage(action.parameters.lore);
                 break;
+            case "open_scene":
+                // Ajoute ce cas pour gérer l'ouverture de booster ou autre scène spéciale
+                this.scene.pause();
+                this.scene.launch(
+                    action.parameters.scene,
+                    { booster: this.selectedItem }
+                );
+            break;
             default:
                 this.displayMessage("Action inconnue.");
         }
@@ -258,5 +369,40 @@ export class InventoryScene extends Phaser.Scene {
     unlockDoor(doorId) {
         // Exemple : Déverrouiller une porte
         this.displayMessage(`Vous avez déverrouillé la porte ${doorId}.`);
+    }
+
+    displayCardsPopup(cards) {
+        const gameWidth = this.scale.width;
+        const gameHeight = this.scale.height;
+        // Simple popup affichant les noms des cartes obtenues
+        const bg = this.add.rectangle(gameWidth / 2, gameHeight / 2, gameWidth * 0.7, gameHeight * 0.5, 0x111111, 0.95);
+        const text = this.add.text(
+            gameWidth / 2,
+            gameHeight / 2,
+            "Cartes obtenues :\n" + cards.map(c => c.nom).join("\n"),
+            {
+                font: `${gameWidth * 0.05}px Arial`,
+                fill: "#fff",
+                align: "center"
+            }
+        ).setOrigin(0.5);
+
+        const closeBtn = this.add.text(
+            gameWidth / 2,
+            gameHeight / 2 + gameHeight * 0.2,
+            "Fermer",
+            {
+                font: `${gameWidth * 0.04}px Arial`,
+                fill: "#fff",
+                backgroundColor: "#333",
+                padding: { x: 10, y: 5 }
+            }
+        ).setOrigin(0.5).setInteractive();
+
+        closeBtn.on("pointerdown", () => {
+            bg.destroy();
+            text.destroy();
+            closeBtn.destroy();
+        });
     }
 }

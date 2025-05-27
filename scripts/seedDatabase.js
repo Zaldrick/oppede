@@ -44,11 +44,11 @@ async function seedDatabase() {
         nom: "Ifrit",
         image: "ifrit",
         type: "card",
-        powerUp: 7,
-        powerLeft: 2,
+        powerUp: 9,
+        powerLeft: 8,
         powerRight: 6,
-        powerDown: 3,
-        rarity: 5,
+        powerDown: 2,
+        rarity: 4,
         prix: 100,
         description: "Un démon de feu légendaire."
       },
@@ -56,11 +56,11 @@ async function seedDatabase() {
         nom: "Shiva",
         image: "shiva",
         type: "card",
-        powerUp: 3,
-        powerLeft: 7,
-        powerRight: 2,
-        powerDown: 6,
-        rarity: 5,
+        powerUp: 6,
+        powerLeft: 9,
+        powerRight: 7,
+        powerDown: 4,
+        rarity: 4,
         prix: 100,
         description: "La reine de la glace."
       },
@@ -72,7 +72,7 @@ async function seedDatabase() {
         powerLeft: 3,
         powerRight: 4,
         powerDown: 5,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: "Un oiseau rapide et fidèle."
       },
@@ -84,19 +84,19 @@ async function seedDatabase() {
         powerLeft: 8,
         powerRight: 4,
         powerDown: 5,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: "Gros Baha."
       },
       {
-        nom: "Sephirtoh",
+        nom: "Sephiroth",
         image: "sephiroth",
         type: "card",
         powerUp: 9,
         powerLeft: 9,
         powerRight: 9,
         powerDown: 9,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: "SEPHIROOOTH."
       },
@@ -108,7 +108,7 @@ async function seedDatabase() {
         powerLeft: 7,
         powerRight: 7,
         powerDown: 5,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: "Le beau odin blanc ou le bodin noir ?"
       },
@@ -144,7 +144,7 @@ async function seedDatabase() {
         powerLeft: 7,
         powerRight: 7,
         powerDown: 5,
-        rarity: 2,
+        rarity: 3,
         prix: 20,
         description: ""
       },
@@ -156,7 +156,7 @@ async function seedDatabase() {
         powerLeft: 7,
         powerRight: 7,
         powerDown: 5,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: ""
       },
@@ -168,7 +168,7 @@ async function seedDatabase() {
         powerLeft: 8,
         powerRight: 9,
         powerDown: 5,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: ""
       },
@@ -180,7 +180,7 @@ async function seedDatabase() {
         powerLeft: 7,
         powerRight: 7,
         powerDown: 7,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: ""
       },
@@ -192,7 +192,7 @@ async function seedDatabase() {
         powerLeft: 2,
         powerRight: 4,
         powerDown: 9,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: ""
       },
@@ -204,11 +204,186 @@ async function seedDatabase() {
         powerLeft: 8,
         powerRight: 8,
         powerDown: 5,
-        rarity: 2,
+        rarity: 5,
         prix: 20,
         description: ""
+      },
+      // Nouvelles cartes ajoutées (niveau 1 FF8, noms FR, puissances corrigées)
+      {
+        nom: "Boguomile",
+        image: "Bogomile",
+        type: "card",
+        powerUp: 1,
+        powerLeft: 5,
+        powerDown: 4,
+        powerRight: 1,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Fungus",
+        image: "Fungus",
+        type: "card",
+        powerUp: 5,
+        powerLeft: 3,
+        powerDown: 1,
+        powerRight: 1,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Elmidea",
+        image: "Elmidea",
+        type: "card",
+        powerUp: 1,
+        powerLeft: 5,
+        powerDown: 3,
+        powerRight: 3,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Nocturnus",
+        image: "Nocturnus",
+        type: "card",
+        powerUp: 6,
+        powerLeft: 2,
+        powerDown: 1,
+        powerRight: 1,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Incube",
+        image: "Incube",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 5,
+        powerDown: 1,
+        powerRight: 3,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Aphide",
+        image: "Aphide",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 4,
+        powerDown: 4,
+        powerRight: 1,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Elastos",
+        image: "Elastos",
+        type: "card",
+        powerUp: 1,
+        powerLeft: 1,
+        powerDown: 4,
+        powerRight: 5,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Diodon",
+        image: "Diodon",
+        type: "card",
+        powerUp: 3,
+        powerLeft: 1,
+        powerDown: 2,
+        powerRight: 5,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Carnidéa",
+        image: "Carnidéa",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 1,
+        powerDown: 6,
+        powerRight: 1,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Larva",
+        image: "Larva",
+        type: "card",
+        powerUp: 4,
+        powerLeft: 3,
+        powerDown: 4,
+        powerRight: 2,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
+      },
+      {
+        nom: "Gallus",
+        image: "Gallus",
+        type: "card",
+        powerUp: 2,
+        powerLeft: 6,
+        powerDown: 2,
+        powerRight: 1,
+        rarity: 1,
+        prix: 10,
+        description: "Carte monstre de base."
       }
     ];
+
+    // Générer la liste des cartes de rarity 1 et 2 (objets complets, pas juste les noms)
+    const oneStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 1);
+    const twoStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 2);
+    const threeStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 3);
+    const fourStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 4);
+    const fivesStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 5);
+
+    // Créer deux boosters avec toutes les cartes 1 et 2 étoiles (objets complets)
+    const booster1 = {
+      nom: "Booster simple",
+      image: "boosterPack.png",
+      type: "booster",
+      cardCount: 5,
+      rarityChances: {
+        fourStar: 0.3,
+        fivesStars: 0.7
+      },
+      // Vérifie bien que possibleCards contient des objets complets (avec nom, image, rarity, etc)
+      possibleCards: [...fourStarCardsFull, ...fivesStarCardsFull],
+      description: "Un booster contenant 5 cartes de niveau 1 ou 2."
+    };
+
+    const booster2 = {
+      nom: "Booster Argent",
+      image: "fc292.png",
+      type: "booster",
+      cardCount: 5,
+      rarityChances: {
+        oneStar: 0.8,
+        twoStars: 0.2
+      },
+      possibleCards: [...oneStarCardsFull, ...twoStarCardsFull],
+      description: "Un booster premium contenant 5 cartes de niveau 1 ou 2."
+    };
+
+    // Ajouter les boosters à la liste des items
+    items.push(booster1, booster2);
+
+    // Ajoute un log pour vérifier ce qui est inséré
+    console.log("Booster simple inséré:", booster1);
+    console.log("Booster Argent inséré:", booster2);
 
     // Nettoyer les collections avant d'insérer
     await playersCollection.deleteMany({});
@@ -370,6 +545,11 @@ async function seedDatabase() {
         player_id: insertedPlayers.insertedIds[3], // Lien avec le deuxième joueur
         item_id: insertedItems.insertedIds[6], // Lien avec "Livre Rouge"
         quantité: 1,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[3], // Marin
+        item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
+        quantité: 3,
       }
     ];
 
@@ -401,7 +581,7 @@ async function seedDatabase() {
         item_id: insertedItems.insertedIds[4], // Lien avec "Livre Rouge"
         action_name: "Caresser",
         action_type: "pet",
-        parameters: { lore: "Ancient secrets Il vous regarde plein d'amour." },
+        parameters: { lore: "Ancien secrets Il vous regarde plein d'amour." },
       },
       {
         item_id: insertedItems.insertedIds[5], // Lien avec "Livre Rouge"
@@ -415,6 +595,24 @@ async function seedDatabase() {
         action_type: "pet",
         parameters: { lore: "Il vous regarde plein d'amour." },
       },
+      // Action pour ouvrir un booster bronze
+      {
+        // Pour que l'action soit trouvée pour tous les boosters, il faut une action par booster (ou une action générique par type)
+        item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
+        action_name: "Ouvrir",
+        action_type: "open_scene",
+        parameters: {
+          scene: "BoosterOpeningScene"
+        }
+      },
+      {
+        item_id: insertedItems.insertedIds[items.length - 1], // Booster Argent
+        action_name: "Ouvrir",
+        action_type: "open_scene",
+        parameters: {
+          scene: "BoosterOpeningScene"
+        }
+      }
     ];
 
     // Insérer les données dans la collection itemActions
