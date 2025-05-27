@@ -316,7 +316,6 @@ this.socket.on('tt:update', ({ state }) => {
 
 
 redrawAll() {
-        console.log("REDRAW ALL");
     if (this.gameEnded || !this.sys || !this.sys.game) return;
     if (this.container) {
         // Stoppe tous les tweens sur les enfants du container
@@ -583,7 +582,6 @@ drawPlayerHand() {
                             if (this.sound) this.sound.play('card_place', { volume: 1 });
                             this.activePlayer = 1;
                             this.draggedCardIdx = null;
-                            this.redrawAll();
                             // --- ATTEND LA FIN DES FLIPS AVANT REDRAW ET TOUR IA ---
                             this.captureCards(row, col, card, true, () => {
                                 this.redrawAll();
@@ -649,55 +647,93 @@ animateCapture(row, col, newOwner, onComplete) {
     const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
     const x = boardX + col * cellW + cellW / 2;
     const y = boardY + row * cellH + cellH / 2;
-
-    // Cherche l'image de la carte sur le plateau
-    let cardImg = null;
+    let cardImg = null, cellRect = null;
     this.container.iterate(child => {
-        if (child.texture && child.x === x && child.y === y && child.displayWidth === cellW * 0.9) {
-            cardImg = child;
-        }
+        if (
+            child.texture &&
+            child.x === x &&
+            child.y === y &&
+            Math.abs(child.displayWidth - cellW * 0.9) < 2
+        ) cardImg = child;
+        if (
+            child.width === cellW - 8 &&
+            child.height === cellH - 8 &&
+            child.x === x &&
+            child.y === y
+        ) cellRect = child;
     });
     if (!cardImg) return;
 
-
-    // Toujours forcer la taille d'affichage AVANT le flip
     cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-    cardImg.setOrigin(0.5, 0.5); // Assure le centrage
+    cardImg.setOrigin(0.5, 0.5);
 
-this.tweens.add({
-    targets: cardImg,
-    scaleX: 0,
-    duration: 420, // fermeture
-    ease: 'Cubic.easeIn',
-    onComplete: () => {
-        // Change la texture au milieu du flip
-        cardImg.setTexture(`item_${this.board[row][col].image}`);
-        cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-        cardImg.setOrigin(0.5, 0.5);
-        if (this.sound) this.sound.play('card_capture', { volume: 1 });
-
-        this.tweens.add({
-            targets: cardImg,
-            scaleX: 1,
-            duration: 260, // ouverture
-            delay: 10,
-            ease: 'Cubic.easeOut',
-            onUpdate: () => {
-                cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-            },
-            onComplete: () => {
-                cardImg.scaleX = 1;
-                cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-                cardImg.setOrigin(0.5, 0.5);
-                cardImg.clearTint();
-                // Supprime le tween sur flash ici
-                if (onComplete) onComplete();
-            }
-        });
+    // 1. Réduit scaleX à 0 (ferme la carte)
+    this.tweens.add({
+        targets: cardImg,
+        scaleX: 0,
+        duration: 220,
+        ease: 'Cubic.easeIn',
+        onUpdate: () => {
+            if (cellRect) cellRect.setAlpha(0.5);
+        },
+onComplete: () => {
+    // 2. Change texture et bordure
+    cardImg.setTexture(`item_${this.board[row][col].image}`);
+    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
+    cardImg.setOrigin(0.5, 0.5);
+    if (cellRect) {
+        let borderColor = 0xffffff;
+        if (newOwner === "player" || newOwner === this.playerId) borderColor = 0x3399ff;
+        else if (newOwner === "opponent" || newOwner === this.opponentId) borderColor = 0xff3333;
+        cellRect.setStrokeStyle(7, borderColor);
+        cellRect.setAlpha(1);
     }
-});
-}
+    if (this.sound) this.sound.play('card_capture', { volume: 1 });
 
+    // --- Effet flash ---
+    const flashColor = (newOwner === "player" || newOwner === this.playerId) ? 0x3399ff : 0xff3333;
+    const flash = this.add.rectangle(x, y, cellW * 0.9, cellH * 0.9, flashColor, 1)
+        .setOrigin(0.5)
+        .setDepth(cardImg.depth + 1);
+    this.container.add(flash);
+    this.tweens.add({
+        targets: flash,
+        alpha: 0,
+        duration: 180,
+        ease: 'Cubic.easeOut',
+        onComplete: () => flash.destroy()
+    });
+
+    // 3. Réouvre la carte (scaleX 0 → 1.08 → 1)
+    this.tweens.add({
+        targets: cardImg,
+        scaleX: 1.08,
+        duration: 200,
+        ease: 'Cubic.easeOut',
+        onUpdate: () => {
+            cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
+        },
+        onComplete: () => {
+            this.tweens.add({
+                targets: cardImg,
+                scaleX: 1,
+                duration: 100,
+                ease: 'Cubic.easeOut',
+                onUpdate: () => {
+                    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
+                },
+                onComplete: () => {
+                    cardImg.scaleX = 1;
+                    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
+                    cardImg.setOrigin(0.5, 0.5);
+                    if (onComplete) onComplete();
+                }
+            });
+        }
+    });
+}
+    });
+}
 
 applyGlowEffect(img, x, y, cardW, cardH, color = 0xffff00, alpha = 0.22, scale = 1.4) {
     const glowW = cardW * scale;

@@ -280,7 +280,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             const stackImg = this.add.image(
                 this.cameras.main.centerX + (i - this.revealIdx),
                 this.cameras.main.centerY - (i - this.revealIdx) * stackOffset,
-                this.cards[i].image.replace(/\.[^/.]+$/, "") 
+                `item_${this.cards[i].image}`
             )
             .setScale(scale * stackScale) // <-- utilise le scale dynamique
             .setAlpha(1);
