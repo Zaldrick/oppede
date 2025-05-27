@@ -274,12 +274,17 @@ async function seedDatabase() {
         quantité: 3,
       },
       {
-        player_id: insertedPlayers.insertedIds[0], // Marin
+        player_id: insertedPlayers.insertedIds[0], // Mehdi
         item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
         quantité: 3,
       },
       {
-        player_id: insertedPlayers.insertedIds[1], // Marin
+        player_id: insertedPlayers.insertedIds[1], // Arthur
+        item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
+        quantité: 3,
+      },
+      {
+        player_id: insertedPlayers.insertedIds[2], // Marie
         item_id: insertedItems.insertedIds[items.length - 2], // Booster Bronze
         quantité: 3,
       }
