@@ -40,6 +40,36 @@ const corsOptions = {
   credentials: true, // Allow cookies if needed
 };
 
+const tripleTriadRules = {
+    identique: function(board, row, col, card, playerId) {
+        // Règle "Identique"
+        const dirs = [
+            { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
+            { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
+            { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
+            { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
+        ];
+        let matches = [];
+        for (const { dr, dc, self, opp } of dirs) {
+            const nr = row + dr, nc = col + dc;
+            if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+                const neighbor = board[nr][nc];
+                if (neighbor && neighbor.owner !== playerId) {
+                    if (parseInt(card[self]) === parseInt(neighbor[opp])) {
+                        matches.push({ row: nr, col: nc });
+                    }
+                }
+            }
+        }
+        if (matches.length >= 2) {
+            // Retourne les positions à retourner
+            return matches;
+        }
+        return [];
+    },
+    // Ajoute ici plus tard: plus, sameWall, etc.
+};
+
 // Enable CORS for all routes
 app.use(cors(corsOptions));
 app.use(bodyParser.json()); 
@@ -433,7 +463,8 @@ socket.on('newPlayer', async (data) => {
                   board: Array.from({ length: 3 }, () => Array(3).fill(null)),
                   turn: playerId, // Le joueur qui commence
                   moves: [],
-              }
+              },
+               rules: { identique: true, plus: false, sameWall: false }
           };
       } else {
           if (!matches[matchId].playerIds.includes(playerId)) {
@@ -476,7 +507,24 @@ socket.on('tt:playCard', ({ matchId, playerId, cardIdx, row, col }) => {
     match.cards[playerId][cardIdx].played = true;
     match.state.board[row][col] = card;
     match.state.moves.push({ playerId, cardIdx, row, col });
-
+    let appliedRules = []; 
+    let flips = [];
+    for (const ruleName in match.rules) {
+        if (match.rules[ruleName] && tripleTriadRules[ruleName]) {
+            const ruleFlips = tripleTriadRules[ruleName](match.state.board, row, col, card, playerId);
+            if (ruleFlips && ruleFlips.length) {
+                appliedRules.push(ruleName); // Ajoute le nom de la règle appliquée
+                flips.push(...ruleFlips);
+            }
+        }
+}
+    // Applique les flips spéciaux
+    for (const flip of flips) {
+        const neighbor = match.state.board[flip.row][flip.col];
+        if (neighbor && neighbor.owner !== playerId) {
+            neighbor.owner = playerId;
+        }
+    }
     // Logique de capture Triple Triad
     const dirs = [
         { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
@@ -549,7 +597,7 @@ match.state.scores = score;
     }
 
     // Diffuse le nouvel état
-    io.to(matchId).emit('tt:update', { state: match.state });
+io.to(matchId).emit('tt:update', { state: match.state, appliedRules });
 });
 
   socket.on('tt:leaveMatch', ({ matchId }) => {

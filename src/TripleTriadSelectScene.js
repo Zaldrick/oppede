@@ -447,6 +447,12 @@ validate() {
                 playerId: this.playerId,
                 opponentId: this.opponentId,
                 playerCards: selectedCards,
+                    rules: {
+                        identique: true,      // "Identique"
+                        plus: false,
+                        sameWall: false,
+                        suddenDeath: false
+                    }
                 // socket: this.socket // à passer si besoin
             });
         } else {
@@ -454,7 +460,13 @@ validate() {
             this.scene.launch("TripleTriadGameScene", {
                 mode: "ai",
                 playerId: this.playerId,
-                playerCards: selectedCards
+                playerCards: selectedCards,
+                    rules: {
+                        identique: true,      // "Identique"
+                        plus: false,
+                        sameWall: false,
+                        suddenDeath: false
+                    }
             });
         }
     }

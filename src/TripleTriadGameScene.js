@@ -36,6 +36,12 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.activePlayer = 0;
         this.playerScore = 5;
         this.opponentScore = 5;
+        this.rules = data.rules || {
+            same: false,
+            plus: false,
+            sameWall: false,
+            suddenDeath: false
+        };
         this.socket = this.registry.get("socket");
         if (!this.socket) {
             // Fallback pour debug si jamais le registry n'est pas set
@@ -61,6 +67,21 @@ export class TripleTriadGameScene extends Phaser.Scene {
     }
     }
 
+
+showRuleMessage(ruleName) {
+    const { width, height } = this.sys.game.canvas;
+    const msg = this.add.text(width / 2, height / 2, `${ruleName}`, {
+        font: 'bold 48px Arial',
+        fill: '#fff',
+        stroke: '#000',
+        strokeThickness: 8
+    }).setOrigin(0.5).setDepth(1000);
+
+    // Disparition après 1.5s (ou la durée de l’animation)
+    this.time.delayedCall(1500, () => {
+        msg.destroy();
+    });
+}
 create() {
     // On attend que le serveur nous dise que le match est prêt
     if (this.isPvP) {
@@ -113,13 +134,16 @@ create() {
             playerCards: this.playerCards
         });
 
-this.socket.on('tt:update', ({ state }) => {
+    this.socket.on('tt:update', ({ state, appliedRules }) => {
     const previousBoard = JSON.parse(JSON.stringify(this.board));
     this.board = state.board;
     this.activePlayer = state.turn === this.playerId ? 0 : 1;
     this.lastState = state;
     this.playerScore = state.scores?.[this.playerId] ?? 0;
     this.opponentScore = state.scores?.[this.opponentId] ?? 0;
+    if (appliedRules && appliedRules.length > 0) {
+        this.showRuleMessage(appliedRules.join(', ')); // Affiche le nom de la règle
+    }
     // Mets à jour les cartes jouées dans la main du joueur
     if (this.isPvP) {
         if (state.moves && Array.isArray(state.moves)) {
@@ -251,7 +275,7 @@ if (poseToDo > 0) {
     }
 
     MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
-});
+    });
 
     } else {
         // Mode IA : pas d'attente
@@ -293,6 +317,19 @@ if (poseToDo > 0) {
             this.redrawAll();
         });
     }
+
+getActiveRules() {
+    const ruleMethods = [];
+    if (this.rules.identique) {
+        console.log("[TripleTriad] Règle 'Identique' ACTIVE, ruleSame sera appelée.");
+        ruleMethods.push(this.ruleSame.bind(this));
+    }
+    if (this.rules.plus) ruleMethods.push(this.rulePlus.bind(this));
+    if (this.rules.sameWall) ruleMethods.push(this.ruleSameWall.bind(this));
+    // ...etc.
+    return ruleMethods;
+}
+
 
 handleEndGame(state) {
     // Sécurité : si pas de scores, force le calcul local (en dernier recours)
@@ -547,9 +584,9 @@ drawPlayerHand() {
             .setAlpha(card.played ? 0.3 : 1)
             .setInteractive({ draggable: !card.played && this.activePlayer === 0 && !this.gameEnded });
 
-           // --- Effet lumineux si c'est au joueur de jouer et la carte n'est pas jouée ---
+        // --- Effet lumineux si c'est au joueur de jouer et la carte n'est pas jouée ---
         if (this.activePlayer === 0 && !card.played && !this.gameEnded) {
-                this.applyGlowEffect(img, x, handY, cardW, cardH, 0xcbe2ea, 0.5, 1.3);
+            this.applyGlowEffect(img, x, handY, cardW, cardH, 0xcbe2ea, 0.5, 1.3);
         }
 
         // Drag events
@@ -612,14 +649,41 @@ drawPlayerHand() {
                             if (this.sound) this.sound.play('card_place', { volume: 1 });
                             this.activePlayer = 1;
                             this.draggedCardIdx = null;
-                            // --- ATTEND LA FIN DES FLIPS AVANT REDRAW ET TOUR IA ---
-                            this.captureCards(row, col, card, true, () => {
-                                this.redrawAll();
-                                if (this.isBoardFull()) {
-                                    this.endGame();
-                                } else {
-                                    this.time.delayedCall(600, () => this.aiPlay(), [], this);
-                                }
+
+                            // --- Animation de pose PUIS flips ---
+                            const cardW = Math.min(60, width / 8);
+                            const cardH = cardW * 1.5;
+                            const cellW = (width * 0.80) / 3;
+                            const cellH = cellW * 1.5;
+                            const boardW = cellW * 3;
+                            const boardX = width / 2 - boardW / 2;
+                            const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
+                            const toX = boardX + col * cellW + cellW / 2;
+                            const toY = boardY + row * cellH + cellH / 2;
+                            const fromX = startX + this.draggedCardIdx * (cardW + 8);
+                            const fromY = handY;
+
+                            this.animateCardPlacement(card, fromX, fromY, toX, toY, 0x99ccff, () => {
+                                // Ajoute la vraie carte sur le plateau AVANT les flips
+                                const cellRect = this.add.rectangle(toX, toY, cellW - 8, cellH - 8, 0x626262, 1)
+                                    .setOrigin(0.5)
+                                    .setStrokeStyle(7, 0x3399ff);
+                                this.container.add(cellRect);
+
+                                const img = this.add.image(toX, toY, `item_${card.image}`)
+                                    .setDisplaySize(cellW * 0.9, cellH * 0.9)
+                                    .setOrigin(0.5);
+                                this.container.add(img);
+
+                                // Puis lance les flips
+                                this.captureCards(row, col, card, true, () => {
+                                    this.redrawAll();
+                                    if (this.isBoardFull()) {
+                                        this.endGame();
+                                    } else {
+                                        this.time.delayedCall(600, () => this.aiPlay(), [], this);
+                                    }
+                                });
                             });
                             return;
                         }
@@ -806,6 +870,15 @@ captureCards(row, col, card, animate = false, onAllFlipsDone) {
         { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
         { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
     ];
+
+    const ruleMethods = this.getActiveRules();
+    let specialFlips = [];
+    for (const rule of ruleMethods) {
+        console.log(`[TripleTriad] Appel de la méthode de règle : ${rule.name}`);
+        const flips = rule(row, col, card);
+        if (flips && flips.length) specialFlips.push(...flips);
+    }
+
     let flipsToDo = 0, flipsDone = 0;
     const flips = [];
     for (const { dr, dc, self, opp } of dirs) {
@@ -1179,4 +1252,43 @@ generateMatchId() {
         // Utilise timestamp + random pour éviter les collisions
         return `tt-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
     }
+
+ruleSame(row, col, card) {
+    // Debug : affiche les infos de la carte posée et des voisins
+    console.log(`[Identique] Test pour carte posée en (${row},${col})`, card);
+
+    const dirs = [
+        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown", name: "haut" },
+        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp", name: "bas" },
+        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight", name: "gauche" },
+        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft", name: "droite" }
+    ];
+    let matches = [];
+    for (const { dr, dc, self, opp, name } of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+            const neighbor = this.board[nr][nc];
+            if (neighbor) {
+                console.log(`[Identique] Voisin ${name} (${nr},${nc})`, neighbor, 
+                    `| Valeur posée: ${card[self]}, Valeur voisine: ${neighbor[opp]}, Owner: ${neighbor.owner}`);
+            } else {
+                console.log(`[Identique] Voisin ${name} (${nr},${nc}) : vide`);
+            }
+            // On ne considère que les cartes adverses
+            if (neighbor && neighbor.owner !== card.owner) {
+                if (parseInt(card[self]) === parseInt(neighbor[opp])) {
+                    console.log(`[Identique] MATCH côté ${name} : ${card[self]} == ${neighbor[opp]}`);
+                    matches.push({ row: nr, col: nc, owner: card.owner });
+                }
+            }
+        }
+    }
+    console.log(`[Identique] Nombre de matches adverses : ${matches.length}`, matches);
+    if (matches.length >= 2) {
+        console.log(`[Identique] RÈGLE ACTIVÉE : retourne`, matches);
+        return matches;
+    }
+    console.log(`[Identique] RÈGLE NON ACTIVÉE`);
+    return [];
+}
 }
