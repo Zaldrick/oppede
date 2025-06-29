@@ -1043,6 +1043,7 @@ option1.on("pointerdown", () => {
     const options = [
         { label: "Inventaire", action: () => this.openInventory() },
         { label: "Profil", action: () => this.openProfile() },
+        { label: "Photo", action: () => this.openPhotoGallery() }, // <-- Ajout du bouton Photo
         { label: "Triple Triad", action: () => this.openTripleTriad() },
         { label: "Retour", action: () => this.closeMenu() }
     ];
@@ -1081,7 +1082,11 @@ closeMenu = () => {
         this.startMenu = null;
     }
 }
-
+openPhotoGallery = () => {
+    this.closeMenu();
+    this.scene.launch("PhotoGalleryScene");
+    this.scene.pause();
+};
 openInventory = () => {
     this.closeMenu();
 

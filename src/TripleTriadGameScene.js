@@ -37,10 +37,10 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.playerScore = 5;
         this.opponentScore = 5;
         this.rules = data.rules || {
-            same: false,
-            plus: false,
-            sameWall: false,
-            suddenDeath: false
+            same: true,
+            plus: true,
+            murale: true,
+            mortSubite: false
         };
         this.socket = this.registry.get("socket");
         if (!this.socket) {
@@ -320,13 +320,9 @@ if (poseToDo > 0) {
 
 getActiveRules() {
     const ruleMethods = [];
-    if (this.rules.identique) {
-        console.log("[TripleTriad] Règle 'Identique' ACTIVE, ruleSame sera appelée.");
-        ruleMethods.push(this.ruleSame.bind(this));
-    }
+    if (this.rules.identique) ruleMethods.push(this.ruleSame.bind(this));
     if (this.rules.plus) ruleMethods.push(this.rulePlus.bind(this));
-    if (this.rules.sameWall) ruleMethods.push(this.ruleSameWall.bind(this));
-    // ...etc.
+    if (this.rules.murale) ruleMethods.push(this.ruleSameWall.bind(this));
     return ruleMethods;
 }
 
@@ -870,52 +866,118 @@ captureCards(row, col, card, animate = false, onAllFlipsDone) {
         { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
         { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
     ];
-
     const ruleMethods = this.getActiveRules();
-    let specialFlips = [];
-    for (const rule of ruleMethods) {
-        console.log(`[TripleTriad] Appel de la méthode de règle : ${rule.name}`);
-        const flips = rule(row, col, card);
-        if (flips && flips.length) specialFlips.push(...flips);
-    }
-
-    let flipsToDo = 0, flipsDone = 0;
-    const flips = [];
-    for (const { dr, dc, self, opp } of dirs) {
-        const nr = row + dr, nc = col + dc;
-        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-            const neighbor = this.board[nr][nc];
-            if (neighbor && neighbor.owner !== card.owner) {
-                if (parseInt(card[self]) > parseInt(neighbor[opp])) {
-                    const previousOwner = neighbor.owner;
-                    neighbor.owner = card.owner;
-                    if (animate) {
-                        flipsToDo++;
-                        flips.push({ nr, nc, owner: card.owner });
-                    }
-                    // MAJ SCORE SELON LA NOUVELLE RÈGLE
-                    if (card.owner === "player" || card.owner === this.playerId) {
-                        this.playerScore++;
-                        this.opponentScore--;
-                    } else {
-                        this.opponentScore++;
-                        this.playerScore--;
+    const doClassicFlips = (dirs, row, col, card, animate, onAllFlipsDone) => {
+        let flipsToDo = 0, flipsDone = 0;
+        const flips = [];
+        for (const { dr, dc, self, opp } of dirs) {
+            const nr = row + dr, nc = col + dc;
+            if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+                const neighbor = this.board[nr][nc];
+                if (neighbor && neighbor.owner !== card.owner) {
+                    if (parseInt(card[self]) > parseInt(neighbor[opp])) {
+                        neighbor.owner = card.owner;
+                        if (animate) {
+                            flipsToDo++;
+                            flips.push({ nr, nc, owner: card.owner });
+                        }
+                        if (card.owner === "player" || card.owner === this.playerId) {
+                            this.playerScore++;
+                            this.opponentScore--;
+                        } else {
+                            this.opponentScore++;
+                            this.playerScore--;
+                        }
+                            this.applyCombo(nr, nc, card.owner, animate, () => {
+                                this.animateCapture(nr, nc, card.owner, () => {
+                                    flipsDone++;
+                                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
+                                });
+                            });
                     }
                 }
             }
         }
-    }
-    if (animate && flipsToDo > 0) {
-        flips.forEach(flip => {
-            this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
-                flipsDone++;
-                if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
+        if (animate && flipsToDo > 0) {
+            flips.forEach(flip => {
+                this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
+                    flipsDone++;
+                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
+                });
             });
+        } else if (onAllFlipsDone) {
+            onAllFlipsDone();
+        }
+    };
+
+    let specialFlips = [];
+    let triggeredRule = null;
+    for (const rule of ruleMethods) {
+        console.log(`[TripleTriad] Appel de la méthode de règle : ${rule.name}`);
+        const flips = rule(row, col, card);
+        if (flips && flips.length) {
+            specialFlips.push(...flips);
+            triggeredRule = rule.name || rule.toString(); // Pour afficher le nom de la règle
+        }
+    }
+    if (!this.isPvP && triggeredRule) {
+        let ruleLabel = triggeredRule;
+        if (ruleLabel === "bound ruleSame") ruleLabel = "Identique";
+        if (ruleLabel === "bound rulePlus") ruleLabel = "Plus";
+        if (ruleLabel === "bound ruleSameWall") ruleLabel = "Murale";
+        this.showRuleMessage(`Règle : ${ruleLabel}`);
+    }
+    // --- AJOUT : anime les flips spéciaux si animate === true ---
+    let specialFlipsToDo = 0, specialFlipsDone = 0;
+    if (animate && specialFlips.length > 0) {
+        specialFlipsToDo = specialFlips.length;
+        specialFlips.forEach(flip => {
+            const neighbor = this.board[flip.row][flip.col];
+            if (neighbor && neighbor.owner !== card.owner) {
+                neighbor.owner = card.owner;
+                // Mets à jour le score
+                if (card.owner === "player" || card.owner === this.playerId) {
+                    this.playerScore++;
+                    this.opponentScore--;
+                } else {
+                    this.opponentScore++;
+                    this.playerScore--;
+                }
+                this.animateCapture(flip.row, flip.col, card.owner, () => {
+                    specialFlipsDone++;
+                    if (specialFlipsDone === specialFlipsToDo) {
+                        // Après les flips spéciaux, lancer la capture classique
+                        doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
+                    }
+                });
+            } else {
+                specialFlipsDone++;
+                if (specialFlipsDone === specialFlipsToDo) {
+                    doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
+                }
+            }
         });
-    } else if (onAllFlipsDone) {
-        onAllFlipsDone();
+        return; // On attend la fin des animations spéciales avant de lancer la suite
+    } else {
+        // Pas d'animation spéciale, on applique direct et on continue
+        for (const flip of specialFlips) {
+            const neighbor = this.board[flip.row][flip.col];
+            if (neighbor && neighbor.owner !== card.owner) {
+                neighbor.owner = card.owner;
+                if (card.owner === "player" || card.owner === this.playerId) {
+                    this.playerScore++;
+                    this.opponentScore--;
+                } else {
+                    this.opponentScore++;
+                    this.playerScore--;
+                }
+            }
+        }
+        doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
     }
 }
+
+
 showStartingArrow(startingPlayer, onComplete) {
     const { width, height } = this.sys.game.canvas;
     // Crée la flèche (triangle épais)
@@ -1051,6 +1113,48 @@ endGame() {
         let color = "#fff";
         let musicKey = null;
         console.log(`Fin de partie : Joueur ${playerScore} - Adversaire ${opponentScore}`);
+        
+        
+        // --- AJOUT : gestion Mort Subite ---
+        if (this.rules.mortSubite && playerScore === opponentScore) {
+            // Récupère toutes les cartes du plateau
+            const cardsOnBoard = [];
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const cell = this.board[row][col];
+                    if (cell && cell.owner) {
+                        cardsOnBoard.push({ ...cell });
+                    }
+                }
+            }
+            // Réinitialise le plateau
+            this.board = this.createEmptyBoard();
+            // Remet les cartes dans la main de chaque joueur
+            this.playerCards = this.playerCards.map(card => ({ ...card, played: false }));
+            this.opponentCards = this.opponentCards.map(card => ({ ...card, played: false }));
+            for (const card of cardsOnBoard) {
+                if (card.owner === "player") {
+                    const idx = this.playerCards.findIndex(c => c.image === card.image && c.played === false);
+                    if (idx !== -1) this.playerCards[idx].played = false;
+                } else if (card.owner === "opponent") {
+                    const idx = this.opponentCards.findIndex(c => c.image === card.image && c.played === false);
+                    if (idx !== -1) this.opponentCards[idx].played = false;
+                }
+            }
+            this.playerScore = 5;
+            this.opponentScore = 5;
+            this.gameEnded = false;
+            this.endText = null;
+            this.redrawAll();
+            this.showRuleMessage("Mort subite ! Nouvelle manche");
+            this.activePlayer = Math.random() < 0.5 ? 0 : 1;
+            this.time.delayedCall(1200, () => {
+                if (this.activePlayer === 1) this.aiPlay();
+            });
+            return;
+        }
+        // --- FIN AJOUT ---
+        
         if (playerScore > opponentScore) {
             resultText = "VICTOIRE";
             color = "#33ff33";
@@ -1290,5 +1394,127 @@ ruleSame(row, col, card) {
     }
     console.log(`[Identique] RÈGLE NON ACTIVÉE`);
     return [];
+    }
+rulePlus(row, col, card) {
+    // Règle "Plus" : il faut au moins deux voisins adverses avec la même somme
+    const dirs = [
+        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown", name: "haut" },
+        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp", name: "bas" },
+        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight", name: "gauche" },
+        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft", name: "droite" }
+    ];
+    let sums = [];
+    for (const { dr, dc, self, opp, name } of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+            const neighbor = this.board[nr][nc];
+            if (neighbor && neighbor.owner !== card.owner) {
+                const sum = parseInt(card[self]) + parseInt(neighbor[opp]);
+                sums.push({ sum, nr, nc, neighbor, name });
+            }
+        }
+    }
+    // Cherche toutes les paires de voisins adverses avec la même somme
+    let flips = [];
+    for (let i = 0; i < sums.length; i++) {
+        for (let j = i + 1; j < sums.length; j++) {
+            if (sums[i].sum === sums[j].sum) {
+                flips.push({ row: sums[i].nr, col: sums[i].nc, owner: card.owner });
+                flips.push({ row: sums[j].nr, col: sums[j].nc, owner: card.owner });
+            }
+        }
+    }
+    // Supprime les doublons
+    flips = flips.filter((v, i, a) => a.findIndex(t => t.row === v.row && t.col === v.col) === i);
+    if (flips.length > 0) {
+        console.log(`[Plus] RÈGLE ACTIVÉE : retourne`, flips);
+    }
+    return flips;
+}
+ruleSameWall(row, col, card) {
+    const dirs = [
+        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
+        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
+        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
+        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
+    ];
+    let matches = [];
+    let hasWall = false;
+    for (const { dr, dc, self, opp } of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr < 0 || nr > 2 || nc < 0 || nc > 2) {
+            if (parseInt(card[self]) === 10) {
+                matches.push({ row: nr, col: nc, wall: true });
+                hasWall = true;
+            }
+        } else {
+            const neighbor = this.board[nr][nc];
+            if (neighbor && neighbor.owner !== card.owner) {
+                if (parseInt(card[self]) === parseInt(neighbor[opp])) {
+                    matches.push({ row: nr, col: nc });
+                }
+            }
+        }
+    }
+    const flips = matches.filter(m => !m.wall);
+    // La règle ne s'active que s'il y a AU MOINS un mur impliqué
+    if (hasWall && matches.length >= 2 && flips.length > 0) {
+        return flips;
+    }
+    return [];
+}
+applyCombo(row, col, owner, animate = false, onComboDone) {
+    const dirs = [
+        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
+        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
+        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
+        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
+    ];
+    let flips = [];
+    for (const { dr, dc, self, opp } of dirs) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
+            const neighbor = this.board[nr][nc];
+            if (neighbor && neighbor.owner !== owner) {
+                if (parseInt(this.board[row][col][self]) > parseInt(neighbor[opp])) {
+                    flips.push({ row: nr, col: nc });
+                }
+            }
+        }
+    }
+    if (animate && flips.length > 0) {
+        let done = 0;
+        flips.forEach(flip => {
+            this.board[flip.row][flip.col].owner = owner;
+            if (owner === "player" || owner === this.playerId) {
+                this.playerScore++;
+                this.opponentScore--;
+            } else {
+                this.opponentScore++;
+                this.playerScore--;
+            }
+            this.animateCapture(flip.row, flip.col, owner, () => {
+                // Combo récursif
+                this.applyCombo(flip.row, flip.col, owner, animate, () => {
+                    done++;
+                    if (done === flips.length && onComboDone) onComboDone();
+                });
+            });
+        });
+    } else {
+        for (const flip of flips) {
+            this.board[flip.row][flip.col].owner = owner;
+            if (owner === "player" || owner === this.playerId) {
+                this.playerScore++;
+                this.opponentScore--;
+            } else {
+                this.opponentScore++;
+                this.playerScore--;
+            }
+            // Combo récursif sans animation
+            this.applyCombo(flip.row, flip.col, owner, false);
+        }
+        if (onComboDone) onComboDone();
+    }
 }
 }

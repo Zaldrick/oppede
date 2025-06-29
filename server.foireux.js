@@ -15,16 +15,19 @@ const app = express();
 const http = require('http');
 const https = require('https');
 const bodyParser = require('body-parser');
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede';
-
 const boosterRoutes = require('./routes/booster');
 const multer = require('multer');
 const PORT = process.env.BACKEND_PORT || 3000; // Default port for backend
 const isProduction = process.env.NODE_ENV === 'production';
 let challenges = {}; // { challengedSocketId: challengerSocketId }
+let playersCollection; 
 let photosCollection;
+let inventoryCollection;
+let worldEventsCollection;
+let itemsCollection;
 let matches = {}; // { matchId: { players: [socketId, socketId], state: {...} } }
 let playerIdToSocketId = {}; // { playerId: socket.id }
+const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/oppede";
 // Configure CORS options dynamically
 const corsOptions = {
   origin: (origin, callback) => {
@@ -39,9 +42,44 @@ const corsOptions = {
       callback(new Error("Not allowed by CORS")); // Reject the request
     }
   },
-  methods: ["GET", "POST", "DELETE"], // <-- AJOUTE "DELETE" ICI
+  methods: ["GET", "POST"],
   credentials: true, // Allow cookies if needed
 };
+// Create HTTP or HTTPS server based on the environment
+let server;
+if (isProduction) {
+  const sslOptions = {
+    key: fs.readFileSync('/etc/letsencrypt/live/warband.fr/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/warband.fr/fullchain.pem'),
+  };
+  server = https.createServer(sslOptions, app);
+  console.log('Running in production mode with HTTPS');
+} else {
+  server = http.createServer(app);
+  console.log('Running in development mode with HTTP');
+}
+
+
+
+(async () => {
+  try {
+    mongoClient = new MongoClient(mongoUri, { useUnifiedTopology: true });
+    await mongoClient.connect();
+    db = mongoClient.db(); // Sauvegarde la db ici
+    photosCollection = db.collection('photos');
+    playersCollection = db.collection('players');
+    inventoryCollection = db.collection('inventory');
+    itemsCollection = db.collection('items');
+    worldEventsCollection = db.collection('worldEvents');
+    console.log("Connecté à MongoDB et aux collections 'photos' 'players' 'inventory' et 'worldEvents'");
+    server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    });  
+} catch (err) {
+    console.error("Erreur de connexion MongoDB:", err);
+  }
+})();
+
 const dirs = [
     { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
     { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
@@ -148,19 +186,6 @@ const tripleTriadRules = {
 // Enable CORS for all routes
 app.use(cors(corsOptions));
 app.use(bodyParser.json()); 
-// Create HTTP or HTTPS server based on the environment
-let server;
-if (isProduction) {
-  const sslOptions = {
-    key: fs.readFileSync('/etc/letsencrypt/live/warband.fr/privkey.pem'),
-    cert: fs.readFileSync('/etc/letsencrypt/live/warband.fr/fullchain.pem'),
-  };
-  server = https.createServer(sslOptions, app);
-  console.log('Running in production mode with HTTPS');
-} else {
-  server = http.createServer(app);
-  console.log('Running in development mode with HTTP');
-}
 
 // Initialize Socket.IO with dynamic CORS
 const io = require('socket.io')(server, {
@@ -183,59 +208,18 @@ const io = require('socket.io')(server, {
 });
 
 
-// MongoDB connection function
-let mongoClient;
-const connectToDatabase = async () => {
-  if (!mongoClient) {
-    mongoClient = new MongoClient(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-    await mongoClient.connect();
-  }
-  return mongoClient.db('oppede');
-};
-
-(async () => {
-  try {
-    const db = await connectToDatabase();
-    photosCollection = db.collection('photos');
-    console.log("Connecté à la collection 'photos'");
-  } catch (err) {
-    console.error("Erreur de connexion à la collection 'photos':", err);
-  }
-})();
-
-app.use('/public/photos', express.static(path.join(__dirname, 'public', 'photos'), {
-    setHeaders: (res, path) => {
-        res.set('Content-Disposition', 'attachment');
-    }
-}));
 
 app.use('/public', cors(corsOptions), express.static('public'));
 // Route pour récupérer les joueurs disponibles
-    app.get('/api/players', async (req, res) => {
-    const db = await connectToDatabase();
-    const players = db.collection('players');
-
-
 app.get('/api/players', async (req, res) => {
   try {
-    const db = await connectToDatabase();
-    if (!db) {
-      console.error('Database connection failed');
-      return res.status(500).json({ error: 'Database connection failed', players: [] });
-    }
-    const players = db.collection('players');
-    const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
-
-    // Log the pseudo values to the console
-    playerList.forEach(player => console.log(`Pseudo: ${player.pseudo}`));
-
+    const playerList = await playersCollection.find({}, { projection: { pseudo: 1 } }).toArray();
     res.json(playerList);
   } catch (error) {
     console.error('Error fetching players:', error);
     res.status(500).json({ error: 'Failed to fetch players', players: [] });
   }
 });
-
 
 // Route for apparences
 app.get('/assets/apparences', (req, res) => {
@@ -251,18 +235,11 @@ app.get('/assets/apparences', (req, res) => {
   });
 });
 
-    const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
-    res.json(playerList);
-});
 
 app.get('/api/players/:pseudo', async (req, res) => {
     try {
         const { pseudo } = req.params; // Extract pseudo from the request parameters
-        const db = await connectToDatabase();
-        const players = db.collection('players');
-
-        // Find the player document by pseudo
-        const player = await players.findOne({ pseudo });
+        const player = await playersCollection.findOne({ pseudo });
 
         if (!player) {
             return res.status(404).json({ error: 'Player not found' });
@@ -276,7 +253,7 @@ app.get('/api/players/:pseudo', async (req, res) => {
     }
 });
 
-app.use(boosterRoutes);
+
 // Middleware to parse JSON request bodies
 app.use(express.json());
 const storage = multer.diskStorage({
@@ -295,9 +272,7 @@ app.post('/api/inventory/remove-item', async (req, res) => {
         return res.status(400).json({ error: "playerId et itemId requis" });
     }
     try {
-        const db = await connectToDatabase();
-        const inventory = db.collection('inventory');
-        console.log("[remove-item] Connexion BDD OK");
+        const inventory = inventoryCollection;
 
         const item = await inventory.findOne({ player_id: new ObjectId(playerId), item_id: new ObjectId(itemId) });
         console.log("[remove-item] Résultat findOne:", item);
@@ -334,11 +309,7 @@ app.post('/api/players/update-position', async (req, res) => {
             return res.status(400).json({ error: 'Invalid request. Missing pseudo, posX, posY, or mapId.' });
         }
 
-        const db = await connectToDatabase();
-        const players = db.collection('players');
-
-        // Mettre à jour la position et la carte
-        const result = await players.updateOne(
+        const result = await playersCollection.updateOne(
             { pseudo },
             { $set: { posX, posY, mapId, updatedAt: new Date() } }
         );
@@ -372,9 +343,7 @@ socket.on('newPlayer', async (data) => {
     );
 
         // Récupérer le playerData depuis MongoDB
-      const db = await connectToDatabase();
-      const playersCollection = db.collection('players');
-      const playerData = await playersCollection.findOne({ pseudo });
+    const playerData = await playersCollection.findOne({ pseudo: data.pseudo });
 
 
     if (existingPlayerSocketId) {
@@ -778,17 +747,13 @@ setInterval(() => {
     io.emit('playersUpdate', playersWithMapId); // Inclure mapId dans les mises à jour
 }, 50);
 
-
-
-
-// Ajout d'une photo
 app.post('/api/photos/upload', upload.single('photo'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const db = await connectToDatabase();
-    const photosCollection = db.collection('photos');
-
+    // Récupère les infos du body (description, tags, uploader, dateTaken)
     const { description, taggedPlayers, uploader, dateTaken } = req.body;
+
+    // Ajoute le document dans la collection photos
     const photoDoc = {
         filename: req.file.filename,
         url: `/public/photos/${req.file.filename}`,
@@ -803,30 +768,22 @@ app.post('/api/photos/upload', upload.single('photo'), async (req, res) => {
     res.json({ url: photoDoc.url });
 });
 
-// Vote sur une photo
+// Sert les images du dossier public/photos
+app.use('/public/photos', express.static('public/photos'));
 app.post('/api/photos/:id/vote', async (req, res) => {
-    const { id } = req.params;
-    const db = await connectToDatabase();
-    const photosCollection = db.collection('photos');
-
-    const updateResult = await photosCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $inc: { votes: 1 } }
-    );
-    if (updateResult.matchedCount === 0) {
-        return res.status(404).json({ error: "Photo not found" });
+    try {
+        const { id } = req.params;
+        await photosCollection.updateOne({ _id: new ObjectId(id) }, { $inc: { votes: 1 } });
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: "Erreur lors du vote" });
     }
-    // Répond juste 200 OK, sans body
-    res.sendStatus(200);
 });
 
-// Récupérer les photos
 app.get('/api/photos', async (req, res) => {
     try {
-        const db = await connectToDatabase();
-        const photosCollection = db.collection('photos');
         const date = req.query.date; // ex: "2025-06-04"
-        let filter = {};
+        let filter = {}; // AJOUTE CETTE LIGNE
         if (date) filter.dateTaken = date;
         const photos = await photosCollection.find(filter).toArray();
         res.json({ photos });
@@ -836,40 +793,11 @@ app.get('/api/photos', async (req, res) => {
     }
 });
 
-// Suppression d'une photo
-app.delete('/api/photos/:id', async (req, res) => {
-    try {
-        const db = await connectToDatabase();
-        const photosCollection = db.collection('photos');
-        const { id } = req.params;
-        const photo = await photosCollection.findOne({ _id: new ObjectId(id) });
-        if (!photo) return res.status(404).json({ error: "Photo introuvable" });
-
-        // Supprimer le fichier physique si besoin
-        const fs = require("fs");
-        const path = require("path");
-        const filePath = path.join(__dirname, "public", "photos", photo.filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-
-        await photosCollection.deleteOne({ _id: new ObjectId(id) });
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: "Erreur lors de la suppression" });
-    }
-});
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
 
 app.get('/api/players/position/:pseudo', async (req, res) => {
     try {
         const { pseudo } = req.params; // Extract pseudo from the request parameters
-        const db = await connectToDatabase();
-        const players = db.collection('players');
-        
-        // Find the player document by pseudo
-        const player = await players.findOne({ pseudo }, { projection: { posX: 1, posY: 1 } });
+        const player = await playersCollection.findOne({ pseudo }, { projection: { posX: 1, posY: 1 } });
 
         if (!player) {
             return res.status(404).json({ error: 'Player not found' });
@@ -885,9 +813,9 @@ app.get('/api/players/position/:pseudo', async (req, res) => {
 app.get('/api/inventory/:playerId', async (req, res) => {
   try {
     const { playerId } = req.params;
-    const db = await connectToDatabase();
-    const inventoryCollection = db.collection('inventory');
-
+    if (!playerId) {
+      return res.status(400).json({ error: 'playerId is required' });
+    }
     // Use aggregation to join inventory with items
     const inventory = await inventoryCollection.aggregate([
       {
@@ -955,8 +883,7 @@ app.get('/api/world-events', async (req, res) => {
     if (!mapKey) return res.status(400).json({ error: "mapKey is required" });
 
     try {
-        const db = await connectToDatabase();
-        const events = await db.collection("worldEvents").find({ mapKey }).toArray();
+        const events = await worldEventsCollection.find({ mapKey }).toArray();
         res.json(events);
     } catch (err) {
         console.error(err);
@@ -971,8 +898,7 @@ app.post('/api/world-events/:id/state', async (req, res) => {
     if (!eventId) return res.status(400).json({ error: "eventId is required" });
 
     try {
-        const db = await connectToDatabase();
-        const result = await db.collection("worldEvents").updateOne(
+        const result = await worldEventsCollection.updateOne(
             { _id: new ObjectId(eventId) },
             { $set: { state: newState } }
         );
@@ -988,9 +914,10 @@ app.post('/api/world-events/:id/state', async (req, res) => {
 
 app.get('/api/cards', async (req, res) => {
   try {
-    const db = await connectToDatabase();
-    // Récupère toutes les cartes (type: "card") depuis la collection items
-    const cards = await db.collection('items').find({ type: "card" }).project({
+    if (!itemsCollection) {
+      return res.status(503).json({ error: "Database not ready. Please retry in a few seconds." });
+    }
+    const cards = await itemsCollection.find({ type: "card" }).project({
       _id: 1,
       nom: 1,
       image: 1,
@@ -1021,8 +948,7 @@ app.post('/api/inventory/add-cards', async (req, res) => {
             console.warn("[add-cards] playerId ou cards manquants !");
             return res.status(400).json({ error: "playerId et cards requis" });
         }
-        const db = await connectToDatabase();
-        const inventory = db.collection('inventory');
+        const inventory = inventoryCollection;
 
         for (const card of cards) {
             if (!card._id) {
@@ -1067,11 +993,13 @@ app.post('/api/inventory/add-cards', async (req, res) => {
 
 app.get('/api/cards/:playerId', async (req, res) => {
   try {
+    
     const { playerId } = req.params;
-    const db = await connectToDatabase();
-
+    if (!playerId) {
+      return res.status(400).json({ error: 'playerId is required' });
+    }
     // Agrégation pour récupérer les cartes du joueur
-    const cards = await db.collection('inventory').aggregate([
+    const cards = await inventoryCollection.aggregate([
       { $match: { player_id: new ObjectId(playerId) } },
       {
         $lookup: {
@@ -1111,4 +1039,4 @@ app.get('/api/cards/:playerId', async (req, res) => {
   
 });
 
-
+app.use(boosterRoutes);

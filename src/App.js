@@ -3,6 +3,7 @@ import { InventoryScene } from "./InventoryScene";
 import { MainMenuScene } from "./MainMenuScene";
 import { TripleTriadSelectScene } from './TripleTriadSelectScene';
 import { TripleTriadGameScene } from './TripleTriadGameScene';
+import { PhotoGalleryScene } from "./PhotoGalleryScene";
 import BoosterOpeningScene from './BoosterOpeningScene';
 import Phaser from "phaser";
 import React, { useEffect, useRef, useState } from "react";
@@ -38,7 +39,7 @@ const Game = () => {
             dom: {
                 createContainer: true, // Enable DOM elements
             },
-            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene,TripleTriadGameScene,BoosterOpeningScene],
+            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene,TripleTriadGameScene,BoosterOpeningScene,PhotoGalleryScene],
             plugins: {
                 global: [
                     {

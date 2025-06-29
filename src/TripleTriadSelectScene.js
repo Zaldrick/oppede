@@ -449,9 +449,9 @@ validate() {
                 playerCards: selectedCards,
                     rules: {
                         identique: true,      // "Identique"
-                        plus: false,
-                        sameWall: false,
-                        suddenDeath: false
+                        plus: true,
+                        murale: true,
+                        mortSubite: false
                     }
                 // socket: this.socket // à passer si besoin
             });
@@ -463,9 +463,9 @@ validate() {
                 playerCards: selectedCards,
                     rules: {
                         identique: true,      // "Identique"
-                        plus: false,
-                        sameWall: false,
-                        suddenDeath: false
+                        plus: true,
+                        murale: true,
+                        mortSubite: false
                     }
             });
         }
