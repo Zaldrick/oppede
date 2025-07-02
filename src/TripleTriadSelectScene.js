@@ -54,6 +54,16 @@ export class TripleTriadSelectScene extends Phaser.Scene {
 
         try {
             this.cards = await getPlayerCards(this.playerId);
+            // Tri les cartes par rareté (du plus rare au moins rare)
+            this.cards.sort((a, b) => {
+                // Tri principal : par rareté décroissante
+                if (b.rarity !== a.rarity) {
+                    return a.rarity - b.rarity;
+                }
+                // Tri secondaire : par nom alphabétique si même rareté
+                return a.nom.localeCompare(b.nom);
+            });
+
         } catch (e) {
             this.cards = [];
         }

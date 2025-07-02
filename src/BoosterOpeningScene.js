@@ -13,6 +13,9 @@ export class BoosterOpeningScene extends Phaser.Scene {
 
     async preload() {
         this.load.image('boosterPack', 'assets/items/boosterPack.png');
+        this.load.image('boosterArgent', 'assets/items/boosterArgent.png');
+        this.load.image('boosterOr', 'assets/items/boosterOr.png');
+        this.load.image('boosterP', 'assets/items/boosterP.png');
         this.load.audio('carte_captured', '/assets/sounds/cardCaptured.mp3');
         this.load.audio('booster_opening', '/assets/sounds/boosterOpenning.mp3');
 
@@ -53,8 +56,23 @@ export class BoosterOpeningScene extends Phaser.Scene {
         // Limite la taille d'affichage du boosterPack
         const maxWidth = this.cameras.main.width * 0.35;
         const maxHeight = this.cameras.main.height * 0.5;
-        const boosterImg = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, 'boosterPack');
-        const tex = this.textures.get('boosterPack').getSourceImage();
+        // Dans create() de BoosterOpeningScene
+        let boosterImageKey = 'boosterPack'; // valeur par défaut
+
+        if (this.booster && this.booster.image) {
+            const imageMapping = {
+                'boosterPack.png': 'boosterPack',
+                'boosterArgent.png': 'boosterArgent',
+                'boosterOr.png': 'boosterOr',
+                'boosterP.png': 'boosterP'
+            };
+            
+            boosterImageKey = imageMapping[this.booster.image] || 'boosterPack';
+        }
+
+        // Puis utiliser boosterImageKey au lieu de 'boosterPack' hardcodé
+        const boosterImg = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, boosterImageKey);
+        const tex = this.textures.get(boosterImageKey).getSourceImage();
         if (tex) {
             const scaleX = maxWidth / tex.width;
             const scaleY = maxHeight / tex.height;
@@ -227,6 +245,18 @@ export class BoosterOpeningScene extends Phaser.Scene {
         }
         return cards;
     }
+    
+    getOptimalFontSize(text, maxWidth, baseFontSize = 60, minFontSize = 25) {
+    const charWidth = baseFontSize * 0.6; // Approximation largeur caractère
+    const estimatedWidth = text.length * charWidth;
+    
+    if (estimatedWidth <= maxWidth) {
+        return baseFontSize;
+    }
+    
+    const ratio = maxWidth / estimatedWidth;
+    return Math.max(Math.floor(baseFontSize * ratio), minFontSize);
+}
 
     startReveal() {
         this.state = "revealing";
@@ -318,12 +348,23 @@ export class BoosterOpeningScene extends Phaser.Scene {
 
         this.revealStack.push(valUp, valDown, valLeft, valRight);
 
-        // Affiche le nom de la carte
+        // Dans revealCard(), utilisez cette fonction :
+        const cardName = card.nom || "???";
+        const maxNameWidth = this.cameras.main.width * 0.9; // 90% de la largeur écran
+        const fontSize = this.getOptimalFontSize(cardName, maxNameWidth);
+
         const nameText = this.add.text(
             this.cameras.main.centerX,
             y*1.7,
-            card.nom || "???",
-            { font: "60px 'Press Start 2P', monospace", fill: "#fff", stroke: "#000", strokeThickness: 20, padding: { x: 10, y: 5 } }
+            cardName,
+            { 
+                font: `${fontSize}px 'Press Start 2P', monospace`, 
+                fill: "#fff", 
+                stroke: "#000", 
+                strokeThickness: Math.max(fontSize * 0.3, 8),
+                padding: { x: 10, y: 5 },
+                wordWrap: { width: maxNameWidth, useAdvancedWrap: true }
+            }
         ).setOrigin(0.5);
         nameText.setAlpha(0);
         this.revealStack.push(nameText);
@@ -425,8 +466,15 @@ export class BoosterOpeningScene extends Phaser.Scene {
             }
 
             this.add.image(x, y, `item_${card.image}`).setScale(scale);
-            this.add.text(x, y + maxCardHeight / 2 + 10, card.nom, {
-                font: "13px Arial", fill: "#fff"
+            // Nom avec taille adaptative pour le récapitulatif
+            const cardName = card.nom || "???";
+            const maxNameWidth = cardSpacing * 0.9; // 90% de l'espace disponible pour cette carte
+            const recapFontSize = this.getOptimalFontSize(cardName, maxNameWidth, 15, 12); // Taille de base 13px, minimum 8px
+            
+            this.add.text(x, y + maxCardHeight / 2 + 10, cardName, {
+                font: `${recapFontSize}px Arial`, 
+                fill: "#fff",
+                wordWrap: { width: maxNameWidth, useAdvancedWrap: true }
             }).setOrigin(0.5);
         });
 

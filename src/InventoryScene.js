@@ -56,6 +56,8 @@ drawInventory() {
         .setOrigin(0.5)
         .setVisible(false);
 
+    const filteredInventory = this.inventory.filter(item => item.type !== "card");
+
     // Populate grid
     for (let row = 0; row < gridRows; row++) {
         for (let col = 0; col < gridCols; col++) {
@@ -65,7 +67,7 @@ drawInventory() {
                 .setOrigin(0.5);
 
             const index = row * gridCols + col;
-            const item = this.inventory[index];
+            const item = filteredInventory[index];
 
             if (item) {
                 const iconKey = `item_${item.image}`;
@@ -252,6 +254,8 @@ drawInventory() {
                 this.add.text(x + cellSize * 0.3, y + cellSize * 0.3, item.quantité || 1, {
                     font: `${gameWidth * 0.04}px Arial`,
                     fill: "#ffffff",
+                    stroke: "#000000",        // Couleur du contour (noir)
+                    strokeThickness: 3,  
                 }).setOrigin(0.5);
             }
         }

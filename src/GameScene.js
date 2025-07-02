@@ -30,16 +30,19 @@ export class GameScene extends Phaser.Scene {
     this.mapIds = {
       map: 0,   // Carte de base
       map2: 1,  // Deuxième carte
+      map3:2
     };
         // Associez chaque mapId à une image de fond
     this.backgroundImages = {
         0: "background",       // Image de fond pour la carte "map"
-        1: "backgroundext",    // Image de fond pour la carte "map2"
+        1: "backgroundext",
+        2: "backgroundoppede",    // Image de fond pour la carte "map2"
     };
 
     this.mapMusic = {
         map: "music1",   // Musique pour la carte "map"
         map2: "music1",  // Musique pour la carte "map2"
+        map3: "music1",  // Musique pour la carte "map2"
     };
 
     this.teleportPoints = {
@@ -48,6 +51,11 @@ export class GameScene extends Phaser.Scene {
         ],
         map2: [
             { x: 7 * 48 + 24, y: 7 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24 },
+        ],
+        map3: [
+            // Définissez les points de téléportation pour la nouvelle carte
+            // { x: X_COORD, y: Y_COORD, targetMap: "map", targetX: SPAWN_X, targetY: SPAWN_Y },
+            // { x: X_COORD, y: Y_COORD, targetMap: "map2", targetX: SPAWN_X, targetY: SPAWN_Y },
         ],
     };
   }
@@ -126,6 +134,8 @@ export class GameScene extends Phaser.Scene {
     // Wait for the preloadPromise to resolve before proceeding
     try {
         await this.preloadPromise;
+        // Ajoutez le diagnostic ici
+        this.compareTilemaps();
     } catch (error) {
         console.error("Error during preload. Aborting game initialization.");
         return; // Exit if preload failed
@@ -187,12 +197,45 @@ export class GameScene extends Phaser.Scene {
         this.lastMoveSent = now;
     }
   }
-
+compareTilemaps() {
+    console.log('=== COMPARAISON DES CARTES ===');
+    
+    const maps = ['map', 'map2', 'map3'];
+    maps.forEach(mapKey => {
+        if (this.cache.tilemap.has(mapKey)) {
+            const mapData = this.cache.tilemap.get(mapKey).data;
+            console.log(`\n--- ${mapKey.toUpperCase()} ---`);
+            console.log('Width:', mapData.width);
+            console.log('Height:', mapData.height);
+            console.log('Tile Width:', mapData.tilewidth);
+            console.log('Tile Height:', mapData.tileheight);
+            console.log('Tilesets count:', mapData.tilesets ? mapData.tilesets.length : 0);
+            console.log('Layers count:', mapData.layers ? mapData.layers.length : 0);
+            
+            // Vérification des tilesets
+            if (mapData.tilesets) {
+                mapData.tilesets.forEach((tileset, i) => {
+                    console.log(`  Tileset ${i}: ${tileset.name} (firstgid: ${tileset.firstgid})`);
+                });
+            }
+            
+            // Vérification des couches
+            if (mapData.layers) {
+                mapData.layers.forEach((layer, i) => {
+                    console.log(`  Layer ${i}: ${layer.name} (type: ${layer.type})`);
+                });
+            }
+        } else {
+            console.log(`${mapKey} - NON TROUVÉ DANS LE CACHE`);
+        }
+    });
+}
   loadAssets() {
     this.load.audio("teleportSound", "/assets/sounds/tp.mp3"); // Son de téléportation
     this.load.audio("music1", "/assets/musics/music1.mp3");
     this.load.image("background", "/assets/interieur.png"); // Preload background image
     this.load.image("backgroundext", "/assets/maps/exterieur.png"); // Preload background image
+     this.load.image("backgroundoppede", "/assets/maps/oppede.png"); // Preload background image
     this.load.spritesheet("player", "/assets/apparences/Mehdi.png", {
       frameWidth: 48,
       frameHeight: 48,
@@ -200,6 +243,47 @@ export class GameScene extends Phaser.Scene {
     this.load.spritesheet('!Chest', '/assets/maps/!Chest.png', {frameWidth: 48,frameHeight: 48});
     this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
     this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj"); // Nouvelle carte
+    this.load.tilemapTiledJSON("map3", "/assets/maps/oppede.tmj"); // Nouvelle carte
+
+    // Ajout d'événements de diagnostic
+    this.load.on('filecomplete-tilemapJSON-map3', (key, type, data) => {
+        console.log('=== DIAGNOSTIC OPPEDE.TMJ ===');
+        console.log('Fichier chargé:', key);
+        console.log('Structure complète:', data);
+        
+        // Vérifications critiques
+        console.log('Tilesets:', data.tilesets);
+        console.log('Layers:', data.layers);
+        
+        if (data.tilesets) {
+            data.tilesets.forEach((tileset, index) => {
+                console.log(`Tileset ${index}:`, tileset);
+                console.log(`- Source: ${tileset.source || 'embedded'}`);
+                console.log(`- Name: ${tileset.name}`);
+                console.log(`- Tiles: ${tileset.tiles ? tileset.tiles.length : 'none'}`);
+            });
+        }
+        
+        if (data.layers) {
+            data.layers.forEach((layer, index) => {
+                console.log(`Layer ${index}:`, layer.name, layer.type);
+                if (layer.data) {
+                    console.log(`- Data length: ${layer.data.length}`);
+                    console.log(`- First few tiles: ${layer.data.slice(0, 10)}`);
+                }
+            });
+        }
+    });
+    
+    this.load.on('loaderror', (file) => {
+        if (file.key === 'map3') {
+            console.error('=== ERREUR CHARGEMENT MAP ===');
+            console.error('Fichier:', file);
+            console.error('URL:', file.url);
+        }
+    });
+    
+
     this.load.image("Inside_B", "/assets/maps/Inside_B.png");
     this.load.plugin('rexvirtualjoystickplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexvirtualjoystickplugin.min.js', true);
   }
@@ -1348,11 +1432,11 @@ openTripleTriad = () => {
         console.warn("Player or player data is not initialized. Skipping position update.");
         return;
     }
-
+    const playerData = this.registry.get("playerData");
     const playerPseudo = this.registry.get("playerData").pseudo;
     const posX = this.player.x;
     const posY = this.player.y;
-    const mapId = this.mapIds[this.map.key];  // Ajoutez l'identifiant de la carte
+    const mapId = playerData.mapId;  // Ajoutez l'identifiant de la carte
 
     try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/update-position`, {

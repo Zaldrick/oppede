@@ -1,13 +1,23 @@
 {
-    "activeFile": "",
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "oppede.tmj",
     "expandedProjectPaths": [
+        "."
     ],
     "fileStates": {
         "": {
             "scaleInDock": 1
         },
+        "!Chest.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
         "Inside_B.tsx": {
-            "scaleInDock": 1
+            "scaleInDock": 1,
+            "scaleInEditor": 1
         },
         "exterieur.tmj": {
             "scale": 1.3412152777777777,
@@ -33,7 +43,7 @@
         },
         "map.tmj": {
             "scale": 3,
-            "selectedLayer": 1,
+            "selectedLayer": 0,
             "viewCenter": {
                 "x": 353.33333333333326,
                 "y": 1099.5
@@ -44,16 +54,55 @@
         },
         "map.tmj#Inside_B": {
             "scaleInDock": 1
+        },
+        "oppede.tmj": {
+            "scale": 0.7845982142857142,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": -122.35561877667146,
+                "y": 719.4765291607398
+            }
+        },
+        "oppede.tmj#Inside_B": {
+            "scaleInDock": 1
+        },
+        "oppede.tmx": {
+            "scale": 1,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 511,
+                "y": 784.5
+            }
+        },
+        "oppede.tmx#Inside_B": {
+            "scaleInDock": 1
         }
     },
+    "last.exportedFilePath": "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps",
     "last.imagePath": "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps",
+    "map.height": 30,
+    "map.lastUsedExportFilter": "Fichiers de carte JSON (*.tmj *.json)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 48,
+    "map.tileWidth": 48,
+    "map.width": 75,
     "openFiles": [
+        "exterieur.tmj",
+        "map.tmj",
+        "Inside_B.tsx",
+        "!Chest.tsx",
+        "oppede.tmx",
+        "oppede.tmj"
     ],
     "project": "oppede.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "map.tmj",
         "exterieur.tmj",
+        "map.tmj",
+        "Inside_B.tsx",
+        "!Chest.tsx",
+        "oppede.tmx",
+        "oppede.tmj",
         "map copy.tmj"
     ],
     "tileset.lastUsedFormat": "tsx",

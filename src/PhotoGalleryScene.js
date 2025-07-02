@@ -57,35 +57,56 @@ async fetchPhotosForDay(day) {
     this.photos = data.photos || [];
     this.displayPhotos();
 }
-    createDaySelector(width, height) {
-        const y = height * 0.14;
-        const dayWidth = width * 0.13;
-        this.dayButtons = [];
-        this.days.forEach((day, i) => {
-            const btn = this.add.text(
-                width / 2 + (i - Math.floor(this.days.length / 2)) * dayWidth,
-                y,
-                day,
-                {
-                    font: `${Math.round(height * 0.020)}px Arial`,
-                    fill: day === this.selectedDay ? "#ffd700" : "#fff",
-                    backgroundColor: day === this.selectedDay ? "#444" : "#222",
-                    padding: { x: 10, y: 4 }
-                }
-            ).setOrigin(0.5).setInteractive();
-            btn.on("pointerdown", () => {
-                this.selectedDay = day;
-                this.dayButtons.forEach(b => b.setStyle({ fill: "#fff", backgroundColor: "#222" }));
-                btn.setStyle({ fill: "#ffd700", backgroundColor: "#444" });
-                this.fetchPhotosForDay(day);
+createDaySelector(width, height) {
+    const y = height * 0.14;
+    const dayWidth = width * 0.13;
+    this.dayButtons = [];
+
+    
+    this.days.forEach((day, i) => {
+        const isSelected = day === this.selectedDay;
+        const btn = this.add.text(
+            width / 2 + (i - Math.floor(this.days.length / 2)) * dayWidth,
+            y,
+            day,
+            {
+                font: `${Math.round(height * (isSelected ? 0.021 : 0.020))}px Arial`,
+                fill: isSelected ? "#ffd700" : "#fff", 
+                padding: { x: isSelected ? 12 : 10, y: isSelected ? 6 : 4 },
+                stroke: isSelected ? "#ffd700" : "transparent",
+                strokeThickness: isSelected ? 2 : 0
+            }
+        ).setOrigin(0.5).setInteractive();
+        
+        btn.on("pointerdown", () => {
+            // Mise à jour de la sélection
+            this.selectedDay = day;
+            
+
+            // Mise à jour visuelle de tous les boutons
+            this.dayButtons.forEach((b, index) => {
+                const isNowSelected = this.days[index] === this.selectedDay;
+                b.setStyle({
+                    font: `${Math.round(height * (isNowSelected ? 0.025 : 0.020))}px Arial`,
+                    fill: isNowSelected ? "#ffd700" : "#fff",
+                    padding: { x: isNowSelected ? 12 : 10, y: isNowSelected ? 6 : 4 },
+                    stroke: isNowSelected ? "#ffd700" : "transparent",
+                    strokeThickness: isNowSelected ? 2 : 0
+                });
             });
-            this.dayButtons.push(btn);
+            
+            // Charger les photos du jour sélectionné
+            this.fetchPhotosForDay(day);
         });
-    }
+        
+        this.dayButtons.push(btn);
+    });
+}
 getTodayString() {
-        const d = new Date();
-        return d.toISOString().slice(0, 10);
-    }
+    const d = new Date();
+    // Retourne au format JJ/MM pour correspondre au format des boutons
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+}
 
 getLastNDays(n) {
     const days = [];
@@ -505,8 +526,13 @@ heartIcon.on("pointerdown", () => {
         : "";
     // Ligne description (au-dessus des autres infos)
     let descText = null;
+    
+    const descTagText = [tagsStr, photo.description]
+    .filter(Boolean)
+    .join("   |   ");
+    
     if (photo.description && photo.description.trim() !== "") {
-        descText = this.add.text(width / 2, infoY, photo.description, {
+        descText = this.add.text(width / 2, infoY, descTagText, {
             font: `${Math.round(height * 0.021)}px Arial`,
             fill: "#ffd700",
             wordWrap: { width: width * 0.8 }
