@@ -25,6 +25,9 @@ let challenges = {}; // { challengedSocketId: challengerSocketId }
 let photosCollection;
 let matches = {}; // { matchId: { players: [socketId, socketId], state: {...} } }
 let playerIdToSocketId = {}; // { playerId: socket.id }
+
+let quizGames = {}; // Stockage des parties de quiz
+let quizInvites = {}; // Invitations en attente
 // Configure CORS options dynamically
 const corsOptions = {
   origin: (origin, callback) => {
@@ -761,6 +764,135 @@ socket.on('challenge:cancel', ({ challengerId, challengedId }) => {
     io.to(challengedId).emit('challenge:cancelled', { challengerId });
     delete challenges[challengedId];
 });
+
+socket.on('quiz:joinGame', ({ gameId, playerId, playerName }) => {
+    const game = quizGames[gameId];
+    if (!game || game.players.length >= game.maxPlayers) {
+        socket.emit('quiz:joinError', { message: 'Partie pleine ou inexistante' });
+        return;
+    }
+    
+    game.players.push({ id: playerId, name: playerName, score: 0 });
+    socket.join(gameId);
+    
+    io.to(gameId).emit('quiz:gameReady', {
+        players: game.players,
+        status: game.status
+    });
+});
+
+socket.on('quiz:startGame', ({ gameId }) => {
+    const game = quizGames[gameId];
+    if (!game || game.players.length < 2) return;
+    
+    game.status = 'playing';
+    sendNextQuestion(gameId);
+});
+
+socket.on('quiz:submitAnswer', ({ gameId, playerId, answer, timeRemaining }) => {
+    const game = quizGames[gameId];
+    if (!game) return;
+    
+    const player = game.players.find(p => p.id === playerId);
+    if (!player) return;
+    
+    const currentQ = game.questions[game.currentQuestion];
+    const isCorrect = answer === currentQ.correct;
+    
+    if (isCorrect) {
+        // Système de points : plus on répond vite, plus on gagne de points
+        const timeBonus = Math.max(0, timeRemaining - 5) * 2;
+        player.score += 100 + timeBonus;
+    }
+    
+    // Vérifier si tous les joueurs ont répondu
+    game.answersThisRound = (game.answersThisRound || 0) + 1;
+    
+    if (game.answersThisRound >= game.players.length) {
+        sendRoundResults(gameId);
+    }
+});
+
+socket.on('quiz:invite', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId, gameId }) => {
+    quizInvites[challengedId] = { challengerId, gameId };
+    io.to(challengedId).emit('quiz:invitation', {
+        challengerId,
+        challengerPlayerId,
+        gameId,
+        message: `${players[challengerId]?.pseudo || 'Un joueur'} vous invite à un quiz !`
+    });
+});
+
+
+function getRandomQuestions(count) {
+    // Récupère des questions aléatoires depuis votre base de données ou fichier
+    const allQuestions = require('./src/data/quizQuestions.js').quizQuestions;
+    return allQuestions.sort(() => Math.random() - 0.5).slice(0, count);
+}
+
+function sendNextQuestion(gameId) {
+    const game = quizGames[gameId];
+    if (!game || game.currentQuestion >= game.questions.length) {
+        endQuizGame(gameId);
+        return;
+    }
+    
+    const question = game.questions[game.currentQuestion];
+    game.answersThisRound = 0;
+    
+    io.to(gameId).emit('quiz:questionStart', {
+        question: {
+            question: question.question,
+            answers: question.answers
+        },
+        questionNumber: game.currentQuestion + 1,
+        totalQuestions: game.questions.length,
+        timeLimit: 30
+    });
+    
+    // Auto-passer à la question suivante après 35 secondes
+    setTimeout(() => {
+        sendRoundResults(gameId);
+    }, 35000);
+}
+
+function sendRoundResults(gameId) {
+    const game = quizGames[gameId];
+    if (!game) return;
+    
+    const currentQ = game.questions[game.currentQuestion];
+    const sortedPlayers = [...game.players].sort((a, b) => b.score - a.score);
+    
+    io.to(gameId).emit('quiz:roundResults', {
+        results: sortedPlayers,
+        correctAnswer: currentQ.correct,
+        explanation: currentQ.explanation || null
+    });
+    
+    game.currentQuestion++;
+    
+    // Prochaine question dans 5 secondes
+    setTimeout(() => {
+        sendNextQuestion(gameId);
+    }, 5000);
+}
+
+function endQuizGame(gameId) {
+    const game = quizGames[gameId];
+    if (!game) return;
+    
+    const finalScores = [...game.players].sort((a, b) => b.score - a.score);
+    
+    io.to(gameId).emit('quiz:gameEnd', {
+        finalScores,
+        winner: finalScores[0]
+    });
+    
+    // Nettoyer la partie après 30 secondes
+    setTimeout(() => {
+        delete quizGames[gameId];
+    }, 30000);
+}
 
 });
 

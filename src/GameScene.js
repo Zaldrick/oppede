@@ -1045,11 +1045,17 @@ showInteractionMenu = (targetId) => {
         backgroundColor: "#333333",
         padding: { x: 10, y: 5 },
     }).setOrigin(0.5).setInteractive();
-
+    const option4 = this.add.text(menuX, menuY + 120, "🧠 Quiz", {
+        font: "18px Arial",
+        fill: "#fff",
+        backgroundColor: "#9C27B0",
+        padding: { x: 10, y: 5 },
+    }).setOrigin(0.5).setInteractive();
     // Add options to the container
     this.interactionMenu.add(option1);
     this.interactionMenu.add(option2);
     this.interactionMenu.add(option3);
+    this.interactionMenu.add(option4);
 
     // Add events for each option
 option1.on("pointerdown", () => {
@@ -1087,6 +1093,24 @@ option1.on("pointerdown", () => {
         this.interactionMenu.destroy();
         this.interactionMenu = null; // Ensure proper cleanup
     });
+    option4.on("pointerdown", () => {
+    this.displayMessage(`Vous avez invité ${targetId} à un quiz`);
+    if (this.socket) {
+        const myPlayerId = this.registry.get("playerData")?._id;
+        const targetPlayerId = this.latestPlayersData[targetId]?.playerId;
+        const gameId = `quiz-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+        
+        this.socket.emit("quiz:invite", {
+            challengerId: this.myId,
+            challengedId: targetId,
+            challengerPlayerId: myPlayerId,
+            challengedPlayerId: targetPlayerId,
+            gameId
+        });
+    }
+    this.interactionMenu.destroy();
+    this.interactionMenu = null;
+});
 }
 
   handleButtonB() {
@@ -1730,5 +1754,26 @@ displayChallengePopup(challengerId) {
     // Synchronise la popup avec la caméra (comme le pseudo)
     this.challengePopup.setScrollFactor(1);
 }
- 
+
+
+openQuizGame = () => {
+    this.closeMenu();
+    
+    const playerData = this.registry.get("playerData");
+    const playerId = playerData && playerData._id ? playerData._id : null;
+    const playerName = this.registry.get("playerPseudo") || "Joueur";
+
+    if (!playerId) {
+        this.displayMessage("Impossible de trouver l'identifiant du joueur.");
+        return;
+    }
+
+    this.scene.launch("QuizLobbyScene", { 
+        playerId, 
+        playerName 
+    });
+    this.scene.pause();
+}
+
+
 }
