@@ -129,7 +129,7 @@ export class GameScene extends Phaser.Scene {
     const chatElement = document.getElementById("chat");
     const inputElement = document.getElementById("input");
     if (chatElement) chatElement.style.display = "block";
-    if (inputElement) inputElement.style.display = "block";
+    if (inputElement) chatElement.style.display = "block";
 
     // Wait for the preloadPromise to resolve before proceeding
     try {
@@ -1151,8 +1151,9 @@ option1.on("pointerdown", () => {
     const options = [
         { label: "Inventaire", action: () => this.openInventory() },
         { label: "Profil", action: () => this.openProfile() },
-        { label: "Photo", action: () => this.openPhotoGallery() }, // <-- Ajout du bouton Photo
+        { label: "Photo", action: () => this.openPhotoGallery() },
         { label: "Triple Triad", action: () => this.openTripleTriad() },
+        { label: "Quiz", action: () => this.openQuizGame() },
         { label: "Retour", action: () => this.closeMenu() }
     ];
 
@@ -1685,7 +1686,34 @@ playMusicForMap(mapKey) {
     // Réinitialiser les autres états
     this.latestPlayersData = {};
     this.myId = null;
- }
+    }
+
+    returnToLobby() {
+        // Nettoyer les événements socket
+        if (this.socket) {
+            this.socket.off('quiz:gameStarted');
+            this.socket.off('quiz:questionStart');
+            this.socket.off('quiz:answerReceived');
+            this.socket.off('quiz:waitingForAnswers');
+            this.socket.off('quiz:roundResults');
+            this.socket.off('quiz:gameEnd');
+            this.socket.off('quiz:gameAborted');
+        }
+
+        // Arrêter la musique
+        MusicManager.stop();
+
+        // Retourner au lobby de quiz
+        this.scene.start("QuizLobbyScene", {
+            playerId: this.playerId,
+            playerName: this.playerName
+        });
+    }
+
+    generateGameId() {
+        return `quiz-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    }
+
 displayChallengePopup(challengerId) {
     if (this.challengePopup) {
         this.challengePopup.destroy();

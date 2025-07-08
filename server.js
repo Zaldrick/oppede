@@ -126,7 +126,14 @@ const tripleTriadRules = {
       }
       return [];
   },
-  applyCombo: function(board, row, col, owner) {
+    mortSubite: function(board, row, col, card, playerId) {
+    // Cette règle ne retourne rien pendant la partie
+    return [];
+  }
+};
+
+// Fonction applyCombo pour les règles Triple Triad
+function applyCombo(board, row, col, owner) {
     for (const { dr, dc, self, opp } of dirs) {
         const nr = row + dr, nc = col + dc;
         if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
@@ -139,14 +146,8 @@ const tripleTriadRules = {
                 }
             }
         }
-      }
-  },
-    mortSubite: function(board, row, col, card, playerId) {
-    // Cette règle ne retourne rien pendant la partie
-    return [];
-  }
-};
-
+    }
+}
 
 // Enable CORS for all routes
 app.use(cors(corsOptions));
@@ -535,14 +536,382 @@ socket.on('newPlayer', async (data) => {
           }
       }
 
+      // Nettoyage des quiz lors de la déconnexion
+      for (const gameId in quizGames) {
+          const game = quizGames[gameId];
+          const playerIndex = game.players.findIndex(p => p.socketId === socket.id);
+          if (playerIndex !== -1) {
+              game.players.splice(playerIndex, 1);
+              // Si c'était l'organisateur ou s'il n'y a plus de joueurs
+              if (game.hostId === socket.id || game.players.length === 0) {
+                  io.to(gameId).emit('quiz:gameCancelled');
+                  delete quizGames[gameId];
+              } else {
+                  // Notifier les autres joueurs
+                  io.to(gameId).emit('quiz:gameUpdated', game);
+              }
+          }
+      }
+
       // Informer les autres joueurs de la déconnexion
       io.emit('playerDisconnected', { id: socket.id, mapId: disconnectedPlayer?.mapId });
 
       console.log("État actuel des joueurs après déconnexion :", players);
   });
 
+  // === ÉVÉNEMENTS QUIZ SYSTÈME LOBBY ===
+  
+  // Demande la liste des quiz disponibles
+  socket.on('quiz:requestGamesList', () => {
+      const availableGames = Object.values(quizGames).filter(game => 
+          game.status === 'waiting' && game.players.length < game.maxPlayers
+      );
+      socket.emit('quiz:gamesList', availableGames);
+  });
+    // Créer un nouveau quiz
+    socket.on('quiz:createGame', ({ gameId, hostId, hostName, maxPlayers, gameMode, categories, difficulty, totalQuestions }) => {
+        console.log(`[Quiz] Création d'un quiz: ${gameId} par ${hostName}`);
+        console.log(`[Quiz] Options: Mode=${gameMode}, Catégories=${categories}, Difficulté=${difficulty}`);
 
-  socket.on('tt:startMatch', ({ matchId, playerId, opponentId, playerCards }) => {
+        quizGames[gameId] = {
+            gameId,
+            hostId: socket.id, // ← Forcer l'utilisation de socket.id
+            hostName,
+            maxPlayers,
+            players: [{
+                id: hostId, // Garde l'ID MongoDB pour identification
+                name: hostName,
+                socketId: socket.id, // Ajoute socket.id pour les communications
+                score: 0,
+                answeredQuestions: []
+            }],
+            status: 'waiting',
+            createdAt: Date.now(),
+            questions: [],
+            currentQuestion: 0,
+            // Nouvelles propriétés
+            gameMode: gameMode || 'classic',
+            categories: categories || ['Géographie'],
+            difficulty: difficulty || 'moyen',
+            totalQuestions: totalQuestions || 10,
+            playerAnswers: {},
+            questionStartTime: null
+        };
+
+        socket.join(gameId);
+        socket.emit('quiz:gameCreated', quizGames[gameId]);
+
+        // Notifier tous les clients qu'un nouveau quiz est disponible
+        io.emit('quiz:gamesList', Object.values(quizGames).filter(game =>
+            game.status === 'waiting' && game.players.length < game.maxPlayers
+        ));
+    });
+    // Rejoindre un quiz
+    socket.on('quiz:joinGame', ({ gameId, playerId, playerName }) => {
+        const game = quizGames[gameId];
+
+        if (!game) {
+            socket.emit('quiz:joinError', { message: 'Quiz inexistant' });
+            return;
+        }
+
+        if (game.players.length >= game.maxPlayers) {
+            socket.emit('quiz:joinError', { message: 'Quiz complet' });
+            return;
+        }
+
+        if (game.status !== 'waiting') {
+            socket.emit('quiz:joinError', { message: 'Quiz déjà commencé' });
+            return;
+        }
+
+        // Vérifier si le joueur n'est pas déjà dans le quiz
+        if (game.players.find(p => p.id === playerId)) {
+            socket.emit('quiz:joinError', { message: 'Vous êtes déjà dans ce quiz' });
+            return;
+        }
+
+        console.log(`[Quiz] ${playerName} rejoint le quiz ${gameId}`);
+
+        // Ajouter le joueur avec socket.id
+        game.players.push({
+            id: playerId,
+            name: playerName,
+            socketId: socket.id, // ← Important : ajouter socket.id
+            score: 0
+        });
+
+        socket.join(gameId);
+        socket.emit('quiz:gameJoined', game);
+
+        // Notifier tous les joueurs du quiz
+        io.to(gameId).emit('quiz:gameUpdated', game);
+
+        // Mettre à jour la liste des quiz disponibles
+        io.emit('quiz:gamesList', Object.values(quizGames).filter(game =>
+            game.status === 'waiting' && game.players.length < game.maxPlayers
+        ));
+    });
+
+  // Quitter un quiz
+  socket.on('quiz:leaveGame', ({ gameId }) => {
+      const game = quizGames[gameId];
+      if (!game) return;
+
+      const playerIndex = game.players.findIndex(p => p.socketId === socket.id);
+      if (playerIndex === -1) return;
+
+      const leavingPlayer = game.players[playerIndex];
+      console.log(`[Quiz] ${leavingPlayer.name} quitte le quiz ${gameId}`);
+      
+      game.players.splice(playerIndex, 1);
+      socket.leave(gameId);
+
+      // Si c'était l'organisateur ou s'il n'y a plus de joueurs
+      if (leavingPlayer.id === game.hostId || game.players.length === 0) {
+          io.to(gameId).emit('quiz:gameCancelled');
+          delete quizGames[gameId];
+      } else {
+          // Notifier les autres joueurs
+          io.to(gameId).emit('quiz:gameUpdated', game);
+      }
+      
+      // Mettre à jour la liste des quiz disponibles
+      io.emit('quiz:gamesList', Object.values(quizGames).filter(game => 
+          game.status === 'waiting' && game.players.length < game.maxPlayers
+      ));
+  });
+
+  // Annuler un quiz (organisateur uniquement)
+  socket.on('quiz:cancelGame', ({ gameId }) => {
+      const game = quizGames[gameId];
+      if (!game || game.hostId !== socket.id) return;
+
+      console.log(`[Quiz] Annulation du quiz ${gameId} par l'organisateur`);
+      
+      io.to(gameId).emit('quiz:gameCancelled');
+      delete quizGames[gameId];
+      
+      // Mettre à jour la liste des quiz disponibles
+      io.emit('quiz:gamesList', Object.values(quizGames).filter(game => 
+          game.status === 'waiting' && game.players.length < game.maxPlayers
+      ));
+  });
+
+    // Lancer un quiz (organisateur uniquement)
+    socket.on('quiz:startGame', async ({ gameId }) => {
+        const game = quizGames[gameId];
+
+        if (!game) {
+            console.log(`[Quiz] Erreur: Quiz ${gameId} introuvable`);
+            socket.emit('quiz:startError', { message: 'Quiz introuvable' });
+            return;
+        }
+
+        // Vérifier que c'est bien l'organisateur en utilisant socket.id
+        if (game.hostId !== socket.id) {
+            console.log(`[Quiz] Erreur: ${socket.id} n'est pas l'organisateur de ${gameId} (organisateur: ${game.hostId})`);
+            socket.emit('quiz:startError', { message: 'Vous n\'êtes pas l\'organisateur de ce quiz' });
+            return;
+        }
+
+        // Vérifier le nombre minimum de joueurs
+        if (game.players.length < 2) {
+            console.log(`[Quiz] Erreur: Pas assez de joueurs (${game.players.length}/2 minimum)`);
+            socket.emit('quiz:startError', { message: 'Il faut au moins 2 joueurs pour commencer' });
+            return;
+        }
+
+        console.log(`[Quiz] Lancement du quiz ${gameId} avec ${game.players.length} joueurs`);
+        console.log(`[Quiz] Catégories: ${game.categories.join(', ')}, Difficulté: ${game.difficulty}`);
+
+        try {
+            // Changer le statut
+            game.status = 'playing';
+
+            // Récupération des questions depuis MongoDB
+            game.questions = await getRandomQuestions(game.categories, game.difficulty, game.totalQuestions);
+
+            if (!game.questions || game.questions.length === 0) {
+                console.error(`[Quiz] Aucune question trouvée pour ${gameId}`);
+                socket.emit('quiz:startError', { message: 'Aucune question disponible pour ces catégories' });
+                return;
+            }
+
+            game.currentQuestion = 0;
+            game.playerAnswers = {};
+
+            console.log(`[Quiz] ${game.questions.length} questions chargées pour ${gameId}`);
+
+            // Notifier tous les joueurs que le quiz commence
+            io.to(gameId).emit('quiz:gameStarted', {
+                gameId: game.gameId,
+                playerId: game.hostId,
+                playerName: game.hostName,
+                isHost: true,
+                gameInfo: {  // ← Changement ici : passer gameInfo directement au premier niveau
+                    categories: game.categories,
+                    difficulty: game.difficulty,
+                    totalQuestions: game.questions.length
+                },
+                gameData: game  // ← Garder les données complètes du jeu
+            });
+
+            // Retirer de la liste des quiz disponibles
+            io.emit('quiz:gamesList', Object.values(quizGames).filter(game =>
+                game.status === 'waiting' && game.players.length < game.maxPlayers
+            ));
+
+            // Démarrer la première question après un délai
+            setTimeout(() => {
+                sendNextQuestion(gameId);
+            }, 4000);
+
+        } catch (error) {
+            console.error(`[Quiz] Erreur lors du lancement du quiz ${gameId}:`, error);
+            socket.emit('quiz:startError', { message: 'Erreur lors du lancement du quiz' });
+        }
+    });
+    // Lancer un quiz (organisateur uniquement)
+    socket.on('quiz:startGame', async ({ gameId }) => {
+        const game = quizGames[gameId];
+
+        if (!game) {
+            console.log(`[Quiz] Erreur: Quiz ${gameId} introuvable`);
+            return;
+        }
+
+        // Vérifier que c'est bien l'organisateur
+        if (game.hostId !== socket.id) {
+            console.log(`[Quiz] Erreur: ${socket.id} n'est pas l'organisateur de ${gameId}`);
+            return;
+        }
+
+        // Vérifier le nombre minimum de joueurs
+        if (game.players.length < 2) {
+            console.log(`[Quiz] Erreur: Pas assez de joueurs (${game.players.length}/2 minimum)`);
+            socket.emit('quiz:startError', { message: 'Il faut au moins 2 joueurs pour commencer' });
+            return;
+        }
+
+        console.log(`[Quiz] Lancement du quiz ${gameId} avec ${game.players.length} joueurs`);
+        console.log(`[Quiz] Catégories: ${game.categories.join(', ')}, Difficulté: ${game.difficulty}`);
+
+        try {
+            // Changer le statut
+            game.status = 'playing';
+
+            // Récupération des questions depuis MongoDB
+            game.questions = await getRandomQuestions(game.categories, game.difficulty, game.totalQuestions);
+
+            if (!game.questions || game.questions.length === 0) {
+                console.error(`[Quiz] Aucune question trouvée pour ${gameId}`);
+                socket.emit('quiz:startError', { message: 'Aucune question disponible pour ces catégories' });
+                return;
+            }
+
+            game.currentQuestion = 0;
+
+            // Réinitialise les réponses
+            game.playerAnswers = {};
+
+            console.log(`[Quiz] ${game.questions.length} questions chargées pour ${gameId}`);
+
+            // Notifier tous les joueurs que le quiz commence
+            io.to(gameId).emit('quiz:gameStarted', {
+                gameId: game.gameId,
+                playerId: game.hostId,
+                playerName: game.hostName,
+                isHost: true,
+                gameData: {
+                    ...game,
+                    gameInfo: {
+                        categories: game.categories,
+                        difficulty: game.difficulty,
+                        totalQuestions: game.questions.length
+                    }
+                }
+            });
+
+            // Retirer de la liste des quiz disponibles
+            io.emit('quiz:gamesList', Object.values(quizGames).filter(game =>
+                game.status === 'waiting' && game.players.length < game.maxPlayers
+            ));
+
+            // Démarrer la première question après un délai
+            setTimeout(() => {
+                sendNextQuestion(gameId);
+            }, 4000); // 4 secondes de préparation
+
+        } catch (error) {
+            console.error(`[Quiz] Erreur lors du lancement du quiz ${gameId}:`, error);
+            socket.emit('quiz:startError', { message: 'Erreur lors du lancement du quiz' });
+        }
+    });
+
+  // === ANCIENS ÉVÉNEMENTS QUIZ (à conserver pour plus tard) ===
+
+  socket.on('quiz:submitAnswer', ({ gameId, playerId, answer, timeRemaining }) => {
+      const game = quizGames[gameId];
+      if (!game) return;
+      
+      console.log(`[Quiz] Réponse reçue de ${playerId}: ${answer} pour ${gameId}`);
+      
+      const player = game.players.find(p => p.id === playerId);
+      if (!player) return;
+      
+      // Vérifier si le joueur a déjà répondu à cette question
+      if (game.playerAnswers[playerId]) {
+          console.log(`[Quiz] ${playerId} a déjà répondu à cette question`);
+          return;
+      }
+      
+      // Enregistrer la réponse avec timestamp pour l'ordre
+      game.playerAnswers[playerId] = {
+          answer: answer,
+          timeRemaining: timeRemaining,
+          timestamp: Date.now()
+      };
+      
+      // Compter les réponses reçues
+      const answersReceived = Object.keys(game.playerAnswers).length;
+      const totalPlayers = game.players.length;
+      
+      console.log(`[Quiz] ${answersReceived}/${totalPlayers} réponses reçues pour ${gameId}`);
+      
+      // Notifier le joueur que sa réponse a été enregistrée
+      socket.emit('quiz:answerReceived', {
+          answersReceived: answersReceived,
+          totalPlayers: totalPlayers
+      });
+      
+      // Notifier tous les joueurs du nombre de réponses reçues
+      io.to(gameId).emit('quiz:waitingForAnswers', {
+          answersReceived: answersReceived,
+          totalPlayers: totalPlayers
+      });
+      
+      // Vérifier si tous les joueurs ont répondu
+      if (answersReceived >= totalPlayers) {
+          console.log(`[Quiz] Toutes les réponses reçues pour ${gameId}, envoi des résultats`);
+          // Attendre 1 seconde puis envoyer les résultats
+          setTimeout(() => {
+              sendRoundResults(gameId);
+          }, 1000);
+      }
+  });
+
+  socket.on('quiz:invite', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId, gameId }) => {
+      quizInvites[challengedId] = { challengerId, gameId };
+      io.to(challengedId).emit('quiz:invitation', {
+          challengerId,
+          challengerPlayerId,
+          gameId,
+          message: `${players[challengerId]?.pseudo || 'Un joueur'} vous invite à un quiz !`
+      });
+  });
+
+socket.on('tt:startMatch', ({ matchId, playerId, opponentId, playerCards }) => {
       console.log(`[tt:startMatch] matchId=${matchId}, playerId=${playerId}, socket.id=${socket.id}`);
 
       // Crée ou rejoint la partie
@@ -765,137 +1134,148 @@ socket.on('challenge:cancel', ({ challengerId, challengedId }) => {
     delete challenges[challengedId];
 });
 
-socket.on('quiz:joinGame', ({ gameId, playerId, playerName }) => {
-    const game = quizGames[gameId];
-    if (!game || game.players.length >= game.maxPlayers) {
-        socket.emit('quiz:joinError', { message: 'Partie pleine ou inexistante' });
-        return;
-    }
-    
-    game.players.push({ id: playerId, name: playerName, score: 0 });
-    socket.join(gameId);
-    
-    io.to(gameId).emit('quiz:gameReady', {
-        players: game.players,
-        status: game.status
-    });
 });
 
-socket.on('quiz:startGame', ({ gameId }) => {
-    const game = quizGames[gameId];
-    if (!game || game.players.length < 2) return;
-    
-    game.status = 'playing';
-    sendNextQuestion(gameId);
-});
-
-socket.on('quiz:submitAnswer', ({ gameId, playerId, answer, timeRemaining }) => {
-    const game = quizGames[gameId];
-    if (!game) return;
-    
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) return;
-    
-    const currentQ = game.questions[game.currentQuestion];
-    const isCorrect = answer === currentQ.correct;
-    
-    if (isCorrect) {
-        // Système de points : plus on répond vite, plus on gagne de points
-        const timeBonus = Math.max(0, timeRemaining - 5) * 2;
-        player.score += 100 + timeBonus;
-    }
-    
-    // Vérifier si tous les joueurs ont répondu
-    game.answersThisRound = (game.answersThisRound || 0) + 1;
-    
-    if (game.answersThisRound >= game.players.length) {
-        sendRoundResults(gameId);
-    }
-});
-
-socket.on('quiz:invite', ({ challengerId, challengedId, challengerPlayerId, challengedPlayerId, gameId }) => {
-    quizInvites[challengedId] = { challengerId, gameId };
-    io.to(challengedId).emit('quiz:invitation', {
-        challengerId,
-        challengerPlayerId,
-        gameId,
-        message: `${players[challengerId]?.pseudo || 'Un joueur'} vous invite à un quiz !`
-    });
-});
-
-
-function getRandomQuestions(count) {
-    // Récupère des questions aléatoires depuis votre base de données ou fichier
-    const allQuestions = require('./src/data/quizQuestions.js').quizQuestions;
-    return allQuestions.sort(() => Math.random() - 0.5).slice(0, count);
-}
-
+// Fonction sendNextQuestion - déjà existante, mais on l'améliore
 function sendNextQuestion(gameId) {
     const game = quizGames[gameId];
     if (!game || game.currentQuestion >= game.questions.length) {
         endQuizGame(gameId);
         return;
     }
-    
+
     const question = game.questions[game.currentQuestion];
-    game.answersThisRound = 0;
-    
+    game.playerAnswers = {}; // Reset des réponses pour cette question
+
+    console.log(`[Quiz] Envoi question ${game.currentQuestion + 1}/${game.questions.length} pour ${gameId}`);
+    console.log(`[Quiz] Question: ${question.question}`);
+
     io.to(gameId).emit('quiz:questionStart', {
         question: {
             question: question.question,
-            answers: question.answers
+            answers: question.answers,
+            category: question.category
         },
         questionNumber: game.currentQuestion + 1,
         totalQuestions: game.questions.length,
         timeLimit: 30
     });
-    
-    // Auto-passer à la question suivante après 35 secondes
+
+    // Auto-passer à la question suivante après 35 secondes si pas toutes les réponses
     setTimeout(() => {
-        sendRoundResults(gameId);
+        if (game && Object.keys(game.playerAnswers).length < game.players.length) {
+            console.log(`[Quiz] Timeout atteint pour ${gameId}, passage aux résultats`);
+            sendRoundResults(gameId);
+        }
     }, 35000);
 }
-
 function sendRoundResults(gameId) {
     const game = quizGames[gameId];
     if (!game) return;
-    
+
     const currentQ = game.questions[game.currentQuestion];
-    const sortedPlayers = [...game.players].sort((a, b) => b.score - a.score);
-    
-    io.to(gameId).emit('quiz:roundResults', {
-        results: sortedPlayers,
-        correctAnswer: currentQ.correct,
-        explanation: currentQ.explanation || null
+    console.log(`[Quiz] Envoi résultats question ${game.currentQuestion + 1} pour ${gameId}`);
+
+    // Nouveau système de points basé sur l'ordre des réponses correctes
+    const totalPlayers = game.players.length;
+    const correctAnswers = [];
+
+    // Identifier toutes les réponses correctes avec leur timestamp
+    Object.entries(game.playerAnswers).forEach(([playerId, answerData]) => {
+        if (answerData.answer === currentQ.correct && answerData.answer >= 0) {
+            correctAnswers.push({
+                playerId,
+                timestamp: answerData.timestamp
+            });
+        }
     });
-    
-    game.currentQuestion++;
-    
-    // Prochaine question dans 5 secondes
+
+    // Trier par timestamp (plus tôt = plus de points)
+    correctAnswers.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Attribuer les points selon l'ordre
+    correctAnswers.forEach((answer, index) => {
+        const player = game.players.find(p => p.id === answer.playerId);
+        if (player) {
+            const points = totalPlayers - index; // Premier = totalPlayers points, deuxième = totalPlayers-1, etc.
+            player.score += points;
+            console.log(`[Quiz] ${player.name} a gagné ${points} points (position ${index + 1})`);
+        }
+    });
+
+    // Créer le classement actuel
+    const leaderboard = game.players
+        .sort((a, b) => b.score - a.score)
+        .map((player, index) => ({
+            id: player.id,
+            name: player.name,
+            score: player.score,
+            rank: index + 1
+        }));
+
+    const resultsData = {
+        correctAnswer: currentQ.correct,
+        correctAnswerText: currentQ.answers[currentQ.correct],
+        question: currentQ.question,
+        leaderboard: leaderboard,
+        questionNumber: game.currentQuestion + 1,
+        totalQuestions: game.questions.length,
+        pointsDistribution: correctAnswers.map((answer, index) => ({
+            playerId: answer.playerId,
+            points: totalPlayers - index,
+            position: index + 1
+        }))
+    };
+
+    io.to(gameId).emit('quiz:roundResults', resultsData);
+
+    // Passer à la question suivante après 5 secondes
     setTimeout(() => {
-        sendNextQuestion(gameId);
+        game.currentQuestion++;
+        if (game.currentQuestion >= game.questions.length) {
+            endQuizGame(gameId);
+        } else {
+            sendNextQuestion(gameId);
+        }
     }, 5000);
 }
 
+// Fonction pour terminer le quiz
 function endQuizGame(gameId) {
     const game = quizGames[gameId];
     if (!game) return;
     
-    const finalScores = [...game.players].sort((a, b) => b.score - a.score);
+    console.log(`[Quiz] Fin du quiz ${gameId}`);
     
-    io.to(gameId).emit('quiz:gameEnd', {
-        finalScores,
-        winner: finalScores[0]
-    });
+    // Créer le classement final
+    const finalLeaderboard = game.players
+        .sort((a, b) => b.score - a.score)
+        .map((player, index) => ({
+            id: player.id,
+            name: player.name,
+            score: player.score,
+            rank: index + 1,
+            medal: index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}.`
+        }));
     
-    // Nettoyer la partie après 30 secondes
+
+    const podium = finalLeaderboard.slice(0, 3);
+    
+    const endData = {
+        finalLeaderboard: finalLeaderboard,
+        podium: podium,
+        gameId: gameId,
+        totalQuestions: game.questions.length
+    };
+    
+    io.to(gameId).emit('quiz:gameEnd', endData);
+    
+    // Nettoyer le quiz après 30 secondes
     setTimeout(() => {
         delete quizGames[gameId];
+        console.log(`[Quiz] Quiz ${gameId} supprimé de la mémoire`);
     }, 30000);
 }
-
-});
-
 
 // Diffuser l'état complet des joueurs 20 fois par seconde (toutes les 50ms)
 setInterval(() => {
@@ -1242,5 +1622,323 @@ app.get('/api/cards/:playerId', async (req, res) => {
   }
   
 });
+// Fonction pour obtenir des questions par catégorie et difficulté
+async function getRandomQuestions(categories, difficulty, count = 10) {
+    try {
+        const db = await connectToDatabase();
+        const questionsCollection = db.collection('quizQuestions');
+
+        console.log(`[Quiz] Recherche de ${count} questions - Catégories: ${categories.join(', ')}, Difficulté: ${difficulty}`);
+
+        // Construire le filtre
+        const filter = {
+            category: { $in: categories }
+        };
+
+        // Ajouter le filtre de difficulté si spécifié
+        if (difficulty && difficulty !== 'mixte') {
+            filter.difficulty = difficulty;
+        }
+
+        // Compter d'abord les questions disponibles
+        const totalAvailable = await questionsCollection.countDocuments(filter);
+        console.log(`[Quiz] ${totalAvailable} questions disponibles pour les critères`);
+
+        if (totalAvailable === 0) {
+            console.warn(`[Quiz] Aucune question trouvée pour les critères spécifiés`);
+            return getSampleQuestions(count);
+        }
+
+        // Récupérer les questions aléatoirement
+        const questions = await questionsCollection.aggregate([
+            { $match: filter },
+            { $sample: { size: Math.min(count, totalAvailable) } }
+        ]).toArray();
+
+        console.log(`[Quiz] ${questions.length} questions récupérées depuis la BDD`);
+
+        // Si pas assez de questions en BDD, compléter avec des questions d'exemple
+        if (questions.length < count) {
+            console.warn(`[Quiz] Seulement ${questions.length} questions trouvées sur ${count} demandées, ajout de questions d'exemple`);
+            const sampleQuestions = getSampleQuestions(count - questions.length);
+            questions.push(...sampleQuestions);
+        }
+
+        return questions;
+    } catch (error) {
+        console.error('[Quiz] Erreur récupération questions:', error);
+        return getSampleQuestions(count);
+    }
+}
+function getSampleQuestions(count) {
+    const sampleQuestions = [
+        {
+            question: "Quelle est la capitale de la France ?",
+            answers: ["Paris", "Lyon", "Marseille", "Bordeaux"],
+            correct: 0,
+            category: "Géographie",
+            difficulty: "facile"
+        },
+        {
+            question: "Qui a peint 'La Joconde' ?",
+            answers: ["Picasso", "Van Gogh", "Léonard de Vinci", "Monet"],
+            correct: 2,
+            category: "Art & Littérature",
+            difficulty: "facile"
+        },
+        {
+            question: "En quelle année a eu lieu la Révolution française ?",
+            answers: ["1789", "1792", "1776", "1804"],
+            correct: 0,
+            category: "Histoire",
+            difficulty: "facile"
+        },
+        {
+            question: "Quel est l'élément chimique avec le symbole 'O' ?",
+            answers: ["Or", "Oxygène", "Osmium", "Olivine"],
+            correct: 1,
+            category: "Science et Nature",
+            difficulty: "facile"
+        },
+        {
+            question: "Combien y a-t-il de joueurs dans une équipe de football ?",
+            answers: ["10", "11", "12", "9"],
+            correct: 1,
+            category: "Sport",
+            difficulty: "facile"
+        }
+    ];
+
+    // Mélanger et retourner le nombre demandé
+    const shuffled = [...sampleQuestions].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+function sendNextQuestion(gameId) {
+    const game = quizGames[gameId];
+    if (!game || game.currentQuestion >= game.questions.length) {
+        endQuizGame(gameId);
+        return;
+    }
+    
+    const question = game.questions[game.currentQuestion];
+    game.answersThisRound = 0;
+    
+    io.to(gameId).emit('quiz:questionStart', {
+        question: {
+            question: question.question,
+            answers: question.answers
+        },
+        questionNumber: game.currentQuestion + 1,
+        totalQuestions: game.questions.length,
+        timeLimit: 30
+    });
+    
+    // Auto-passer à la question suivante après 35 secondes
+    setTimeout(() => {
+        sendRoundResults(gameId);
+    }, 35000);
+}
+
+function sendRoundResults(gameId) {
+    const game = quizGames[gameId];
+    if (!game) return;
+    
+    const currentQ = game.questions[game.currentQuestion];
+    console.log(`[Quiz] Envoi résultats question ${game.currentQuestion + 1} pour ${gameId}`);
+    
+    // Créer le classement actuel
+    const leaderboard = game.players
+        .sort((a, b) => b.score - a.score)
+        .map((player, index) => ({
+            id: player.id,
+            name: player.name,
+            score: player.score,
+            rank: index + 1
+        }));
+    
+    const resultsData = {
+        correctAnswer: currentQ.correct,
+        correctAnswerText: currentQ.answers[currentQ.correct],
+        question: currentQ.question,
+        leaderboard: leaderboard,
+        questionNumber: game.currentQuestion + 1,
+        totalQuestions: game.questions.length
+    };
+    
+    io.to(gameId).emit('quiz:roundResults', resultsData);
+    
+    // Passer à la question suivante après 5 secondes
+    setTimeout(() => {
+        game.currentQuestion++;
+        if (game.currentQuestion >= game.questions.length) {
+            endQuizGame(gameId);
+        } else {
+            sendNextQuestion(gameId);
+        }
+    }, 5000);
+}
+
+function endQuizGame(gameId) {
+    const game = quizGames[gameId];
+    if (!game) return;
+    
+    console.log(`[Quiz] Fin du quiz ${gameId}`);
+    
+    // Créer le classement final
+    const finalLeaderboard = game.players
+        .sort((a, b) => b.score - a.score)
+        .map((player, index) => ({
+            id: player.id,
+            name: player.name,
+            score: player.score,
+            rank: index + 1,
+            medal: index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}.`
+        }));
+    
+    const podium = finalLeaderboard.slice(0, 3);
+    
+    const endData = {
+        finalLeaderboard: finalLeaderboard,
+        podium: podium,
+        gameId: gameId,
+        totalQuestions: game.questions.length
+    };
+    
+    io.to(gameId).emit('quiz:gameEnd', endData);
+    
+    // Nettoyer le quiz après 30 secondes
+    setTimeout(() => {
+        delete quizGames[gameId];
+        console.log(`[Quiz] Quiz ${gameId} supprimé de la mémoire`);
+    }, 30000);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

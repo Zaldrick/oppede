@@ -862,14 +862,276 @@ async function seedDatabase() {
 
     console.log("Collection 'worldEvents' alimentée avec succès");
 
-  } catch (error) {
-    console.error("Erreur lors de l'alimentation de la base de données :", error);
-  } finally {
-    if (client) {
-      await client.close();
-      console.log("Connexion à MongoDB fermée");
-    }
-  }
-}
+    // **1. SEED DES QUESTIONS DE QUIZ**
+    const quizQuestions = [
+      // ===== HISTOIRE =====
+      {
+          question: "En quelle année a eu lieu la Révolution française ?",
+          answers: ["1789", "1792", "1776", "1804"],
+          correct: 0,
+          category: "Histoire",
+          difficulty: "facile"
+      },
+      {
+          question: "Qui était le premier empereur romain ?",
+          answers: ["Jules César", "Auguste", "Néron", "Trajan"],
+          correct: 1,
+          category: "Histoire",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quelle bataille a marqué la fin de l'Empire napoléonien ?",
+          answers: ["Austerlitz", "Waterloo", "Iéna", "Wagram"],
+          correct: 1,
+          category: "Histoire",
+          difficulty: "moyen"
+      },
+      {
+          question: "En quelle année a commencé la Première Guerre mondiale ?",
+          answers: ["1912", "1913", "1914", "1915"],
+          correct: 2,
+          category: "Histoire",
+          difficulty: "facile"
+      },
+      {
+          question: "Quel pharaon a fait construire la Grande Pyramide de Gizeh ?",
+          answers: ["Khéops", "Khéphren", "Mykérinos", "Ramsès II"],
+          correct: 0,
+          category: "Histoire",
+          difficulty: "difficile"
+      },
+      {
+          question: "Quelle civilisation a inventé l'écriture cunéiforme ?",
+          answers: ["Égyptiens", "Grecs", "Sumériens", "Phéniciens"],
+          correct: 2,
+          category: "Histoire",
+          difficulty: "difficile"
+      },
+      {
+          question: "En quelle année l'homme a-t-il marché sur la Lune pour la première fois ?",
+          answers: ["1967", "1968", "1969", "1970"],
+          correct: 2,
+          category: "Histoire",
+          difficulty: "facile"
+      },
+      {
+          question: "Qui a unifié l'Allemagne au XIXe siècle ?",
+          answers: ["Bismarck", "Guillaume Ier", "François-Joseph", "Metternich"],
+          correct: 0,
+          category: "Histoire",
+          difficulty: "moyen"
+      },
 
-seedDatabase();
+      // ===== GÉOGRAPHIE =====
+      {
+          question: "Quelle est la capitale de l'Australie ?",
+          answers: ["Sydney", "Melbourne", "Canberra", "Perth"],
+          correct: 2,
+          category: "Géographie",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quel est le plus grand désert du monde ?",
+          answers: ["Sahara", "Gobi", "Antarctique", "Kalahari"],
+          correct: 2,
+          category: "Géographie",
+          difficulty: "difficile"
+      },
+      {
+          question: "Combien y a-t-il de continents ?",
+          answers: ["5", "6", "7", "8"],
+          correct: 2,
+          category: "Géographie",
+          difficulty: "facile"
+      },
+      {
+          question: "Quel fleuve traverse Paris ?",
+          answers: ["La Loire", "La Seine", "Le Rhône", "La Garonne"],
+          correct: 1,
+          category: "Géographie",
+          difficulty: "facile"
+      },
+      {
+          question: "Quelle chaîne de montagnes sépare l'Europe de l'Asie ?",
+          answers: ["Les Alpes", "L'Himalaya", "L'Oural", "Le Caucase"],
+          correct: 2,
+          category: "Géographie",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quel pays a le plus de fuseaux horaires ?",
+          answers: ["Russie", "États-Unis", "Chine", "Canada"],
+          correct: 0,
+          category: "Géographie",
+          difficulty: "difficile"
+      },
+      {
+          question: "Quelle est la capitale du Canada ?",
+          answers: ["Toronto", "Vancouver", "Montréal", "Ottawa"],
+          correct: 3,
+          category: "Géographie",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quel océan borde la côte ouest de l'Afrique ?",
+          answers: ["Atlantique", "Indien", "Pacifique", "Arctique"],
+          correct: 0,
+          category: "Géographie",
+          difficulty: "facile"
+      },
+
+      // ===== ART & LITTÉRATURE =====
+      {
+          question: "Qui a peint 'La Joconde' ?",
+          answers: ["Picasso", "Van Gogh", "Léonard de Vinci", "Monet"],
+          correct: 2,
+          category: "Art & Littérature",
+          difficulty: "facile"
+      },
+      {
+          question: "Qui a écrit 'Les Misérables' ?",
+          answers: ["Émile Zola", "Victor Hugo", "Gustave Flaubert", "Honoré de Balzac"],
+          correct: 1,
+          category: "Art & Littérature",
+          difficulty: "facile"
+      },
+      {
+          question: "Quel mouvement artistique Picasso a-t-il co-fondé ?",
+          answers: ["Impressionnisme", "Surréalisme", "Cubisme", "Fauvisme"],
+          correct: 2,
+          category: "Art & Littérature",
+          difficulty: "moyen"
+      },
+      {
+          question: "Qui a composé 'La 9ème Symphonie' ?",
+          answers: ["Mozart", "Bach", "Beethoven", "Vivaldi"],
+          correct: 2,
+          category: "Art & Littérature",
+          difficulty: "moyen"
+      },
+      {
+          question: "Dans quel musée se trouve la Vénus de Milo ?",
+          answers: ["Musée d'Orsay", "Louvre", "Musée Rodin", "Centre Pompidou"],
+          correct: 1,
+          category: "Art & Littérature",
+          difficulty: "difficile"
+      },
+      {
+          question: "Qui a écrit 'Hamlet' ?",
+          answers: ["Charles Dickens", "William Shakespeare", "Oscar Wilde", "George Orwell"],
+          correct: 1,
+          category: "Art & Littérature",
+          difficulty: "facile"
+      },
+      {
+          question: "Quel peintre a coupé son oreille ?",
+          answers: ["Picasso", "Van Gogh", "Monet", "Renoir"],
+          correct: 1,
+          category: "Art & Littérature",
+          difficulty: "moyen"
+      },
+      {
+          question: "Qui a écrit '1984' ?",
+          answers: ["Aldous Huxley", "Ray Bradbury", "George Orwell", "Isaac Asimov"],
+          correct: 2,
+          category: "Art & Littérature",
+          difficulty: "moyen"
+      },
+
+      // ===== SCIENCE ET NATURE =====
+      {
+          question: "Quel est l'élément chimique avec le symbole 'Au' ?",
+          answers: ["Argent", "Or", "Aluminium", "Arsenic"],
+          correct: 1,
+          category: "Science et Nature",
+          difficulty: "moyen"
+      },
+      {
+          question: "Combien d'os y a-t-il dans le corps humain adulte ?",
+          answers: ["206", "208", "210", "212"],
+          correct: 0,
+          category: "Science et Nature",
+          difficulty: "difficile"
+      },
+      {
+          question: "Quelle planète est la plus proche du Soleil ?",
+          answers: ["Vénus", "Terre", "Mercure", "Mars"],
+          correct: 2,
+          category: "Science et Nature",
+          difficulty: "facile"
+      },
+      {
+          question: "Quelle est la vitesse de la lumière ?",
+          answers: ["300 000 km/s", "150 000 km/s", "450 000 km/s", "600 000 km/s"],
+          correct: 0,
+          category: "Science et Nature",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quel gaz représente environ 78% de l'atmosphère terrestre ?",
+          answers: ["Oxygène", "Azote", "Dioxyde de carbone", "Argon"],
+          correct: 1,
+          category: "Science et Nature",
+          difficulty: "moyen"
+      },
+      {
+          question: "Combien de cœurs a une pieuvre ?",
+          answers: ["1", "2", "3", "4"],
+          correct: 2,
+          category: "Science et Nature",
+          difficulty: "difficile"
+      },
+      {
+          question: "Quel scientifique a développé la théorie de l'évolution ?",
+          answers: ["Newton", "Einstein", "Darwin", "Galilée"],
+          correct: 2,
+          category: "Science et Nature",
+          difficulty: "facile"
+      },
+      {
+          question: "Quelle est l'unité de mesure de la force ?",
+          answers: ["Joule", "Watt", "Newton", "Pascal"],
+          correct: 2,
+          category: "Science et Nature",
+          difficulty: "moyen"
+      },
+
+      // ===== SPORT =====
+      {
+          question: "Combien de joueurs y a-t-il dans une équipe de football ?",
+          answers: ["10", "11", "12", "13"],
+          correct: 1,
+          category: "Sport",
+          difficulty: "facile"
+      },
+      {
+          question: "En quelle année ont eu lieu les premiers Jeux Olympiques modernes ?",
+          answers: ["1892", "1894", "1896", "1898"],
+          correct: 2,
+          category: "Sport",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quel pays a remporté la Coupe du Monde de football 2018 ?",
+          answers: ["Brésil", "Allemagne", "France", "Argentine"],
+          correct: 2,
+          category: "Sport",
+          difficulty: "facile"
+      },
+      {
+          question: "Combien de sets faut-il gagner pour remporter un match de tennis masculin en Grand Chelem ?",
+          answers: ["2", "3", "4", "5"],
+          correct: 1,
+          category: "Sport",
+          difficulty: "moyen"
+      },
+      {
+          question: "Quel sport pratique-t-on à Wimbledon ?",
+          answers: ["Golf", "Tennis", "Cricket", "Rugby"],
+          correct: 1,
+          category: "Sport",
+          difficulty: "facile"
+      },
+      {
+          question: "Qui détient le record du monde du 100m masculin ?",
+          answers: ["Carl Lewis", "Usain Bolt", "Justin Gat

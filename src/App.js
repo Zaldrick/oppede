@@ -6,7 +6,6 @@ import { TripleTriadGameScene } from './TripleTriadGameScene';
 import { PhotoGalleryScene } from "./PhotoGalleryScene";
 import { QuizGameScene } from "./QuizGameScene";
 import { QuizLobbyScene } from "./QuizLobbyScene";
-import { PhotoGalleryScene } from "./PhotoGalleryScene";
 import BoosterOpeningScene from './BoosterOpeningScene';
 import Phaser from "phaser";
 import React, { useEffect, useRef, useState } from "react";
