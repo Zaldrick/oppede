@@ -1,21 +1,78 @@
 import Phaser from "phaser";
-import MusicManager from './MusicManager';
+import MusicManager from './MusicManager.js';
 import { loadCardImages } from "./utils/loadCardImages.js";
 
+// Import des nouveaux managers
+import { TRIPLE_TRIAD_CONSTANTS } from './managers/TripleTriadConstants.js';
+import { TripleTriadUtils } from './managers/TripleTriadUtils.js';
+import { TripleTriadBoardManager } from './managers/TripleTriadBoardManager.js';
+import { TripleTriadRulesEngine } from './managers/TripleTriadRulesEngine.js';
+import { TripleTriadAnimationManager } from './managers/TripleTriadAnimationManager.js';
+import { TripleTriadAIPlayer } from './managers/TripleTriadAIPlayer.js';
+import { TripleTriadNetworkHandler } from './managers/TripleTriadNetworkHandler.js';
+import { TripleTriadRenderer } from './managers/TripleTriadRenderer.js';
+
+/**
+ * Version refactorisée de TripleTriadGameScene
+ * Utilise le pattern Manager pour séparer les responsabilités
+ */
 export class TripleTriadGameScene extends Phaser.Scene {
+    
     constructor() {
         super("TripleTriadGameScene");
-        this.board = this.createEmptyBoard();
-        this.playerCards = [];
-        this.opponentCards = [];
-        this.activePlayer = 0; // 0: joueur, 1: adversaire
-        this.draggedCardIdx = null;
-        this.boardCells = []; // Pour stocker les objets grille
+        
+        // Managers
+        this.boardManager = null;
+        this.rulesEngine = null;
+        this.animationManager = null;
+        this.aiPlayer = null;
+        this.networkHandler = null;
+        this.renderer = null;
+        
+        // État du jeu
+        this.gameState = {
+            isPvP: false,
+            playerId: null,
+            opponentId: null,
+            matchId: null,
+            gameEnded: false,
+            draggedCardIdx: null
+        };
+        
+        this.container = null;
     }
-
+    
+    init(data) {
+        // Initialise l'état du jeu
+        this.gameState.isPvP = data.mode === "pvp";
+        this.gameState.playerId = data.playerId;
+        this.gameState.opponentId = data.opponentId;
+        this.gameState.matchId = data.matchId || TripleTriadUtils.generateMatchId();
+        this.gameState.gameEnded = false;
+        this.gameState.draggedCardIdx = null;
+        
+        // Récupère les cartes du joueur
+        const playerCards = data.playerCards || [];
+        
+        // Pour les cartes de l'IA, on les récupérera de manière asynchrone si nécessaire
+        this.gameState.opponentCards = data.opponentCards || null;
+        this.gameState.aiDifficulty = data.aiDifficulty || 'medium';
+        
+        // Initialise les managers (les cartes IA seront chargées dans create())
+        this.initializeManagers(data.rules, playerCards, []);
+    }
+    
     preload() {
-        // Charge toutes les images de cartes nÃ©cessaires
-        loadCardImages(this, this.cards);
+        // Charge les assets des cartes des joueurs si disponibles
+        const cardsToLoad = [];
+        if (this.boardManager && this.boardManager.playerCards) {
+            cardsToLoad.push(...this.boardManager.playerCards);
+        }
+        if (this.boardManager && this.boardManager.opponentCards) {
+            cardsToLoad.push(...this.boardManager.opponentCards);
+        }
+        
+        loadCardImages(this, cardsToLoad);
         
         this.load.audio('tripleTriadMusic', 'assets/musics/tripleTriadMusic.mp3');
         this.load.audio('tripleTriadArrow', 'assets/sounds/tripleTriadArrow.mp3');
@@ -24,1497 +81,673 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.load.audio('victoryMusic', 'assets/musics/victoryMusic.mp3');
         this.load.audio('defeatMusic', 'assets/musics/defeatMusic.mp3');
     }
-
-    init(data) {
-        this.isPvP = data.mode === "pvp";
-        this.matchId = data.matchId || this.generateMatchId();;
-        this.playerId = data.playerId;
-        this.opponentId = data.opponentId;
-        this.playerCards = data.playerCards || [];
-        this.opponentCards = data.opponentCards || [];
-        this.board = this.createEmptyBoard();
-        this.activePlayer = 0;
-        this.playerScore = 5;
-        this.opponentScore = 5;
-        this.rules = data.rules || {
-            same: true,
-            plus: true,
-            murale: true,
-            mortSubite: false
-        };
-        this.socket = this.registry.get("socket");
-        if (!this.socket) {
-            // Fallback pour debug si jamais le registry n'est pas set
-            this.socket = window.socket;
+    
+    async create() {
+        // Crée le container principal
+        this.container = this.add.container(0, 0);
+        
+        // Initialise le renderer
+        this.renderer = new TripleTriadRenderer(this, this.container);
+        
+        // Charge les cartes de l'IA si nécessaire
+        if (!this.gameState.isPvP && !this.gameState.opponentCards) {
+            await this.loadAICards();
         }
-            if (data.mode === "ai" && (!this.opponentCards || this.opponentCards.length === 0)) {
-        // Prends 5 cartes alÃ©atoires diffÃ©rentes parmi toutes les cartes possibles
-        const allCards = [
-            { nom: "Boguomile", image: "Bogomile.png", powerUp: 1, powerLeft: 5, powerDown: 4, powerRight: 1 },
-            { nom: "Fungus", image: "Fungus.png", powerUp: 5, powerLeft: 3, powerDown: 1, powerRight: 1 },
-            { nom: "Elmidea", image: "Elmidea.png", powerUp: 1, powerLeft: 5, powerDown: 3, powerRight: 3 },
-            { nom: "Nocturnus", image: "Nocturnus.png", powerUp: 6, powerLeft: 2, powerDown: 1, powerRight: 1 },
-            { nom: "Incube", image: "Incube.png", powerUp: 2, powerLeft: 5, powerDown: 1, powerRight: 3 },
-            { nom: "Aphide", image: "Aphide.png", powerUp: 2, powerLeft: 4, powerDown: 4, powerRight: 1 },
-            { nom: "Elastos", image: "Elastos.png", powerUp: 1, powerLeft: 1, powerDown: 4, powerRight: 5 },
-            { nom: "Diodon", image: "Diodon.png", powerUp: 3, powerLeft: 1, powerDown: 2, powerRight: 5 },
-            { nom: "Carnidea", image: "Carnidea.png", powerUp: 2, powerLeft: 1, powerDown: 6, powerRight: 1 },
-            { nom: "Larva", image: "Larva.png", powerUp: 4, powerLeft: 3, powerDown: 4, powerRight: 2 },
-            { nom: "Gallus", image: "Gallus.png", powerUp: 2, powerLeft: 6, powerDown: 2, powerRight: 1 }
-        ];
-        // MÃ©lange et prend 5 cartes
-        this.opponentCards = Phaser.Utils.Array.Shuffle(allCards).slice(0, 5).map(card => ({ ...card, played: false }));
+        
+        if (this.gameState.isPvP) {
+            this.startPvPMode();
+        } else {
+            this.startAIMode();
+        }
+        
+        // Configure les événements de redimensionnement
+        this.setupResizeListener();
     }
+    
+    /**
+     * Charge les cartes de l'IA depuis la BDD ou utilise le fallback
+     */
+    async loadAICards() {
+        try {
+            console.log(`[TripleTriad] Chargement des cartes IA (difficulté: ${this.gameState.aiDifficulty})`);
+            
+            const aiCards = await TripleTriadUtils.generateRandomAICardsFromDB(
+                this.gameState.aiDifficulty, 
+                TRIPLE_TRIAD_CONSTANTS.CARDS.HAND_SIZE
+            );
+            
+            // Met à jour les cartes de l'IA dans le board manager
+            this.boardManager.opponentCards = aiCards.map(card => ({
+                ...card,
+                played: false
+            }));
+            
+            console.log(`[TripleTriad] ${aiCards.length} cartes IA chargées:`, aiCards.map(c => c.nom));
+            
+        } catch (error) {
+            console.error('[TripleTriad] Erreur lors du chargement des cartes IA:', error);
+            
+            // Fallback vers les cartes par défaut
+            const fallbackCards = TripleTriadUtils.generateRandomAICards();
+            this.boardManager.opponentCards = fallbackCards;
+            
+            console.log('[TripleTriad] Utilisation des cartes par défaut pour l\'IA');
+        }
     }
-
-
-showRuleMessage(ruleName) {
-    const { width, height } = this.sys.game.canvas;
-    const msg = this.add.text(width / 2, height / 2, `${ruleName}`, {
-        font: 'bold 48px Arial',
-        fill: '#fff',
-        stroke: '#000',
-        strokeThickness: 8
-    }).setOrigin(0.5).setDepth(1000);
-
-    // Disparition aprÃ¨s 1.5s (ou la durÃ©e de lâ€™animation)
-    this.time.delayedCall(1500, () => {
-        msg.destroy();
-    });
-}
-create() {
-    // On attend que le serveur nous dise que le match est prÃªt
-    if (this.isPvP) {
-        // Affiche un message d'attente
-        this.waitText = this.add.text(
-            this.sys.game.canvas.width / 2,
-            this.sys.game.canvas.height * 0.4,
-            "En attente de l'adversaire...",
-            { font: "32px Arial", fill: "#fff" }
-        ).setOrigin(0.5);
-
-
-        this.socket.once('tt:matchReady', (data) => {
-            // Retire le message d'attente
-            if (this.waitText) this.waitText.destroy();
-
-            // Affiche "C'est l'heure du duel !" animÃ©
-            const duelText = this.add.text(
-                this.sys.game.canvas.width / 2,
-                this.sys.game.canvas.height / 2,
-                "C'est l'heure du duel !",
-                { font: "bold 40px Arial", fill: "#ff0", stroke: "#000", strokeThickness: 6 }
-            ).setOrigin(0.5).setAlpha(0);
-
-            MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
-            this.tweens.add({
-                targets: duelText,
-                alpha: 1,
-                scale: { from: 0.7, to: 1.1 },
-                duration: 700,
-                yoyo: true,
-                hold: 700,
-                onComplete: () => {
-                    duelText.destroy();
-                    // Initialise la partie avec les bonnes mains et l'Ã©tat du plateau
-                    this.playerCards = data.playerCards;
-                    this.opponentCards = data.opponentCards;
-                    this.board = data.state.board;
-                    this.activePlayer = data.state.turn === this.playerId ? 0 : 1;
-                    this.redrawAll();
-                    this.showStartingArrow(this.activePlayer, () => {            });
-                }
+    
+    /**
+     * Initialise tous les managers
+     */
+    initializeManagers(rules, playerCards, opponentCards) {
+        // S'assure que toutes les cartes ont la propriété 'played'
+        const processedPlayerCards = playerCards.map(card => ({
+            ...card,
+            played: card.played || false
+        }));
+        
+        const processedOpponentCards = opponentCards.map(card => ({
+            ...card,
+            played: card.played || false
+        }));
+        
+        // Gestionnaire du plateau
+        this.boardManager = new TripleTriadBoardManager(this);
+        this.boardManager.initialize(processedPlayerCards, processedOpponentCards);
+        
+        // Moteur de règles
+        this.rulesEngine = new TripleTriadRulesEngine(rules);
+        
+        // Gestionnaire d'animations
+        this.animationManager = new TripleTriadAnimationManager(this);
+        
+        // IA (si mode solo)
+        if (!this.gameState.isPvP) {
+            this.aiPlayer = new TripleTriadAIPlayer('medium');
+        }
+        
+        // Gestionnaire réseau (si mode PvP)
+        if (this.gameState.isPvP) {
+            const socket = this.registry.get("socket");
+            this.networkHandler = new TripleTriadNetworkHandler(this, socket);
+            this.setupNetworkEvents();
+        }
+        
+        console.log(`[TripleTriad] Initialisé avec ${processedPlayerCards.length} cartes joueur et ${processedOpponentCards.length} cartes adversaire`);
+    }
+    
+    /**
+     * Démarre le mode PvP
+     */
+    startPvPMode() {
+        this.showWaitingMessage();
+        
+        this.networkHandler.initializePvP(
+            this.gameState.matchId,
+            this.gameState.playerId,
+            this.gameState.opponentId,
+            this.boardManager.playerCards
+        );
+    }
+    
+    /**
+     * Démarre le mode IA
+     */
+    startAIMode() {
+        // Détermine qui commence
+        const startingPlayer = Math.random() < 0.5 ? 
+            TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER : 
+            TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT;
+        
+        this.boardManager.activePlayer = startingPlayer;
+        
+        // Lance la musique
+        MusicManager.play(this, TRIPLE_TRIAD_CONSTANTS.AUDIO.MUSIC, { 
+            loop: true, 
+            volume: TRIPLE_TRIAD_CONSTANTS.AUDIO.VOLUME.MUSIC 
+        });
+        
+        // Dessine l'interface
+        this.drawAll();
+        
+        // Montre la flèche de début
+        this.animationManager.showStartingArrow(startingPlayer, () => {
+            if (startingPlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT) {
+                this.executeAITurn();
+            }
+        });
+    }
+    
+    /**
+     * Configure les événements réseau
+     */
+    setupNetworkEvents() {
+        this.events.on('match-ready', (data) => {
+            this.hideWaitingMessage();
+            this.showDuelMessage();
+            
+            // Initialise avec les données du serveur
+            this.boardManager.updateGameState({
+                playerCards: data.playerCards,
+                opponentCards: data.opponentCards,
+                board: data.state.board,
+                activePlayer: data.state.turn === this.gameState.playerId ? 
+                    TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER : 
+                    TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT
+            });
+            
+            MusicManager.play(this, TRIPLE_TRIAD_CONSTANTS.AUDIO.MUSIC, { 
+                loop: true, 
+                volume: TRIPLE_TRIAD_CONSTANTS.AUDIO.VOLUME.MUSIC 
+            });
+            
+            this.drawAll();
+            this.animationManager.showStartingArrow(this.boardManager.activePlayer, () => {
+                // Le jeu peut commencer
             });
         });
         
-        this.socket.emit('tt:startMatch', {
-            matchId: this.matchId,
-            playerId: this.playerId,
-            opponentId: this.opponentId,
-            playerCards: this.playerCards
+        this.events.on('game-update', (data) => {
+            this.handleGameUpdate(data);
         });
-
-    this.socket.on('tt:update', ({ state, appliedRules }) => {
-    const previousBoard = JSON.parse(JSON.stringify(this.board));
-    this.board = state.board;
-    this.activePlayer = state.turn === this.playerId ? 0 : 1;
-    this.lastState = state;
-    this.playerScore = state.scores?.[this.playerId] ?? 0;
-    this.opponentScore = state.scores?.[this.opponentId] ?? 0;
-    if (appliedRules && appliedRules.length > 0) {
-        this.showRuleMessage(appliedRules.join(', ')); // Affiche le nom de la rÃ¨gle
+        
+        this.events.on('match-error', (error) => {
+            console.error('[TripleTriad] Erreur de match:', error);
+            this.returnToLobby();
+        });
+        
+        this.events.on('match-cancelled', () => {
+            this.returnToLobby();
+        });
     }
-    // Mets Ã  jour les cartes jouÃ©es dans la main du joueur
-    if (this.isPvP) {
-        if (state.moves && Array.isArray(state.moves)) {
-            state.moves.forEach(move => {
-                if (move.playerId === this.playerId && this.playerCards[move.cardIdx]) {
-                    this.playerCards[move.cardIdx].played = true;
-                }
-                if (move.playerId === this.opponentId && this.opponentCards[move.cardIdx]) {
-                    this.opponentCards[move.cardIdx].played = true;
-                }
-            });
+    
+    /**
+     * Gère une mise à jour du jeu en PvP
+     */
+    handleGameUpdate(data) {
+        const { state, appliedRules } = data;
+        
+        // Sauvegarde l'ancien état pour les animations
+        const previousBoard = TripleTriadUtils.cloneBoard(this.boardManager.board);
+        
+        // Met à jour l'état
+        this.boardManager.updateGameState({
+            board: state.board,
+            activePlayer: state.turn === this.gameState.playerId ? 
+                TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER : 
+                TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT,
+            playerScore: state.scores?.[this.gameState.playerId] ?? this.boardManager.playerScore,
+            opponentScore: state.scores?.[this.gameState.opponentId] ?? this.boardManager.opponentScore
+        });
+        
+        // Montre les règles déclenchées
+        if (appliedRules && appliedRules.length > 0) {
+            this.animationManager.showRuleMessage(appliedRules.join(', '));
         }
+        
+        // Anime les changements
+        this.animateChanges(previousBoard, state, () => {
+            this.drawAll();
+            
+            if (state.gameEnded) {
+                this.handleGameEnd();
+            }
+        });
     }
-
-        let animsToDo = 0, poseToDo = 0, flipToDo = 0;
+    
+    /**
+     * Anime les changements entre deux états du plateau (pour PvP)
+     */
+    animateChanges(previousBoard, newState, onComplete) {
         const poses = [];
         const flips = [];
-
-        for (let row = 0; row < 3; row++) {
-            for (let col = 0; col < 3; col++) {
+        
+        // Détecte les poses et flips
+        for (let row = 0; row < TRIPLE_TRIAD_CONSTANTS.BOARD.SIZE; row++) {
+            for (let col = 0; col < TRIPLE_TRIAD_CONSTANTS.BOARD.SIZE; col++) {
                 const prev = previousBoard[row][col];
-                const curr = this.board[row][col];
+                const curr = this.boardManager.board[row][col];
+                
                 if (!prev && curr) {
-                    animsToDo++;
-                    poseToDo++;
-                    poses.push({ row, col, curr });
+                    poses.push({ row, col, card: curr });
                 } else if (prev && curr && prev.owner !== curr.owner) {
-                    animsToDo++;
-                    flipToDo++;
-                    flips.push({ row, col, owner: curr.owner === this.playerId ? "player" : "opponent" });
+                    flips.push({ row, col, owner: curr.owner });
                 }
             }
         }
-
-        let animsDone = 0, poseDone = 0;
-
-
-
-        // 1. Anime d'abord toutes les poses
-if (poseToDo > 0) {
-    poses.forEach(({ row, col, curr }) => {
-        const { width, height } = this.sys.game.canvas;
-        const cardW = Math.min(60, width / 8);
-        const cardH = cardW * 1.5;
-        const cellW = (width * 0.80) / 3;
-        const cellH = cellW * 1.5;
-        const boardW = cellW * 3;
-        const boardX = width / 2 - boardW / 2;
-        const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
-        const toX = boardX + col * cellW + cellW / 2;
-        const toY = boardY + row * cellH + cellH / 2;
-
-        if (curr.owner === this.playerId) {
-            const cellRect = this.add.rectangle(toX, toY, cellW - 8, cellH - 8, 0x626262, 1)
-                .setOrigin(0.5)
-                .setStrokeStyle(7, 0x3399ff);
-            this.container.add(cellRect);
-            const img = this.add.image(toX, toY, `item_${curr.image}`)
-                .setDisplaySize(cellW * 0.9, cellH * 0.9)
-                .setOrigin(0.5);
-            this.container.add(img);
-
-            poseDone++;
-            if (poseDone === poseToDo) {
-                // Quand toutes les poses sont finies, lance les flips
-                if (flipToDo > 0) {
-                    let flipsDone = 0;
-                    flips.forEach(({ row, col, owner }) => {
-                        this.animateCapture(row, col, owner, () => {
-                            flipsDone++;
-                            if (flipsDone === flipToDo) {
-                                this.redrawAll();
-                                if (state.gameEnded) {
-                                     this.handleEndGame(state);
-                                }
-                            }
-                        });
-                    });
-                } else {
-                    this.redrawAll();
-                        if (state.gameEnded) {
-                             this.handleEndGame(state);
-                        }
-                }
-            }
-        } else {
-            const cellRect = this.add.rectangle(toX, toY, cellW - 8, cellH - 8, 0x626262, 1)
-                .setOrigin(0.5)
-                .setStrokeStyle(7, 0xff3333);
-            this.container.add(cellRect);
-
-            const img = this.add.image(toX, toY, `item_${curr.image}`)
-                .setDisplaySize(cellW * 0.9, cellH * 0.9)
-                .setOrigin(0.5);
-            this.container.add(img);
-            const fromX = width / 2 - ((cardW + 8) * 5 - 8) / 2 + (curr.cardIdx ?? 0) * (cardW + 8);
-            const fromY = cardH / 2 + 10;
-
-            this.animateCardPlacement(
-                curr, fromX, fromY, toX, toY, 0xff9999,
-                () => {
-                    poseDone++;
-                    if (poseDone === poseToDo) {
-                        if (flipToDo > 0) {
-                            let flipsDone = 0;
-                            flips.forEach(({ row, col, owner }) => {
-                                this.animateCapture(row, col, owner, () => {
-                                    flipsDone++;
-                                    if (flipsDone === flipToDo) {
-                                        this.redrawAll();
-                                        if (state.gameEnded) this.handleEndGame(state);
-                                    }
-                                });
-                            });
-                        } else {
-                            this.redrawAll();
-                            if (state.gameEnded) this.handleEndGame(state);
-                        }
-                    }
-                }
-            );
-        }
-    });
-}
-
-    // Si aucune animation, redraw tout de suite
-    if (animsToDo === 0) {
-        this.redrawAll();
-    }
-
-    MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
-    });
-
-    } else {
-        // Mode IA : pas d'attente
-        this.activePlayer = Math.random() < 0.5 ? 0 : 1;
-        this.resize();
-        this.drawBackground();
-        this.drawOpponentHand();
-        this.drawBoard();
-        this.drawPlayerHand();
-        this.setupResizeListener();
-        this.lastPlayedCard = null;
-        this.endText = null;
-        this.gameEnded = false;
-        MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
-            // Ajoute ceci pour afficher la flÃ¨che avant le dÃ©but de la partie
-        this.showStartingArrow(this.activePlayer, () => {
-            // Quand l'animation est terminÃ©e, lance le tour IA si besoin
-            if (this.activePlayer === 1) {
-                this.aiPlay();
-            }
-            // Sinon, le joueur peut jouer directement
-        });
-    }
-}
-
-    createEmptyBoard() {
-        // 3x3 array, null = case vide
-        return Array.from({ length: 3 }, () => Array(3).fill(null));
-    }
-
-    resize() {
-        // S'adapte Ã  la taille de l'Ã©cran mobile
-        this.game.scale.resize(window.innerWidth, window.innerHeight);
-    }
-
-    setupResizeListener() {
-        window.addEventListener("resize", () => {
-            this.resize();
-            this.redrawAll();
-        });
-    }
-
-getActiveRules() {
-    const ruleMethods = [];
-    if (this.rules.identique) ruleMethods.push(this.ruleSame.bind(this));
-    if (this.rules.plus) ruleMethods.push(this.rulePlus.bind(this));
-    if (this.rules.murale) ruleMethods.push(this.ruleSameWall.bind(this));
-    return ruleMethods;
-}
-
-
-handleEndGame(state) {
-    // SÃ©curitÃ© : si pas de scores, force le calcul local (en dernier recours)
-    let myScore = state.scores?.[this.playerId];
-    let oppScore = state.scores?.[this.opponentId];
-    if (myScore === undefined || oppScore === undefined) {
-        myScore = this.countOwnedCards("player");
-        oppScore = this.countOwnedCards("opponent");
-        console.warn("[TripleTriad] Scores manquants, fallback local :", myScore, oppScore);
-    }
-
-    let resultText = "";
-    let color = "#fff";
-    let musicKey = null;
-    if (myScore > oppScore) {
-        resultText = "VICTOIRE";
-        color = "#33ff33";
-        musicKey = "victoryMusic";
-    } else if (myScore < oppScore) {
-        resultText = "DEFAITE";
-        color = "#ff3333";
-        musicKey = "defeatMusic";
-    } else {
-        resultText = "EGALITÃ‰";
-        color = "#ffff33";
-        musicKey = "defeatMusic";
-    }
-    const { width, height } = this.sys.game.canvas;
-    this.endText = this.add.text(width / 2, height / 2, resultText, {
-        font: `bold ${Math.round(width * 0.13)}px Arial`,
-        fill: color,
-        stroke: "#000",
-        strokeThickness: 8
-    }).setOrigin(0.5).setAlpha(0).setScale(0.7);
-
-    this.redrawAll();
-    this.container.add(this.endText);
-    MusicManager.stop();
-    MusicManager.play(this, musicKey, { loop: false, volume: 0.5 });
-
-    this.tweens.add({
-        targets: this.endText,
-        alpha: 1,
-        scale: 1,
-        duration: 420,
-        ease: 'Back.easeOut'
-    });
-
-    this.gameEnded = true;
-    this.showEndAndFadeOut();
-}
-
-redrawAll() {
-    if (this.gameEnded || !this.sys || !this.sys.game) return;
-    if (this.container) {
-        // Stoppe tous les tweens sur les enfants du container
-        this.container.iterate(child => {
-            if (child && child.active) {
-                this.tweens.killTweensOf(child);
-            }
-        });
-        this.container.destroy(true);
-        this.container = null;
-    }
-    this.container = null;
-    this.drawBackground();
-    this.drawOpponentHand();
-    this.drawBoard();
-    this.drawPlayerHand();
-}
-
-    drawBackground() {
-        const { width, height } = this.sys.game.canvas;
-        this.container = this.add.container(0, 0);
-        this.container.add(
-            this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.98)
-        );
-    }
-
-    drawOpponentHand() {
-        const { width } = this.sys.game.canvas;
-        const cardW = Math.min(60, width / 8);
-        const cardH = cardW * 1.5;
-        const startX = width / 2 - ((cardW + 8) * 5 - 8) / 2;
-        const y = cardH / 2 + 10;
-
-        this.opponentCards.forEach((card, i) => {
-            const x = startX + i * (cardW + 8);
-
-
-             const img = this.add.image(x, y, `item_${card.image}`)
-                .setDisplaySize(cardW, cardH)
-                .setOrigin(0.5)
-                .setAlpha(card.played ? 0.3 : 1);
-
-            if (this.activePlayer === 1 && !card.played && !this.gameEnded) {
-                this.applyGlowEffect(img, x, y, cardW, cardH, 0xeacbcb, 0.5, 1.3);
-             }
-
-            this.container.add(img);
-
-            // Affiche les valeurs autour de la carte si besoin
-            this.drawCardValues(x, y, cardW, cardH, card);
-        });
-    }
-
-    drawBoard() {
-        const { width, height } = this.sys.game.canvas;
-        const cardW = Math.min(60, width / 8);
-        const cardH = cardW * 1.5;
-        const topMargin = cardH*.72;
-        const bottomMargin = cardH + 24;
-        const availableHeight = height - topMargin - bottomMargin;
-        // Plateau rÃ©duit : prend 80% de la largeur possible
-        const cellW = (width * 0.80) / 3;
-        const cellH = cellW * 1.5;
-        const boardW = cellW * 3;
-        const boardH = cellH * 3;
-        const boardX = width / 2 - boardW / 2;
-        const boardY = topMargin + (availableHeight - boardH) / 2;
-
-        // Fond du plateau
-        this.container.add(
-            this.add.rectangle(width / 2, boardY + boardH / 2, boardW, boardH, 0xA6A6A6, 0.95)
-                .setOrigin(0.5)
-                .setStrokeStyle(4, 0xB0B0B0 )
-        );
-
-        // Grille 3x3 de rectangles
-        this.boardCells = [];
-        for (let row = 0; row < 3; row++) {
-            this.boardCells[row] = [];
-            for (let col = 0; col < 3; col++) {
-                const x = boardX + col * cellW + cellW / 2;
-                const y = boardY + row * cellH + cellH / 2;
-                const card = this.board[row][col];
-                // Couleur de fond selon propriÃ©taire
-                let cellColor = 0x626262;
-                let cellAlpha = 1;
-
-                let borderColor = 0xffffff;
-                if (card) {
-                    if (this.isPvP) {
-                        if (card.owner === this.playerId) borderColor = 0x3399ff; // bleu joueur
-                        else if (card.owner === this.opponentId) borderColor = 0xff3333; // rouge adversaire
-                    } else {
-                        if (card.owner === "player") borderColor = 0x3399ff;
-                        else if (card.owner === "opponent") borderColor = 0xff3333;
-                    }
-                }
-                const cell = this.add.rectangle(x, y, cellW - 8, cellH - 8, cellColor, cellAlpha)
-                    .setOrigin(0.5)
-                    .setStrokeStyle(7, borderColor) // <--- Ã©paisseur et couleur de bordure
-                    .setInteractive({ dropZone: true });
-                this.container.add(cell);
-                this.boardCells[row][col] = cell;
-
-                // Affiche la carte posÃ©e si besoin
-                if (card) {
-                    const img = this.add.image(x, y, `item_${card.image}`)
-                        .setDisplaySize(cellW * 0.9, cellH * 0.9)
-                        .setOrigin(0.5)
-                        .clearTint();
-                        //if ((this.isPvP && card.owner === this.opponentId) || (!this.isPvP && card.owner === "opponent")) { img.setFlipX(true);} 
-
-                    this.container.add(img);
-
-                    // Affiche les valeurs en bas Ã  droite de la carte posÃ©e, resserrÃ© et petit, sans cadre
-                    const valueW = cellW * 0.26;
-                    const valueH = cellH * 0.26;
-                    const dx = x + cellW * 0.9 / 2 - valueW ;
-                    const dy = y + cellH * 0.9 / 2 - valueH ;
-                    const statFont = `${Math.round(valueH * 0.5)}px Arial`;
-
-                    // Haut
-                    this.container.add(this.add.text(dx + valueW / 2, dy - 6, card.powerUp, {
-                        font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-                    }).setOrigin(0.5, 0));
-                    // Bas
-                    this.container.add(this.add.text(dx + valueW / 2, dy + valueH + 6, card.powerDown, {
-                        font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-                    }).setOrigin(0.5, 1));
-                    // Gauche
-                    this.container.add(this.add.text(dx + 9, dy + valueH / 2, card.powerLeft, {
-                        font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-                    }).setOrigin(1, 0.5));
-                    // Droite
-                    this.container.add(this.add.text(dx + valueW - 9, dy + valueH / 2, card.powerRight, {
-                        font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-                    }).setOrigin(0, 0.5));
-                }
-            }
-        }
-
-        // Affiche les scores
-        this.drawScores(width, height);
-        // Affiche le texte de fin si besoin
-        if (this.endText && this.endText.scene) {
-            this.container.add(this.endText);
-        }
-    }
-
-drawScores(width, height) {
-    // Utilise toujours les scores locaux (nouvelle rÃ¨gle)
-    const playerScore = this.playerScore;
-    const opponentScore = this.opponentScore;
-    const fontSize = Math.round(width * 0.1);
-
-    // Score du joueur (en bas Ã  droite)
-    this.container.add(this.add.text(width * 0.96, height * 0.92, `${playerScore}`, {
-        font: `${fontSize}px Arial`,
-        fill: "#3399ff",
-        fontStyle: "bold"
-    }).setOrigin(1, 1));
-
-    // Score de l'adversaire (en haut Ã  droite)
-    this.container.add(this.add.text(width * 0.96, height * 0.05, `${opponentScore}`, {
-        font: `${fontSize}px Arial`,
-        fill: "#ff3333",
-        fontStyle: "bold"
-    }).setOrigin(1, 0));
-}
-
-countOwnedCards(owner) {
-    let count = 0;
-    for (let row = 0; row < 3; row++)
-        for (let col = 0; col < 3; col++)
-            if (this.board[row][col]) {
-                if (this.isPvP) {
-                    if (owner === "player" && this.board[row][col].owner === this.playerId) count++;
-                    else if (owner === "opponent" && this.board[row][col].owner === this.opponentId) count++;
-                } else {
-                    if (owner === "player" && this.board[row][col].owner === "player") count++;
-                    else if (owner === "opponent" && this.board[row][col].owner === "opponent") count++;
-                }
-            }
-    return count;
-}
-
-drawPlayerHand() {
-    const { width, height } = this.sys.game.canvas;
-    const cardW = Math.min(60, width / 8);
-    const cardH = cardW * 1.5;
-    const handY = height - cardH - 20;
-    const startX = width / 2 - ((cardW + 8) * 5 - 8) / 2;
-
-    this.playerCards.forEach((card, i) => {     
-        const x = startX + i * (cardW + 8);
-        const img = this.add.image(x, handY, `item_${card.image}`)
-            .setDisplaySize(cardW, cardH)
-            .setOrigin(0.5)
-            .setAlpha(card.played ? 0.3 : 1)
-            .setInteractive({ draggable: !card.played && this.activePlayer === 0 && !this.gameEnded });
-
-        // --- Effet lumineux si c'est au joueur de jouer et la carte n'est pas jouÃ©e ---
-        if (this.activePlayer === 0 && !card.played && !this.gameEnded) {
-            this.applyGlowEffect(img, x, handY, cardW, cardH, 0xcbe2ea, 0.5, 1.3);
-        }
-
-        // Drag events
-        img.on('dragstart', (pointer) => {
-            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
-                this.draggedCardIdx = i;
-                img.setAlpha(0.7);
-            }
-        });
-        img.on('drag', (pointer, dragX, dragY) => {
-            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
-                img.x = dragX;
-                img.y = dragY;
-            }
-        });
-        img.on('dragend', (pointer, dropX, dropY, dropped) => {
-            if (!card.played && this.activePlayer === 0 && !this.gameEnded) {
-                img.setAlpha(1);
-                img.x = x;
-                img.y = handY;
-                if (!dropped) this.draggedCardIdx = null;
-            }
-        });
-
-        this.input.setDraggable(img);
-
-        this.container.add(img);
-
-        // Affiche les valeurs autour de la carte
-        this.drawCardValues(x, handY, cardW, cardH, card);
-    });
-
-    // Retire tout listener 'drop' prÃ©cÃ©dent pour Ã©viter les doublons
-    this.input.off('drop');
-
-    // Drop zones pour chaque case du plateau
-    this.input.on('drop', (pointer, gameObject, dropZone) => {
-        if (this.draggedCardIdx !== null && this.activePlayer === 0 && !this.gameEnded) {
-            for (let row = 0; row < 3; row++) {
-                for (let col = 0; col < 3; col++) {
-                    if (this.boardCells[row][col] === dropZone && !this.board[row][col]) {
-                        if (this.isPvP) {
-                            // En PvP, on envoie l'action au serveur, pas de modif locale
-                            this.socket.emit('tt:playCard', {
-                                matchId: this.matchId,
-                                playerId: this.playerId,
-                                cardIdx: this.draggedCardIdx,
-                                row,
-                                col
-                            });
-                            this.draggedCardIdx = null;
-                            // On attend la mise Ã  jour du serveur via 'tt:update'
-                            return;
-                        } else {
-                            // Mode IA/local : logique locale
-                            const card = { ...this.playerCards[this.draggedCardIdx], owner: "player" };
-                            this.playerCards[this.draggedCardIdx].played = true;
-                            this.lastPlayedCard = card;
-                            this.board[row][col] = card;
-                            if (this.sound) this.sound.play('card_place', { volume: 1 });
-                            this.activePlayer = 1;
-                            this.draggedCardIdx = null;
-
-                            // --- Animation de pose PUIS flips ---
-                            const cardW = Math.min(60, width / 8);
-                            const cardH = cardW * 1.5;
-                            const cellW = (width * 0.80) / 3;
-                            const cellH = cellW * 1.5;
-                            const boardW = cellW * 3;
-                            const boardX = width / 2 - boardW / 2;
-                            const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
-                            const toX = boardX + col * cellW + cellW / 2;
-                            const toY = boardY + row * cellH + cellH / 2;
-                            const fromX = startX + this.draggedCardIdx * (cardW + 8);
-                            const fromY = handY;
-
-                            this.animateCardPlacement(card, fromX, fromY, toX, toY, 0x99ccff, () => {
-                                // Ajoute la vraie carte sur le plateau AVANT les flips
-                                const cellRect = this.add.rectangle(toX, toY, cellW - 8, cellH - 8, 0x626262, 1)
-                                    .setOrigin(0.5)
-                                    .setStrokeStyle(7, 0x3399ff);
-                                this.container.add(cellRect);
-
-                                const img = this.add.image(toX, toY, `item_${card.image}`)
-                                    .setDisplaySize(cellW * 0.9, cellH * 0.9)
-                                    .setOrigin(0.5);
-                                this.container.add(img);
-
-                                // Puis lance les flips
-                                this.captureCards(row, col, card, true, () => {
-                                    this.redrawAll();
-                                    if (this.isBoardFull()) {
-                                        this.endGame();
-                                    } else {
-                                        this.time.delayedCall(600, () => this.aiPlay(), [], this);
-                                    }
-                                });
-                            });
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-animateCardPlacement(card, fromX, fromY, toX, toY, tint, onComplete) {
-    const { width, height } = this.sys.game.canvas;
-    const cellW = (width * 0.80) / 3;
-    const cellH = cellW * 1.5;
-
-    const img = this.add.image(fromX, fromY, `item_${card.image}`)
-        .setDisplaySize(cellW * 0.9, cellH * 0.9)
-        .setOrigin(0.5)
-        .setDepth(1000);
-    if (this.sound) this.sound.play('card_place', { volume: 1 });
-
-    this.tweens.add({
-        targets: img,
-        x: toX,
-        y: toY,
-        displayWidth: cellW * 0.99,
-        displayHeight: cellH * 0.99,
-        duration: 320,
-        ease: 'Cubic.easeOut',
-        onComplete: () => {
-            this.tweens.add({
-                targets: img,
-                displayWidth: cellW * 0.9,
-                displayHeight: cellH * 0.9,
-                duration: 120,
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    img.clearTint();
-                    img.destroy();
-                    if (onComplete) onComplete();
-                }
-            });
-        }
-    });
-}
-
-
-animateCapture(row, col, newOwner, onComplete) {
-    const { width, height } = this.sys.game.canvas;
-    const cardW = Math.min(60, width / 8);
-    const cellW = (width * 0.80) / 3;
-    const cellH = cellW * 1.5;
-    const boardW = cellW * 3;
-    const boardX = width / 2 - boardW / 2;
-    const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
-    const x = boardX + col * cellW + cellW / 2;
-    const y = boardY + row * cellH + cellH / 2;
-    let cardImg = null, cellRect = null;
-    this.container.iterate(child => {
-        if (
-            child.texture &&
-            child.x === x &&
-            child.y === y &&
-            Math.abs(child.displayWidth - cellW * 0.9) < 2
-        ) cardImg = child;
-        if (
-            child.width === cellW - 8 &&
-            child.height === cellH - 8 &&
-            child.x === x &&
-            child.y === y
-        ) cellRect = child;
-    });
-    if (!cardImg) return;
-
-    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-    cardImg.setOrigin(0.5, 0.5);
-
-    // 1. RÃ©duit scaleX Ã  0 (ferme la carte)
-    this.tweens.add({
-        targets: cardImg,
-        scaleX: 0,
-        duration: 220,
-        ease: 'Cubic.easeIn',
-        onUpdate: () => {
-            if (cellRect) cellRect.setAlpha(0.5);
-        },
-onComplete: () => {
-    // 2. Change texture et bordure
-    cardImg.setTexture(`item_${this.board[row][col].image}`);
-    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-    cardImg.setOrigin(0.5, 0.5);
-    if (cellRect) {
-        let borderColor = 0xffffff;
-        if (newOwner === "player" || newOwner === this.playerId) borderColor = 0x3399ff;
-        else if (newOwner === "opponent" || newOwner === this.opponentId) borderColor = 0xff3333;
-        cellRect.setStrokeStyle(7, borderColor);
-        cellRect.setAlpha(1);
-    }
-    if (this.sound) this.sound.play('card_capture', { volume: 1 });
-
-    // --- Effet flash ---
-    const flashColor = (newOwner === "player" || newOwner === this.playerId) ? 0x3399ff : 0xff3333;
-    const flash = this.add.rectangle(x, y, cellW * 0.9, cellH * 0.9, flashColor, 1)
-        .setOrigin(0.5)
-        .setDepth(cardImg.depth + 1);
-    this.container.add(flash);
-    this.tweens.add({
-        targets: flash,
-        alpha: 0,
-        duration: 180,
-        ease: 'Cubic.easeOut',
-        onComplete: () => flash.destroy()
-    });
-
-    // 3. RÃ©ouvre la carte (scaleX 0 â†’ 1.08 â†’ 1)
-    this.tweens.add({
-        targets: cardImg,
-        scaleX: 1.08,
-        duration: 200,
-        ease: 'Cubic.easeOut',
-        onUpdate: () => {
-            cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-        },
-        onComplete: () => {
-            this.tweens.add({
-                targets: cardImg,
-                scaleX: 1,
-                duration: 100,
-                ease: 'Cubic.easeOut',
-                onUpdate: () => {
-                    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-                },
-                onComplete: () => {
-                    cardImg.scaleX = 1;
-                    cardImg.setDisplaySize(cellW * 0.9, cellH * 0.9);
-                    cardImg.setOrigin(0.5, 0.5);
-                    if (onComplete) onComplete();
-                }
-            });
-        }
-    });
-}
-    });
-}
-
-applyGlowEffect(img, x, y, cardW, cardH, color = 0xffff00, alpha = 0.22, scale = 1.4) {
-    const glowW = cardW * scale;
-    const glowH = cardH * scale;
-    const steps = 22;
-
-    // CrÃ©e le RenderTexture centrÃ© sur (x, y)
-    const rt = this.add.renderTexture(x, y, glowW, glowH).setOrigin(0.5, 0.5);
-
-    for (let i = steps; i > 0; i--) {
-        const t = i / steps;
-        const ellipseW = glowW * t;
-        const ellipseH = glowH * t;
-        const stepAlpha = alpha * t * t;
-        const g = this.make.graphics({ x: 0, y: 0, add: false });
-        g.fillStyle(color, stepAlpha);
-        g.fillEllipse(glowW / 2, glowH / 2, ellipseW, ellipseH);
-        rt.draw(g, 0, 0);
-        g.destroy();
-    }
-    rt.setDepth(img.depth ? img.depth - 1 : -100);
-    this.container.add(rt);
-
-    // Effet de pulsation doux
-    this.tweens.add({
-        targets: rt,
-        alpha: { from: 0.7, to: 1 },
-        duration: 1200,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
-}
-
-    // Capture logique avec animation
-captureCards(row, col, card, animate = false, onAllFlipsDone) {
-    const dirs = [
-        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
-        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
-        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
-        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
-    ];
-    const ruleMethods = this.getActiveRules();
-    const doClassicFlips = (dirs, row, col, card, animate, onAllFlipsDone) => {
-        let flipsToDo = 0, flipsDone = 0;
-        const flips = [];
-        for (const { dr, dc, self, opp } of dirs) {
-            const nr = row + dr, nc = col + dc;
-            if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-                const neighbor = this.board[nr][nc];
-                if (neighbor && neighbor.owner !== card.owner) {
-                    if (parseInt(card[self]) > parseInt(neighbor[opp])) {
-                        neighbor.owner = card.owner;
-                        if (animate) {
-                            flipsToDo++;
-                            flips.push({ nr, nc, owner: card.owner });
-                        }
-                        if (card.owner === "player" || card.owner === this.playerId) {
-                            this.playerScore++;
-                            this.opponentScore--;
-                        } else {
-                            this.opponentScore++;
-                            this.playerScore--;
-                        }
-                            this.applyCombo(nr, nc, card.owner, animate, () => {
-                                this.animateCapture(nr, nc, card.owner, () => {
-                                    flipsDone++;
-                                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
-                                });
-                            });
-                    }
-                }
-            }
-        }
-        if (animate && flipsToDo > 0) {
-            flips.forEach(flip => {
-                this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
-                    flipsDone++;
-                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
-                });
-            });
-        } else if (onAllFlipsDone) {
-            onAllFlipsDone();
-        }
-    };
-
-    let specialFlips = [];
-    let triggeredRule = null;
-    for (const rule of ruleMethods) {
-        console.log(`[TripleTriad] Appel de la mÃ©thode de rÃ¨gle : ${rule.name}`);
-        const flips = rule(row, col, card);
-        if (flips && flips.length) {
-            specialFlips.push(...flips);
-            triggeredRule = rule.name || rule.toString(); // Pour afficher le nom de la rÃ¨gle
-        }
-    }
-    if (!this.isPvP && triggeredRule) {
-        let ruleLabel = triggeredRule;
-        if (ruleLabel === "bound ruleSame") ruleLabel = "Identique";
-        if (ruleLabel === "bound rulePlus") ruleLabel = "Plus";
-        if (ruleLabel === "bound ruleSameWall") ruleLabel = "Murale";
-        this.showRuleMessage(`RÃ¨gle : ${ruleLabel}`);
-    }
-    // --- AJOUT : anime les flips spÃ©ciaux si animate === true ---
-    let specialFlipsToDo = 0, specialFlipsDone = 0;
-    if (animate && specialFlips.length > 0) {
-        specialFlipsToDo = specialFlips.length;
-        specialFlips.forEach(flip => {
-            const neighbor = this.board[flip.row][flip.col];
-            if (neighbor && neighbor.owner !== card.owner) {
-                neighbor.owner = card.owner;
-                // Mets Ã  jour le score
-                if (card.owner === "player" || card.owner === this.playerId) {
-                    this.playerScore++;
-                    this.opponentScore--;
-                } else {
-                    this.opponentScore++;
-                    this.playerScore--;
-                }
-                this.animateCapture(flip.row, flip.col, card.owner, () => {
-                    specialFlipsDone++;
-                    if (specialFlipsDone === specialFlipsToDo) {
-                        // AprÃ¨s les flips spÃ©ciaux, lancer la capture classique
-                        doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
-                    }
-                });
-            } else {
-                specialFlipsDone++;
-                if (specialFlipsDone === specialFlipsToDo) {
-                    doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
-                }
-            }
-        });
-        return; // On attend la fin des animations spÃ©ciales avant de lancer la suite
-    } else {
-        // Pas d'animation spÃ©ciale, on applique direct et on continue
-        for (const flip of specialFlips) {
-            const neighbor = this.board[flip.row][flip.col];
-            if (neighbor && neighbor.owner !== card.owner) {
-                neighbor.owner = card.owner;
-                if (card.owner === "player" || card.owner === this.playerId) {
-                    this.playerScore++;
-                    this.opponentScore--;
-                } else {
-                    this.opponentScore++;
-                    this.playerScore--;
-                }
-            }
-        }
-        doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
-    }
-}
-
-
-showStartingArrow(startingPlayer, onComplete) {
-    const { width, height } = this.sys.game.canvas;
-    // CrÃ©e la flÃ¨che (triangle Ã©pais)
-    const arrowLength = Math.min(width, height) * 0.17;
-    const baseWidth = arrowLength * 0.83; // Largeur de la base (plus large que haut)
-    const graphics = this.add.graphics({ x: width / 2, y: height / 2 });
-
-    // DÃ©gradÃ© simulÃ© : plusieurs triangles du plus clair au plus foncÃ©
-    const steps = 18;
-    for (let i = 0; i < steps; i++) {
-        const t = i / (steps - 1);
-        // Interpolation de couleur du jaune clair au jaune foncÃ©
-        const color = Phaser.Display.Color.Interpolate.ColorWithColor(
-            new Phaser.Display.Color(255, 255, 180),   // jaune trÃ¨s clair
-            new Phaser.Display.Color(240, 210, 60),    // jaune clair
-            steps - 1,
-            i
-        );
-        const hex = Phaser.Display.Color.GetColor(color.r, color.g, color.b);
-        graphics.fillStyle(hex, 1);
-
-        // Triangle lÃ©gÃ¨rement plus petit Ã  chaque itÃ©ration
-        const l = arrowLength * (1 - t * 0.18);
-        const w = baseWidth * (1 - t * 0.18);
-
-        graphics.beginPath();
-        graphics.moveTo(0, -l / 2);
-        graphics.lineTo(w / 2, l / 2);
-        graphics.lineTo(-w / 2, l / 2);
-        graphics.closePath();
-        graphics.fillPath();
-    }
-
-    graphics.lineStyle(5, 0x222222, 1);
-    graphics.beginPath();
-    graphics.moveTo(0, -arrowLength / 2);
-    graphics.lineTo(baseWidth / 2, arrowLength / 2);
-    graphics.lineTo(-baseWidth / 2, arrowLength / 2);
-    graphics.closePath();
-    graphics.strokePath();
-
-    graphics.setDepth(9999);
-
-    // DÃ©termine l'angle cible (0 = haut, 180 = bas)
-    const targetAngle = startingPlayer === 0 ? 180 : 0;
-    const spins = 5 + Math.floor(Math.random() * 2); // 3 ou 4 tours complets
-    const totalAngle = 360 * spins + targetAngle;
-       // --- Joue le son pendant la rotation ---
-    if (this.sound) this.sound.play('tripleTriadArrow', { volume: 1 });
-    this.tweens.add({
-        targets: graphics,
-        angle: totalAngle,
-        duration: 1400,
-        ease: 'Cubic.easeOut',
-        onComplete: () => {
-            // Petit effet de scale pour l'arrÃªt
-            this.tweens.add({
-                targets: graphics,
-                scale: { from: 1.3, to: 1 },
-                duration: 220,
-                yoyo: true,
-                onComplete: () => {
-                    this.time.delayedCall(700, () => {
-                        graphics.destroy();
-                        if (onComplete) onComplete();
-                    });
-                }
-            });
-        }
-    });
-}
-
-aiPlay() {
-    if (this.activePlayer !== 1 || this.gameEnded) return;
-    // IA joue une carte au hasard sur une case libre
-    const available = [];
-    for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-            if (!this.board[row][col]) available.push({ row, col });
-        }
-    }
-    const cardIdx = this.opponentCards.findIndex(c => !c.played);
-    if (available.length && cardIdx !== -1) {
-        const pos = available[Math.floor(Math.random() * available.length)];
-        const card = { ...this.opponentCards[cardIdx], owner: "opponent" };
-        this.opponentCards[cardIdx].played = true;
-        this.lastPlayedCard = card;
-        this.board[pos.row][pos.col] = card;
-
-        // --- Animation de pose PUIS flips ---
-        let poseDone = false;
-        let flipsDone = false;
-
-        const finish = () => {
-            if (poseDone && flipsDone && this.activePlayer === 1) {
-                this.activePlayer = 0;
-                this.redrawAll();
-                if (this.isBoardFull()) this.endGame();
-                else this.time.delayedCall(600, () => this.aiPlay(), [], this);
+        
+        let animationsCompleted = 0;
+        const totalAnimations = poses.length + flips.length;
+        
+        const checkComplete = () => {
+            animationsCompleted++;
+            if (animationsCompleted >= totalAnimations && onComplete) {
+                onComplete();
             }
         };
-
-        const { width, height } = this.sys.game.canvas;
-        const cardW = Math.min(60, width / 8);
-        const cardH = cardW * 1.5;
-        const cellW = (width * 0.80) / 3;
-        const cellH = cellW * 1.5;
-        const boardW = cellW * 3;
-        const boardX = width / 2 - boardW / 2;
-        const boardY = cardW * 1.5 * .72 + ((height - cardW * 1.5 * .72 - (cardW * 1.5 + 24)) - cellH * 3) / 2;
-        const toX = boardX + pos.col * cellW + cellW / 2;
-        const toY = boardY + pos.row * cellH + cellH / 2;
-
-        // 1. Animation de pose
-        this.animateCardPlacement(card, toX, -cardH, toX, toY, 0xff9999, () => {
-            poseDone = true;
-            finish();
+        
+        // Anime les poses
+        poses.forEach(({ row, col, card }) => {
+            const { width, height } = this.sys.game.canvas;
+            const boardDimensions = TripleTriadUtils.calculateBoardDimensions(width, height);
+            const targetPos = TripleTriadUtils.getBoardCellPosition(row, col, boardDimensions);
+            
+            let fromPos;
+            if (card.owner === this.gameState.playerId) {
+                fromPos = TripleTriadUtils.getPlayerHandPosition(width, height, 0);
+            } else {
+                fromPos = TripleTriadUtils.getOpponentHandPosition(width, 0);
+            }
+            
+            this.animationManager.animateCardPlacement(
+                card, fromPos.x, fromPos.y, targetPos.x, targetPos.y, checkComplete
+            );
         });
-
-        // 2. Flips/captures (lancÃ©s en mÃªme temps, mais finish n'appelle redrawAll que quand les deux sont faits)
-        this.captureCards(pos.row, pos.col, card, true, () => {
-            flipsDone = true;
-            finish();
+        
+        // Anime les captures
+        flips.forEach(({ row, col, owner }) => {
+            const card = this.boardManager.board[row][col];
+            this.animationManager.animateCardCapture(
+                row, col, owner, card.image, this.container, checkComplete
+            );
+        });
+        
+        // Si aucune animation, on termine immédiatement
+        if (totalAnimations === 0 && onComplete) {
+            onComplete();
+        }
+    }
+    
+    /**
+     * Exécute le tour de l'IA
+     */
+    executeAITurn() {
+        if (this.boardManager.activePlayer !== TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT || 
+            this.boardManager.gameEnded) {
+            return;
+        }
+        
+        // Obtient les cartes et positions disponibles
+        const availableCards = this.boardManager.getAvailableCards("opponent");
+        const gameState = this.boardManager.getGameState();
+        
+        console.log(`[TripleTriad AI] Cartes disponibles pour l'IA:`, availableCards.length);
+        
+        // L'IA choisit son coup
+        const aiMove = this.aiPlayer.chooseMove(
+            this.boardManager.board, 
+            availableCards, 
+            this.rulesEngine.rules,
+            gameState
+        );
+        
+        if (!aiMove) {
+            console.error('[TripleTriad] IA ne peut pas jouer');
+            return;
+        }
+        
+        console.log(`[TripleTriad AI] IA choisit carte index ${aiMove.cardIndex} vers position (${aiMove.position.row}, ${aiMove.position.col})`);
+        
+        // L'index retourné par l'IA correspond à l'index dans availableCards
+        // Il faut convertir vers l'index dans la main complète de l'IA
+        let cardIndexInHand = -1;
+        let availableCount = 0;
+        
+        for (let i = 0; i < this.boardManager.opponentCards.length; i++) {
+            const card = this.boardManager.opponentCards[i];
+            if (!card.played) {
+                if (availableCount === aiMove.cardIndex) {
+                    cardIndexInHand = i;
+                    break;
+                }
+                availableCount++;
+            }
+        }
+        
+        if (cardIndexInHand === -1) {
+            console.error('[TripleTriad] Impossible de trouver l\'index de la carte dans la main');
+            return;
+        }
+        
+        console.log(`[TripleTriad AI] Index réel dans la main: ${cardIndexInHand}`);
+        
+        // Simule un délai de réflexion
+        const thinkingDelay = this.aiPlayer.getThinkingDelay();
+        
+        this.time.delayedCall(thinkingDelay, () => {
+            this.executeMove("opponent", cardIndexInHand, aiMove.position.row, aiMove.position.col);
         });
     }
-}
-
-endGame() {
-        this.gameEnded = true;
-        const playerScore = this.playerScore;
-        const opponentScore = this.opponentScore;
-        let resultText = "";
-        let color = "#fff";
-        let musicKey = null;
-        console.log(`Fin de partie : Joueur ${playerScore} - Adversaire ${opponentScore}`);
+    
+    /**
+     * Exécute un mouvement (joueur ou IA)
+     */
+    executeMove(owner, cardIndex, row, col) {
+        console.log(`[TripleTriad] Tentative de placement carte - Owner: ${owner}, Index: ${cardIndex}, Position: (${row}, ${col})`);
         
+        // Vérifie la validité de l'index
+        const cards = owner === "player" ? this.boardManager.playerCards : this.boardManager.opponentCards;
+        if (cardIndex < 0 || cardIndex >= cards.length) {
+            console.error(`[TripleTriad] Index de carte invalide: ${cardIndex}, cartes disponibles: ${cards.length}`);
+            return;
+        }
         
-        // --- AJOUT : gestion Mort Subite ---
-        if (this.rules.mortSubite && playerScore === opponentScore) {
-            // RÃ©cupÃ¨re toutes les cartes du plateau
-            const cardsOnBoard = [];
-            for (let row = 0; row < 3; row++) {
-                for (let col = 0; col < 3; col++) {
-                    const cell = this.board[row][col];
-                    if (cell && cell.owner) {
-                        cardsOnBoard.push({ ...cell });
-                    }
+        const card = cards[cardIndex];
+        if (!card) {
+            console.error(`[TripleTriad] Aucune carte trouvée à l'index: ${cardIndex}`);
+            return;
+        }
+        
+        if (card.played) {
+            console.error(`[TripleTriad] Carte déjà jouée: ${card.nom}`);
+            return;
+        }
+        
+        console.log(`[TripleTriad] Placement de la carte: ${card.nom} (owner: ${owner})`);
+        
+        // Place la carte
+        const result = this.boardManager.placeCard(row, col, cardIndex, owner);
+        
+        if (!result.success) {
+            console.error('[TripleTriad] Échec du placement de carte:', result.error);
+            return;
+        }
+        
+        // Applique les règles de capture
+        const gameState = this.boardManager.getGameState();
+        gameState.isPvP = this.gameState.isPvP;
+        gameState.playerId = this.gameState.playerId;
+        gameState.opponentId = this.gameState.opponentId;
+        
+        const captureResult = this.rulesEngine.captureCards(
+            this.boardManager.board, row, col, result.placedCard, gameState
+        );
+        
+        // Met à jour les scores
+        this.boardManager.updateScores(gameState.playerScore, gameState.opponentScore);
+        
+        // Montre les règles déclenchées
+        if (captureResult.triggeredRules.length > 0 && !this.gameState.isPvP) {
+            this.animationManager.showRuleMessage(`Règle : ${captureResult.triggeredRules.join(', ')}`);
+        }
+        
+        // Anime le placement
+        this.animatePlacement(result, () => {
+            // Anime les captures
+            this.animateCaptures(captureResult.captures, () => {
+                this.boardManager.switchActivePlayer();
+                this.drawAll();
+                
+                // Vérifie la fin de partie
+                if (TripleTriadUtils.isBoardFull(this.boardManager.board)) {
+                    this.handleGameEnd();
+                } else if (!this.gameState.isPvP && 
+                          this.boardManager.activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT) {
+                    this.time.delayedCall(600, () => this.executeAITurn());
                 }
-            }
-            // RÃ©initialise le plateau
-            this.board = this.createEmptyBoard();
-            // Remet les cartes dans la main de chaque joueur
-            this.playerCards = this.playerCards.map(card => ({ ...card, played: false }));
-            this.opponentCards = this.opponentCards.map(card => ({ ...card, played: false }));
-            for (const card of cardsOnBoard) {
-                if (card.owner === "player") {
-                    const idx = this.playerCards.findIndex(c => c.image === card.image && c.played === false);
-                    if (idx !== -1) this.playerCards[idx].played = false;
-                } else if (card.owner === "opponent") {
-                    const idx = this.opponentCards.findIndex(c => c.image === card.image && c.played === false);
-                    if (idx !== -1) this.opponentCards[idx].played = false;
-                }
-            }
-            this.playerScore = 5;
-            this.opponentScore = 5;
-            this.gameEnded = false;
-            this.endText = null;
-            this.redrawAll();
-            this.showRuleMessage("Mort subite ! Nouvelle manche");
-            this.activePlayer = Math.random() < 0.5 ? 0 : 1;
+            });
+        });
+    }
+    
+    /**
+     * Gère la fin de partie
+     */
+    handleGameEnd() {
+        // Vérifie la mort subite
+        const gameState = this.boardManager.getGameState();
+        if (this.rulesEngine.shouldApplySuddenDeath(gameState)) {
+            this.rulesEngine.applySuddenDeath(gameState);
+            this.boardManager.updateGameState(gameState);
+            this.animationManager.showRuleMessage("Mort subite ! Nouvelle manche");
+            this.drawAll();
+            
             this.time.delayedCall(1200, () => {
-                if (this.activePlayer === 1) this.aiPlay();
+                if (this.boardManager.activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT) {
+                    this.executeAITurn();
+                }
             });
             return;
         }
-        // --- FIN AJOUT ---
         
-        if (playerScore > opponentScore) {
-            resultText = "VICTOIRE";
-            color = "#33ff33";
-            musicKey = "victoryMusic";
-        } else if (playerScore < opponentScore) {
-            resultText = "DEFAITE";
-            color = "#ff3333";
-            musicKey = "defeatMusic";
-        } else {
-            resultText = "EGALITÃ‰";
-            color = "#ffff33";
-            musicKey = "defeatMusic";
-        }
-        const { width, height } = this.sys.game.canvas;
-        this.endText = this.add.text(width / 2, height / 2, resultText, {
-            font: `bold ${Math.round(width * 0.13)}px Arial`,
-            fill: color,
-            stroke: "#000",
-            strokeThickness: 8
-        }).setOrigin(0.5).setAlpha(0).setScale(0.7);
-
-        this.container.add(this.endText);
+        // Détermine le gagnant
+        const result = this.rulesEngine.determineWinner(gameState);
+        
+        this.boardManager.endGame();
+        
+        // Arrête la musique et joue celle de fin
         MusicManager.stop();
-        MusicManager.play(this, musicKey, { loop: false, volume: 0.7 });
-
-        // Animation d'apparition du texte de fin
-        this.tweens.add({
-            targets: this.endText,
-            alpha: 1,
-            scale: 1,
-            duration: 420,
-            ease: 'Back.easeOut'
+        MusicManager.play(this, result.music, { 
+            loop: false, 
+            volume: TRIPLE_TRIAD_CONSTANTS.AUDIO.VOLUME.END_MUSIC 
         });
-    this.showEndAndFadeOut();
-    }
-
-
-showEndAndFadeOut() {
-const { width, height } = this.sys.game.canvas;
-this.time.delayedCall(4300, () => {
-    const fadeRect = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0)
-        .setOrigin(0.5)
-        .setDepth(9999);
-    this.tweens.add({
-        targets: fadeRect,
-        alpha: 1,
-        duration: 700,
-        onComplete: () => {
-            this.cleanUp();
-            this.scene.stop();
-            MusicManager.stop();
-            this.scene.resume("GameScene");
-        }
-    });
-});
-}
-
-cleanUp() {
-    // DÃ©truit tous les objets graphiques
-    if (this.container) {
-        // Stoppe tous les tweens sur les enfants du container
-        this.container.iterate(child => {
-            if (child && child.active) {
-                this.tweens.killTweensOf(child);
-            }
+        
+        // Anime la fin
+        const endAnimation = this.animationManager.animateEndGame(result.text, result.color, () => {
+            this.cleanup();
+            this.returnToLobby();
         });
-        this.container.destroy(true);
-        this.container = null;
+        
+        // Ajoute le texte de fin au container
+        this.container.add(endAnimation.endText);
     }
-    // RÃ©initialise les variables d'Ã©tat
-    this.board = this.createEmptyBoard();
-    this.playerCards = [];
-    this.opponentCards = [];
-    this.activePlayer = 0;
-    this.draggedCardIdx = null;
-    this.boardCells = [];
-    this.lastPlayedCard = null;
-    this.endText = null;
-    this.gameEnded = false;
-    this.playerScore = 5;
-    this.opponentScore = 5;
-    // Retire les listeners Ã©ventuels
-    window.removeEventListener("resize", this._resizeHandler);
-    this.input.off('drop');
-    if (this.socket) {
-        this.socket.off('tt:update');
-        this.socket.off('tt:matchReady');
-    }
-}
-
-drawCardValues(x, y, w, h, card) {
-        const valueFont = `${Math.round(w * 0.38)}px Arial`;
-        // Haut
-        this.container.add(this.add.text(x, y - h / 2 + 16, card.powerUp, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(0.5, 1));
-        // Bas
-        this.container.add(this.add.text(x, y + h / 2 - 16, card.powerDown, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(0.5, 0));
-        // Gauche
-        this.container.add(this.add.text(x - w / 2 + 14, y, card.powerLeft, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(1, 0.5));
-        // Droite
-        this.container.add(this.add.text(x + w / 2 - 14, y, card.powerRight, {
-            font: valueFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(0, 0.5));
-    }
-
-
-handleCellClick(row, col) {
-    // Si la case est dÃ©jÃ  occupÃ©e, on ne fait rien
-    if (this.board[row][col]) return;
-
-    // Si aucune carte n'est sÃ©lectionnÃ©e, on ne fait rien
-    if (this.draggedCardIdx === null) return;
-
-    // PvP : on envoie l'action au serveur
-    if (this.isPvP) {
-        // VÃ©rifie que c'est bien le tour du joueur
-        if (this.activePlayer !== 0) return; // 0 = joueur local, 1 = adversaire
-
-        this.socket.emit('tt:playCard', {
-            matchId: this.matchId,
-            playerId: this.playerId,
-            cardIdx: this.draggedCardIdx,
-            row,
-            col
+    
+    /**
+     * Dessine toute l'interface
+     */
+    drawAll() {
+        if (this.boardManager.gameEnded || !this.renderer) return;
+        
+        // Nettoie le container
+        this.container.removeAll(true);
+        
+        // Dessine les éléments
+        this.renderer.drawBackground();
+        
+        const boardCells = [];
+        this.renderer.drawBoard(this.boardManager.board, boardCells, {
+            ...this.gameState,
+            ...this.boardManager.getGameState()
         });
-        this.draggedCardIdx = null;
-        // On attend la mise Ã  jour du serveur (pas de modif locale ici)
-        return;
+        this.boardManager.setBoardCells(boardCells);
+        
+        this.renderer.drawOpponentHand(
+            this.boardManager.opponentCards,
+            this.boardManager.activePlayer,
+            this.boardManager.gameEnded
+        );
+        
+        this.renderer.drawPlayerHand(
+            this.boardManager.playerCards,
+            this.boardManager.activePlayer,
+            this.boardManager.gameEnded,
+            (action, cardIndex, ...args) => this.handleCardInteraction(action, cardIndex, ...args)
+        );
+        
+        this.renderer.drawScores(this.boardManager.playerScore, this.boardManager.opponentScore);
+        
+        // Configure les drop zones
+        this.setupDropZones(boardCells);
     }
-        // Logique pour poser une carte sur la grille
-    if (this.board[row][col] === null && this.activePlayer === 0) {
-        const cardToPlay = this.playerCards.find(card => !card.played);
-        if (cardToPlay) {
-            this.board[row][col] = cardToPlay;
-            cardToPlay.played = true;
-            if (this.sound) this.sound.play('card_place', { volume: 1 });
-            this.activePlayer = 1;
-            this.redrawAll();
-        }
-    }
-    // Lancer le tour de l'IA si besoin
-    if (this.mode === "ai") {
-        this.time.delayedCall(600, () => this.aiPlay());
-    }
-}
-
-handlePlayerCardClick(cardIdx) {
-        // Logique pour sÃ©lectionner une carte Ã  jouer
-        if (this.activePlayer === 0) {
-            const card = this.playerCards[cardIdx];
-            if (card && !card.played) {
-                // Met Ã  jour l'Ã©tat de la carte et redessine
-                card.played = true;
-                this.activePlayer = 1;
-                this.redrawAll();
+    
+    /**
+     * Gère les interactions avec les cartes
+     */
+    handleCardInteraction(action, cardIndex, ...args) {
+        if (action === 'dragstart') {
+            this.gameState.draggedCardIdx = cardIndex;
+        } else if (action === 'dragend') {
+            const [pointer, dropX, dropY, dropped] = args;
+            if (!dropped) {
+                this.gameState.draggedCardIdx = null;
             }
         }
     }
-
-drawCardDetail(card, width, height) {
-        // Affiche uniquement les chiffres dans la partie infÃ©rieure droite
-        const detailW = Math.min(120, width * 0.28);
-        const detailH = detailW * 1.5;
-        const x = width - detailW - 24;
-        const y = height - detailH - 24;
-
-        const statFont = `${Math.round(detailH * 0.22)}px Arial`;
-        // Haut
-        this.container.add(this.add.text(x + detailW / 2, y + 12, card.powerUp, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(0.5, 0));
-        // Bas
-        this.container.add(this.add.text(x + detailW / 2, y + detailH - 12, card.powerDown, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(0.5, 1));
-        // Gauche
-        this.container.add(this.add.text(x + 12, y + detailH / 2, card.powerLeft, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(1, 0.5));
-        // Droite
-        this.container.add(this.add.text(x + detailW - 12, y + detailH / 2, card.powerRight, {
-            font: statFont, fill: "#fff", stroke: "#000", strokeThickness: 6
-        }).setOrigin(0, 0.5));
-    }
-
-isBoardFull() {
-        for (let row = 0; row < 3; row++)
-            for (let col = 0; col < 3; col++)
-                if (!this.board[row][col]) return false;
-        return true;
-    }
-
-generateMatchId() {
-        // Utilise timestamp + random pour Ã©viter les collisions
-        return `tt-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-    }
-
-ruleSame(row, col, card) {
-    // Debug : affiche les infos de la carte posÃ©e et des voisins
-    console.log(`[Identique] Test pour carte posÃ©e en (${row},${col})`, card);
-
-    const dirs = [
-        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown", name: "haut" },
-        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp", name: "bas" },
-        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight", name: "gauche" },
-        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft", name: "droite" }
-    ];
-    let matches = [];
-    for (const { dr, dc, self, opp, name } of dirs) {
-        const nr = row + dr, nc = col + dc;
-        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-            const neighbor = this.board[nr][nc];
-            if (neighbor) {
-                console.log(`[Identique] Voisin ${name} (${nr},${nc})`, neighbor, 
-                    `| Valeur posÃ©e: ${card[self]}, Valeur voisine: ${neighbor[opp]}, Owner: ${neighbor.owner}`);
-            } else {
-                console.log(`[Identique] Voisin ${name} (${nr},${nc}) : vide`);
-            }
-            // On ne considÃ¨re que les cartes adverses
-            if (neighbor && neighbor.owner !== card.owner) {
-                if (parseInt(card[self]) === parseInt(neighbor[opp])) {
-                    console.log(`[Identique] MATCH cÃ´tÃ© ${name} : ${card[self]} == ${neighbor[opp]}`);
-                    matches.push({ row: nr, col: nc, owner: card.owner });
+    
+    /**
+     * Configure les zones de drop du plateau
+     */
+    setupDropZones(boardCells) {
+        this.input.off('drop'); // Évite les doublons
+        
+        this.input.on('drop', (pointer, gameObject, dropZone) => {
+            if (this.gameState.draggedCardIdx !== null && 
+                this.boardManager.activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER && 
+                !this.boardManager.gameEnded) {
+                
+                // Trouve la position de la cellule
+                const position = this.boardManager.findCellPosition(dropZone);
+                if (position && TripleTriadUtils.isCellEmpty(this.boardManager.board, position.row, position.col)) {
+                    
+                    if (this.gameState.isPvP) {
+                        // Envoie au serveur
+                        this.networkHandler.playCard(this.gameState.draggedCardIdx, position.row, position.col);
+                    } else {
+                        // Exécute localement
+                        this.executeMove("player", this.gameState.draggedCardIdx, position.row, position.col);
+                    }
+                    
+                    this.gameState.draggedCardIdx = null;
                 }
             }
-        }
+        });
     }
-    console.log(`[Identique] Nombre de matches adverses : ${matches.length}`, matches);
-    if (matches.length >= 2) {
-        console.log(`[Identique] RÃˆGLE ACTIVÃ‰E : retourne`, matches);
-        return matches;
-    }
-    console.log(`[Identique] RÃˆGLE NON ACTIVÃ‰E`);
-    return [];
-    }
-rulePlus(row, col, card) {
-    // RÃ¨gle "Plus" : il faut au moins deux voisins adverses avec la mÃªme somme
-    const dirs = [
-        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown", name: "haut" },
-        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp", name: "bas" },
-        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight", name: "gauche" },
-        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft", name: "droite" }
-    ];
-    let sums = [];
-    for (const { dr, dc, self, opp, name } of dirs) {
-        const nr = row + dr, nc = col + dc;
-        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-            const neighbor = this.board[nr][nc];
-            if (neighbor && neighbor.owner !== card.owner) {
-                const sum = parseInt(card[self]) + parseInt(neighbor[opp]);
-                sums.push({ sum, nr, nc, neighbor, name });
-            }
-        }
-    }
-    // Cherche toutes les paires de voisins adverses avec la mÃªme somme
-    let flips = [];
-    for (let i = 0; i < sums.length; i++) {
-        for (let j = i + 1; j < sums.length; j++) {
-            if (sums[i].sum === sums[j].sum) {
-                flips.push({ row: sums[i].nr, col: sums[i].nc, owner: card.owner });
-                flips.push({ row: sums[j].nr, col: sums[j].nc, owner: card.owner });
-            }
-        }
-    }
-    // Supprime les doublons
-    flips = flips.filter((v, i, a) => a.findIndex(t => t.row === v.row && t.col === v.col) === i);
-    if (flips.length > 0) {
-        console.log(`[Plus] RÃˆGLE ACTIVÃ‰E : retourne`, flips);
-    }
-    return flips;
-}
-ruleSameWall(row, col, card) {
-    const dirs = [
-        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
-        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
-        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
-        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
-    ];
-    let matches = [];
-    let hasWall = false;
-    for (const { dr, dc, self, opp } of dirs) {
-        const nr = row + dr, nc = col + dc;
-        if (nr < 0 || nr > 2 || nc < 0 || nc > 2) {
-            if (parseInt(card[self]) === 10) {
-                matches.push({ row: nr, col: nc, wall: true });
-                hasWall = true;
-            }
+    
+    /**
+     * Anime le placement d'une carte
+     */
+    animatePlacement(placementResult, onComplete) {
+        const { placedCard, position } = placementResult;
+        const { width, height } = this.sys.game.canvas;
+        
+        // Calcule les positions de départ et d'arrivée
+        const boardDimensions = TripleTriadUtils.calculateBoardDimensions(width, height);
+        const targetPos = TripleTriadUtils.getBoardCellPosition(position.row, position.col, boardDimensions);
+        
+        let fromPos;
+        if (placedCard.owner === "player") {
+            fromPos = TripleTriadUtils.getPlayerHandPosition(width, height, this.gameState.draggedCardIdx || 0);
         } else {
-            const neighbor = this.board[nr][nc];
-            if (neighbor && neighbor.owner !== card.owner) {
-                if (parseInt(card[self]) === parseInt(neighbor[opp])) {
-                    matches.push({ row: nr, col: nc });
-                }
-            }
+            fromPos = TripleTriadUtils.getOpponentHandPosition(width, this.gameState.draggedCardIdx || 0);
         }
+        
+        this.animationManager.animateCardPlacement(
+            placedCard, fromPos.x, fromPos.y, targetPos.x, targetPos.y, onComplete
+        );
     }
-    const flips = matches.filter(m => !m.wall);
-    // La rÃ¨gle ne s'active que s'il y a AU MOINS un mur impliquÃ©
-    if (hasWall && matches.length >= 2 && flips.length > 0) {
-        return flips;
-    }
-    return [];
-}
-applyCombo(row, col, owner, animate = false, onComboDone) {
-    const dirs = [
-        { dr: -1, dc: 0, self: "powerUp", opp: "powerDown" },
-        { dr: 1, dc: 0, self: "powerDown", opp: "powerUp" },
-        { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
-        { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
-    ];
-    let flips = [];
-    for (const { dr, dc, self, opp } of dirs) {
-        const nr = row + dr, nc = col + dc;
-        if (nr >= 0 && nr < 3 && nc >= 0 && nc < 3) {
-            const neighbor = this.board[nr][nc];
-            if (neighbor && neighbor.owner !== owner) {
-                if (parseInt(this.board[row][col][self]) > parseInt(neighbor[opp])) {
-                    flips.push({ row: nr, col: nc });
-                }
-            }
+    
+    /**
+     * Anime les captures
+     */
+    animateCaptures(captures, onComplete) {
+        if (!captures || !captures.classic || captures.classic.length === 0) {
+            if (onComplete) onComplete();
+            return;
         }
-    }
-    if (animate && flips.length > 0) {
-        let done = 0;
-        flips.forEach(flip => {
-            this.board[flip.row][flip.col].owner = owner;
-            if (owner === "player" || owner === this.playerId) {
-                this.playerScore++;
-                this.opponentScore--;
-            } else {
-                this.opponentScore++;
-                this.playerScore--;
-            }
-            this.animateCapture(flip.row, flip.col, owner, () => {
-                // Combo rÃ©cursif
-                this.applyCombo(flip.row, flip.col, owner, animate, () => {
-                    done++;
-                    if (done === flips.length && onComboDone) onComboDone();
-                });
-            });
+        
+        let capturesCompleted = 0;
+        const totalCaptures = captures.classic.length;
+        
+        captures.classic.forEach(capture => {
+            const card = this.boardManager.board[capture.row][capture.col];
+            this.animationManager.animateCardCapture(
+                capture.row, capture.col, capture.owner, card.image, this.container,
+                () => {
+                    capturesCompleted++;
+                    if (capturesCompleted === totalCaptures && onComplete) {
+                        onComplete();
+                    }
+                }
+            );
         });
-    } else {
-        for (const flip of flips) {
-            this.board[flip.row][flip.col].owner = owner;
-            if (owner === "player" || owner === this.playerId) {
-                this.playerScore++;
-                this.opponentScore--;
-            } else {
-                this.opponentScore++;
-                this.playerScore--;
-            }
-            // Combo rÃ©cursif sans animation
-            this.applyCombo(flip.row, flip.col, owner, false);
-        }
-        if (onComboDone) onComboDone();
     }
-}
+    
+    /**
+     * Configure le redimensionnement
+     */
+    setupResizeListener() {
+        this.scale.on("resize", () => {
+            this.drawAll();
+        });
+    }
+    
+    /**
+     * Affiche un message d'attente
+     */
+    showWaitingMessage() {
+        const { width, height } = this.sys.game.canvas;
+        
+        this.waitText = this.add.text(width / 2, height * 0.4, "En attente de l'adversaire...", {
+            font: "32px Arial", fill: "#fff"
+        }).setOrigin(0.5);
+    }
+    
+    /**
+     * Cache le message d'attente
+     */
+    hideWaitingMessage() {
+        if (this.waitText) {
+            this.waitText.destroy();
+            this.waitText = null;
+        }
+    }
+    
+    /**
+     * Montre le message de duel
+     */
+    showDuelMessage() {
+        const { width, height } = this.sys.game.canvas;
+        
+        const duelText = this.add.text(width / 2, height / 2, "C'est l'heure du duel !", {
+            font: "bold 40px Arial", fill: "#ff0", stroke: "#000", strokeThickness: 6
+        }).setOrigin(0.5).setAlpha(0);
+        
+        this.tweens.add({
+            targets: duelText,
+            alpha: 1,
+            scale: { from: 0.7, to: 1.1 },
+            duration: 700,
+            yoyo: true,
+            hold: 700,
+            onComplete: () => duelText.destroy()
+        });
+    }
+    
+    /**
+     * Nettoie les ressources
+     */
+    cleanup() {
+        // Nettoie les animations
+        if (this.animationManager) {
+            this.animationManager.stopAllAnimations();
+        }
+        
+        // Nettoie le renderer
+        if (this.renderer) {
+            this.renderer.cleanup();
+        }
+        
+        // Nettoie le réseau
+        if (this.networkHandler) {
+            this.networkHandler.cleanup();
+        }
+        
+        // Nettoie les événements
+        this.events.removeAllListeners();
+        this.input.off('drop');
+        
+        // Nettoie le container
+        if (this.container) {
+            this.container.destroy(true);
+            this.container = null;
+        }
+    }
+    
+    /**
+     * Retourne au lobby
+     */
+    returnToLobby() {
+        this.cleanup();
+        MusicManager.stop();
+        this.scene.stop();
+        this.scene.resume("GameScene");
+    }
 }

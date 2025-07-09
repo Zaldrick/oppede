@@ -1,4 +1,4 @@
-const CONFIG = {
+﻿const CONFIG = {
   joystick: {
     baseColor: 0x888888,
     thumbColor: 0xffffff,
@@ -88,7 +88,7 @@ export class UIManager {
     const player = this.scene.playerManager?.getPlayer();
     if (!player) return;
 
-    // V�rifie s'il y a un event interactif proche
+    // Vérifie s'il y a un event interactif proche
     const obj = this.scene.mapManager?.getNearbyEventObject(player.x, player.y);
     if (obj && obj.eventData && obj.eventData.type === "chest") {
       this.scene.mapManager.handleChestInteraction(obj);
@@ -100,7 +100,7 @@ export class UIManager {
     if (targetId) {
       this.showInteractionMenu(targetId);
     } else {
-      this.scene.displayMessage("Aucun joueur � proximit�\n pour l'interaction");
+      this.scene.displayMessage("Aucun joueur à proximité\n pour l'interaction");
     }
   }
 
@@ -127,7 +127,7 @@ export class UIManager {
     }).setOrigin(0.5);
     this.interactionMenu.add(title);
 
-    const option1 = this.scene.add.text(0, -35, "D�fier", {
+    const option1 = this.scene.add.text(0, -35, "Défier", {
       font: "18px Arial",
       fill: "#ffffff",
       backgroundColor: "#333333",
@@ -148,7 +148,7 @@ export class UIManager {
       padding: { x: 10, y: 5 },
     }).setOrigin(0.5).setInteractive();
 
-    const option4 = this.scene.add.text(menuX, menuY + 120, "?? Quiz", {
+    const option4 = this.scene.add.text(menuX, menuY + 120, "🧠 Quiz", {
       font: "18px Arial",
       fill: "#fff",
       backgroundColor: "#9C27B0",
@@ -158,10 +158,12 @@ export class UIManager {
     this.interactionMenu.add([option1, option2, option3, option4]);
 
     option1.on("pointerdown", () => {
-      this.scene.displayMessage(`Vous avez d�fi� \nle joueur ${targetId}`);
-      this.scene.socketManager?.sendChallenge(targetId);
+      // ✅ NOUVEAU : Lance le menu de config PvP au lieu d'envoyer directement le défi
       this.interactionMenu.destroy();
       this.interactionMenu = null;
+      
+      // Lance le menu de configuration PvP
+      this.scene.startTripleTriadPvP(targetId, targetId);
     });
 
     option2.on("pointerdown", () => {
@@ -177,7 +179,7 @@ export class UIManager {
     });
 
     option4.on("pointerdown", () => {
-      this.scene.displayMessage(`Vous avez invit� ${targetId} � un quiz`);
+      this.scene.displayMessage(`Vous avez invité ${targetId} à un quiz`);
       this.scene.socketManager?.sendQuizInvite(targetId);
       this.interactionMenu.destroy();
       this.interactionMenu = null;
@@ -333,8 +335,19 @@ export class UIManager {
       return;
     }
 
-    this.scene.scene.launch("TripleTriadSelectScene", { playerId });
-    this.scene.scene.pause();
+    // 🛡️ VÉRIFICATION AVEC L'INVENTAIRE DÉJÀ CHARGÉ
+    const inventory = this.scene.inventory || [];
+    const playerCards = inventory.filter(item => item.type === 'card' || item.nom.includes('Carte'));
+
+    console.log('[UIManager] Cartes dans l\'inventaire:', playerCards);
+
+    if (playerCards.length < 5) {
+      this.scene.displayMessage("Vous devez posséder au moins\n5 cartes pour jouer au Triple Triad !\n\nOuvrez des coffres pour en obtenir.");
+      return;
+    }
+
+    // ✅ NOUVEAU : Lance directement le menu de config IA
+    this.scene.startTripleTriadAI();
   }
 
   openQuizGame() {

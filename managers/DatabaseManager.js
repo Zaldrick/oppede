@@ -406,6 +406,65 @@ class DatabaseManager {
                 res.status(500).json({ error: "Erreur serveur lors de l'ajout des cartes" });
             }
         });
+
+        // === NOUVELLE ROUTE : Cartes aléatoires pour l'IA ===
+        app.get('/api/cards/ai/random', async (req, res) => {
+            try {
+                const count = parseInt(req.query.count) || 5;
+                const difficulty = req.query.difficulty || 'medium';
+                
+                console.log(`[AI Cards] Récupération de ${count} cartes aléatoires pour IA (difficulté: ${difficulty})`);
+                
+                const db = await this.connectToDatabase();
+                const cardsCollection = db.collection('items');
+                
+                // Filtre selon la difficulté de l'IA
+                let filter = { type: 'card' };
+                
+                switch (difficulty) {
+                    case 'easy':
+                        filter.rarity = { $lte: 3 }; // Cartes de rareté 1-3
+                        break;
+                    case 'medium':
+                        filter.rarity = { $lte: 4 }; // Cartes de rareté 1-4
+                        break;
+                    case 'hard':
+                        // Toutes les cartes disponibles
+                        break;
+                }
+                
+                const totalCards = await cardsCollection.countDocuments(filter);
+                console.log(`[AI Cards] ${totalCards} cartes disponibles pour l'IA`);
+                
+                if (totalCards < count) {
+                    console.warn(`[AI Cards] Pas assez de cartes (${totalCards}), fallback vers constantes`);
+                    return res.json({ 
+                        success: false, 
+                        fallback: true,
+                        message: 'Pas assez de cartes en BDD' 
+                    });
+                }
+                
+                // Récupère des cartes aléatoires
+                const aiCards = await cardsCollection.aggregate([
+                    { $match: filter },
+                    { $sample: { size: count } }
+                ]).toArray();
+                
+                console.log(`[AI Cards] ${aiCards.length} cartes récupérées pour l'IA`);
+                res.json(aiCards);
+                
+            } catch (err) {
+                console.error('[AI Cards] Erreur lors de la récupération des cartes IA:', err);
+                res.status(500).json({ 
+                    success: false, 
+                    fallback: true,
+                    error: 'Erreur serveur' 
+                });
+            }
+        });
+
+        // === FIN NOUVELLE ROUTE ===
     }
 
     // Fonction pour obtenir des questions par catégorie et difficulté

@@ -10,6 +10,10 @@ import { MapManager } from './managers/MapManager';
 import { SocketManager } from './managers/SocketManager';
 import { UIManager } from './managers/UIManager';
 
+// ✅ NOUVEAUX IMPORTS - Menus Triple Triad
+import { TripleTriadAIConfigScene } from './TripleTriadAIConfigScene.js';
+import { TripleTriadPvPConfigScene } from './TripleTriadPvPConfigScene.js';
+
 export class GameScene extends Phaser.Scene {
     constructor() {
         super("GameScene");
@@ -328,5 +332,156 @@ export class GameScene extends Phaser.Scene {
 
     generateGameId() {
         return `quiz-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    }
+
+    // ✅ NOUVELLES MÉTHODES - Triple Triad
+
+    /**
+     * Lance le menu de configuration pour jouer contre l'IA
+     */
+    startTripleTriadAI() {
+        const playerData = this.registry.get("playerData");
+        if (!playerData) {
+            console.error("Données joueur non disponibles pour Triple Triad");
+            return;
+        }
+
+        // Pause la scène courante et lance le menu de config IA
+        this.scene.pause();
+        this.scene.launch("TripleTriadAIConfigScene", {
+            playerId: playerData._id
+        });
+    }
+
+    /**
+     * Lance le menu de configuration pour défier un joueur
+     */
+    startTripleTriadPvP(opponentId, opponentName) {
+        const playerData = this.registry.get("playerData");
+        if (!playerData) {
+            console.error("Données joueur non disponibles pour Triple Triad");
+            return;
+        }
+
+        if (!opponentId || !opponentName) {
+            console.error("Adversaire non sélectionné pour le défi Triple Triad");
+            this.displayMessage("Veuillez sélectionner un adversaire");
+            return;
+        }
+
+        // Pause la scène courante et lance le menu de config PvP
+        this.scene.pause();
+        this.scene.launch("TripleTriadPvPConfigScene", {
+            playerId: playerData._id,
+            opponentId: opponentId,
+            opponentName: opponentName
+        });
+    }
+
+    /**
+     * Obtient la liste des joueurs en ligne pour les défis
+     */
+    async getOnlinePlayers() {
+        try {
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/online`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const players = await response.json();
+
+            // Exclut le joueur actuel de la liste
+            const playerData = this.registry.get("playerData");
+            return players.filter(player => player._id !== playerData._id);
+
+        } catch (error) {
+            console.error('Erreur lors de la récupération des joueurs en ligne:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Affiche un menu de sélection d'adversaire pour Triple Triad
+     */
+    async showOpponentSelector() {
+        const onlinePlayers = await this.getOnlinePlayers();
+
+        if (onlinePlayers.length === 0) {
+            this.displayMessage("Aucun joueur en ligne disponible pour un défi");
+            return;
+        }
+
+        // Crée un menu de sélection simple (vous pouvez l'améliorer)
+        const { width, height } = this.scale;
+
+        // Fond semi-transparent
+        const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
+            .setInteractive()
+            .setScrollFactor(0)
+            .setDepth(1000);
+
+        // Titre
+        const title = this.add.text(width / 2, height * 0.2, "Choisir un adversaire", {
+            font: `${Math.round(width * 0.05)}px Arial`,
+            fill: "#fff",
+            fontStyle: "bold"
+        })
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(1001);
+
+        // Liste des joueurs
+        onlinePlayers.forEach((player, index) => {
+            const btnY = height * 0.35 + index * 60;
+
+            const playerBtn = this.add.text(width / 2, btnY, player.pseudo, {
+                font: `${Math.round(width * 0.04)}px Arial`,
+                fill: "#fff",
+                backgroundColor: "#4a4a4a"
+            })
+                .setOrigin(0.5)
+                .setPadding(20, 10, 20, 10)
+                .setInteractive()
+                .setScrollFactor(0)
+                .setDepth(1001)
+                .on('pointerdown', () => {
+                    // Nettoie le menu
+                    overlay.destroy();
+                    title.destroy();
+                    onlinePlayers.forEach((_, i) => {
+                        // Détruit tous les boutons de joueurs
+                        this.children.getChildren()
+                            .filter(child => child.depth === 1001 && child.type === 'Text')
+                            .forEach(btn => btn.destroy());
+                    });
+
+                    // Lance le défi
+                    this.startTripleTriadPvP(player._id, player.pseudo);
+                })
+                .on('pointerover', () => playerBtn.setStyle({ backgroundColor: "#666" }))
+                .on('pointerout', () => playerBtn.setStyle({ backgroundColor: "#4a4a4a" }));
+        });
+
+        // Bouton annuler
+        const cancelBtn = this.add.text(width / 2, height * 0.8, "Annuler", {
+            font: `${Math.round(width * 0.04)}px Arial`,
+            fill: "#fff",
+            backgroundColor: "#666"
+        })
+            .setOrigin(0.5)
+            .setPadding(20, 10, 20, 10)
+            .setInteractive()
+            .setScrollFactor(0)
+            .setDepth(1001)
+            .on('pointerdown', () => {
+                // Nettoie le menu
+                overlay.destroy();
+                title.destroy();
+                cancelBtn.destroy();
+                onlinePlayers.forEach((_, i) => {
+                    this.children.getChildren()
+                        .filter(child => child.depth === 1001 && child.type === 'Text')
+                        .forEach(btn => btn.destroy());
+                });
+            });
     }
 }

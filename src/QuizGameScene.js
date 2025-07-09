@@ -463,12 +463,16 @@ export class QuizGameScene extends Phaser.Scene {
     createTimerCircle(x, y) {
         const radius = 35; // Légèrement plus grand pour la visibilité
         
+        // ✅ REMONTÉ: Position plus haute à droite
+        const timerX = x;
+        const timerY = y - 30; // ← Remonté de 20px
+        
         // Cercle de fond
-        this.timerBg = this.add.circle(x, y, radius, 0x333333, 0.9)
+        this.timerBg = this.add.circle(timerX, timerY, radius, 0x333333, 0.9)
             .setDepth(1000); // Profondeur élevée pour être devant
         
         // Texte du timer
-        this.timerText = this.add.text(x, y, this.timeLeft, {
+        this.timerText = this.add.text(timerX, timerY, this.timeLeft, {
             font: `bold 28px Arial`, // Plus gros pour la lisibilité
             fill: "#ffffff",
             align: "center",
@@ -479,14 +483,14 @@ export class QuizGameScene extends Phaser.Scene {
 
         // Cercle de progression
         this.timerCircle = this.add.graphics()
-            .setPosition(x, y)
+            .setPosition(timerX, timerY)
             .setDepth(1000);
 
         this.currentContainer.add([this.timerBg, this.timerText, this.timerCircle]);
     }
 
     startQuestionTimer() {
-        this.timeLeft = 30;
+        this.timeLeft = 10; // ✅ CHANGÉ: 30 → 10 secondes
         
         if (this.timer) {
             this.timer.destroy();
@@ -504,7 +508,7 @@ export class QuizGameScene extends Phaser.Scene {
                     this.submitAnswer(-1);
                 }
             },
-            repeat: 29
+            repeat: 9 // ✅ CHANGÉ: 29 → 9 répétitions (pour 10 secondes)
         });
     }
 
@@ -512,10 +516,10 @@ export class QuizGameScene extends Phaser.Scene {
         if (this.timerText) {
             this.timerText.setText(this.timeLeft);
             
-            // Change la couleur selon le temps restant
-            if (this.timeLeft <= 5) {
+            // ✅ AJUSTÉ: Alertes plus rapides pour 10 secondes
+            if (this.timeLeft <= 3) {
                 this.timerText.setTint(0xff0000);
-            } else if (this.timeLeft <= 10) {
+            } else if (this.timeLeft <= 5) {
                 this.timerText.setTint(0xffa500);
             } else {
                 this.timerText.clearTint();
@@ -524,9 +528,10 @@ export class QuizGameScene extends Phaser.Scene {
 
         // Dessine le cercle de progression
         if (this.timerCircle) {
-            const angle = (this.timeLeft / 30) * 360;
+            // ✅ CHANGÉ: Calculer sur 10 secondes au lieu de 30
+            const angle = (this.timeLeft / 10) * 360;
             this.timerCircle.clear();
-            this.timerCircle.lineStyle(8, this.timeLeft <= 5 ? 0xff0000 : this.timeLeft <= 10 ? 0xffa500 : 0x10b981);
+            this.timerCircle.lineStyle(8, this.timeLeft <= 3 ? 0xff0000 : this.timeLeft <= 5 ? 0xffa500 : 0x10b981);
             this.timerCircle.beginPath();
             this.timerCircle.arc(0, 0, 35, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + angle), false);
             this.timerCircle.strokePath();
@@ -534,7 +539,7 @@ export class QuizGameScene extends Phaser.Scene {
     }
 
     selectAnswer(answerIndex, container, bg) {
-        if (this.hasAnswered) return;
+        if (this.hasAnswered) return; // ✅ PROTECTION: Empêche le spam côté client
 
         this.hasAnswered = true;
         this.selectedAnswer = answerIndex;
@@ -580,7 +585,7 @@ export class QuizGameScene extends Phaser.Scene {
 
         this.waitingText = this.add.text(width / 2, height * 0.75, 
             `⏳ En attente des autres joueurs... (${answersReceived}/${totalPlayers})`, {
-            font: `bold 24px Arial`,
+            font: `bold 18px Arial`,
             fill: "#fbbf24",
             align: "center"
         }).setOrigin(0.5);
@@ -861,7 +866,7 @@ export class QuizGameScene extends Phaser.Scene {
 
     showFinalResults(data) {
         this.clearScreen();
-        
+
         const { width, height } = this.sys.game.canvas;
         const baseSize = Math.min(width, height);
         const titleSize = Math.min(baseSize * 0.08, 48);
@@ -869,10 +874,19 @@ export class QuizGameScene extends Phaser.Scene {
 
         this.currentContainer = this.add.container(0, 0);
 
+        // ✅ DEBUG: Vérifier les données reçues
+        console.log('=== DEBUT DEBUG PODIUM ===');
+        console.log('[Quiz] DONNÉES COMPLÈTES reçues:', JSON.stringify(data, null, 2));
+        console.log('[Quiz] data.podium existe?', !!data.podium);
+        if (data.podium) {
+            console.log('[Quiz] Contenu data.podium:', data.podium);
+        }
+        console.log('=== FIN DEBUG PODIUM ===');
+
         // Fond spécial pour les résultats finaux
         const finalBg = this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e, 0.9)
             .setOrigin(0.5);
-        
+
         const finalOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x8b5cf6, 0.15)
             .setOrigin(0.5);
 
@@ -885,7 +899,7 @@ export class QuizGameScene extends Phaser.Scene {
                 Phaser.Math.Between(0xff6b35, 0xfbbf24),
                 0.8
             );
-            
+
             this.tweens.add({
                 targets: confetti,
                 y: height + 50,
@@ -908,7 +922,7 @@ export class QuizGameScene extends Phaser.Scene {
         // Podium avec fond encadré
         const podiumBg = this.add.rectangle(width / 2, height * 0.5, width * 0.9, height * 0.4, 0x2d3748, 0.9)
             .setOrigin(0.5);
-        
+
         const podiumBorder = this.add.rectangle(width / 2, height * 0.5, width * 0.9 + 6, height * 0.4 + 6, 0xfbbf24, 0.8)
             .setOrigin(0.5);
 
@@ -920,26 +934,74 @@ export class QuizGameScene extends Phaser.Scene {
             align: "center"
         }).setOrigin(0.5);
 
-        // Affiche le top 3
-        data.podium.forEach((player, index) => {
-            const y = height * 0.4 + index * (textSize * 1.8);
-            const isCurrentPlayer = player.id === this.playerId;
-            
-            const podiumText = this.add.text(width / 2, y, 
-                `${player.medal} ${player.name}: ${player.score} points`, {
-                font: `${isCurrentPlayer ? 'bold' : ''} ${textSize * (index === 0 ? 1.3 : index === 1 ? 1.1 : 1)}px Arial`,
-                fill: isCurrentPlayer ? "#fbbf24" : index === 0 ? "#ffd700" : index === 1 ? "#c0c0c0" : "#cd7f32",
+        // ✅ FORCER L'AFFICHAGE DU PODIUM - NOUVELLE APPROCHE
+        let playersToDisplay = [];
+
+        if (data.podium && Array.isArray(data.podium) && data.podium.length > 0) {
+            console.log('[Quiz] 🎯 Utilisation du podium:', data.podium);
+            playersToDisplay = data.podium;
+        } else if (data.finalLeaderboard && Array.isArray(data.finalLeaderboard) && data.finalLeaderboard.length > 0) {
+            console.log('[Quiz] 🎯 Utilisation du finalLeaderboard (fallback):', data.finalLeaderboard);
+            playersToDisplay = data.finalLeaderboard.slice(0, 3).map((player, index) => ({
+                ...player,
+                medal: index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"
+            }));
+        }
+
+        // ✅ AFFICHAGE FORCÉ - MÉTHODE DIRECTE SANS CONTAINER
+        if (playersToDisplay.length > 0) {
+            console.log(`[Quiz] 🎨 Affichage de ${playersToDisplay.length} joueurs`);
+
+            playersToDisplay.forEach((player, index) => {
+                const y = height * 0.4 + index * (textSize * 1.8);
+                const isCurrentPlayer = player.id === this.playerId;
+
+                console.log(`[Quiz] 🎨 Affichage joueur ${index + 1}:`, {
+                    name: player.name,
+                    score: player.score,
+                    medal: player.medal,
+                    isCurrentPlayer,
+                    position: { y }
+                });
+
+                // ✅ CRÉATION DIRECTE DU TEXTE SANS CONTAINER
+                const podiumText = this.add.text(width / 2, y,
+                    `${player.medal} ${player.name}: ${player.score} points`, {
+                    font: `${isCurrentPlayer ? 'bold' : ''} ${Math.max(textSize * (index === 0 ? 1.3 : index === 1 ? 1.1 : 1), 16)}px Arial`,
+                    fill: isCurrentPlayer ? "#fbbf24" : index === 0 ? "#ffd700" : index === 1 ? "#c0c0c0" : "#cd7f32",
+                    stroke: "#000000",
+                    strokeThickness: 2,
+                    align: "center"
+                })
+                    .setOrigin(0.5)
+                    .setDepth(1000); // ✅ DEPTH ÉLEVÉ pour être sûr qu'il s'affiche
+
+                console.log(`[Quiz] 🎨 Texte créé pour ${player.name}:`, podiumText.text);
+                console.log(`[Quiz] 🎨 Position du texte:`, { x: podiumText.x, y: podiumText.y, visible: podiumText.visible, alpha: podiumText.alpha });
+
+                // ✅ PAS DE CONTAINER - AJOUT DIRECT À LA SCÈNE
+                // this.currentContainer.add(podiumText); ← SUPPRIMÉ
+            });
+        } else {
+            console.error('[Quiz] ❌ ÉCHEC TOTAL: Aucun joueur à afficher');
+
+            // ✅ MESSAGE D'ERREUR AUSSI CRÉÉ DIRECTEMENT
+            const errorText = this.add.text(width / 2, height * 0.45,
+                "❌ Erreur: Aucune donnée de classement", {
+                font: `${textSize}px Arial`,
+                fill: "#ff6b6b",
                 stroke: "#000000",
                 strokeThickness: 2,
                 align: "center"
-            }).setOrigin(0.5);
-
-            this.currentContainer.add(podiumText);
-        });
+            })
+                .setOrigin(0.5)
+                .setDepth(1000);
+        }
 
         // Bouton quitter
         const quitButton = this.createQuitButton(width / 2, height * 0.85);
 
+        // ✅ AJOUT AU CONTAINER SEULEMENT DES ÉLÉMENTS DE FOND
         this.currentContainer.add([finalBg, finalOverlay, podiumBg, podiumBorder, title, podiumTitle, quitButton]);
 
         // Animations spectaculaires
@@ -978,13 +1040,13 @@ export class QuizGameScene extends Phaser.Scene {
         const buttonBorder = this.add.rectangle(0, 0, buttonWidth + 4, buttonHeight + 4, 0x9ca3af, 0.5)
             .setOrigin(0.5);
 
-        const buttonIcon = this.add.text(-buttonWidth * 0.2, 0, "🚪", {
+        const buttonIcon = this.add.text(-buttonWidth * 0.5, 0, "🚪", {
             font: `24px Arial`,
             align: "center"
         }).setOrigin(0.5);
 
         const buttonText = this.add.text(buttonWidth * 0.05, 0, "QUITTER LE QUIZ", {
-            font: `bold 24px Arial`,
+            font: `bold 18px Arial`,
             fill: "#ffffff",
             align: "center"
         }).setOrigin(0.5);

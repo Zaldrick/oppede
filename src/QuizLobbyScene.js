@@ -184,7 +184,7 @@ export class QuizLobbyScene extends Phaser.Scene {
         this.add.rectangle(width / 2, height / 2, width, height, 0x667eea, 0.1);
 
         // Titre style Trivial Pursuit
-        const title = this.add.text(width / 2, height * 0.12, "🧠 QUIZ TRIVIAL PURSUIT", {
+        const title = this.add.text(width / 2, height * 0.12, "🧠 QUIZ WARBANDESQUE", {
             font: `bold ${titleSize}px Arial`,
             fill: "#ffffff",
             stroke: "#667eea",
@@ -238,14 +238,14 @@ export class QuizLobbyScene extends Phaser.Scene {
             const cardBorder = this.add.rectangle(0, 0, cardWidth + 4, cardHeight + 4, 0xffffff, 0.3)
                 .setOrigin(0.5);
 
-            // Icône de la catégorie
-            const categoryIcon = this.add.text(-cardWidth * 0.35, 0, category.icon, {
+            // ✅ CORRIGÉ: Icône moins à gauche pour laisser de la place
+            const categoryIcon = this.add.text(-cardWidth * 0.40, 0, category.icon, {
                 font: `${buttonTextSize * 1.5}px Arial`,
                 align: "center"
             }).setOrigin(0.5);
 
-            // Nom de la catégorie
-            const categoryName = this.add.text(-cardWidth * 0.1, -cardHeight * 0.15, category.name, {
+            // ✅ CORRIGÉ: Texte principal plus proche de l'icône
+            const categoryName = this.add.text(-cardWidth * 0.35, -cardHeight * 0.36, category.name, {
                 font: `bold ${buttonTextSize}px Arial`,
                 fill: "#ffffff",
                 align: "left",
@@ -253,16 +253,16 @@ export class QuizLobbyScene extends Phaser.Scene {
                 strokeThickness: 1
             }).setOrigin(0, 0.5);
 
-            // Description
-            const categoryDesc = this.add.text(-cardWidth * 0.1, cardHeight * 0.15, category.description, {
+            // ✅ CORRIGÉ: Description aussi décalée pour être alignée
+            const categoryDesc = this.add.text(-cardWidth * 0.20, cardHeight * 0.15, category.description, {
                 font: `${buttonTextSize * 0.7}px Arial`,
                 fill: "#f0f0f0",
                 align: "left",
-                wordWrap: { width: cardWidth * 0.6 }
+                wordWrap: { width: cardWidth * 0.55 } // ✅ Réduction de la largeur pour laisser place à la coche
             }).setOrigin(0, 0.5);
 
-            // Checkmark pour sélection
-            const checkmark = this.add.text(cardWidth * 0.35, 0, "✓", {
+            // ✅ CORRIGÉ: Checkmark plus à droite pour éviter le chevauchement
+            const checkmark = this.add.text(cardWidth * 0.38, 0, "✓", {
                 font: `bold ${buttonTextSize * 1.5}px Arial`,
                 fill: "#00ff00",
                 align: "center"
@@ -432,16 +432,18 @@ export class QuizLobbyScene extends Phaser.Scene {
         const buttonBg = this.add.rectangle(0, 0, width, height, bgColor, 0.9)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
-        
+
         const buttonBorder = this.add.rectangle(0, 0, width + 6, height + 6, borderColor, 0.5)
             .setOrigin(0.5);
 
-        const buttonIcon = this.add.text(-width * 0.25, 0, icon, {
+        // ✅ ICÔNE COMPLÈTEMENT À GAUCHE
+        const buttonIcon = this.add.text(-width * 0.4, 0, icon, {
             font: `${textSize * 1.2}px Arial`,
             align: "center"
         }).setOrigin(0.5);
 
-        const buttonText = this.add.text(width * 0.05, 0, text, {
+        // ✅ TEXTE DÉCALÉ À DROITE POUR LAISSER DE LA PLACE À L'ICÔNE
+        const buttonText = this.add.text(width * 0.1, 0, text, {
             font: `bold ${textSize}px Arial`,
             fill: "#ffffff",
             align: "center",
@@ -450,12 +452,14 @@ export class QuizLobbyScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         const buttonContainer = this.add.container(x, y);
-        buttonContainer.add([buttonBorder, buttonBg, buttonIcon, buttonText]);
+
+        // ✅ ORDRE CORRECT: texte puis icône pour que l'icône soit au-dessus
+        buttonContainer.add([buttonBorder, buttonBg, buttonText, buttonIcon]);
 
         buttonBg.on('pointerover', () => {
             buttonContainer.setScale(1.05);
         });
-        
+
         buttonBg.on('pointerout', () => {
             buttonContainer.setScale(1);
         });
@@ -474,6 +478,9 @@ export class QuizLobbyScene extends Phaser.Scene {
 
         return buttonContainer;
     }
+
+
+
 
     showWaitingRoom() {
         this.children.removeAll();
@@ -614,12 +621,12 @@ export class QuizLobbyScene extends Phaser.Scene {
                 canStart ? 0xff8c42 : 0x9ca3af, 0.5)
                 .setOrigin(0.5);
 
-            const startIcon = this.add.text(-buttonWidth * 0.25, 0, "🚀", {
-                font: `${buttonTextSize}px Arial`,
+            const startIcon = this.add.text(-buttonWidth * 0.4, 0, "🚀", {
+                font: `${buttonTextSize * 1.2}px Arial`,
                 align: "center"
             }).setOrigin(0.5);
 
-            const startText = this.add.text(buttonWidth * 0.05, 0, "LANCER LE QUIZ", {
+            const startText = this.add.text(buttonWidth * 0.1, 0, "LANCER LE QUIZ", {
                 font: `bold ${buttonTextSize}px Arial`,
                 fill: canStart ? "#ffffff" : "#9ca3af",
                 align: "center"
@@ -691,12 +698,12 @@ export class QuizLobbyScene extends Phaser.Scene {
             const leaveBorder = this.add.rectangle(0, 0, buttonWidth + 4, buttonHeight + 4, 0xf87171, 0.5)
                 .setOrigin(0.5);
 
-            const leaveIcon = this.add.text(-buttonWidth * 0.25, 0, "🚪", {
-                font: `${buttonTextSize}px Arial`,
+            const leaveIcon = this.add.text(-buttonWidth * 0.4, 0, "🚪", {
+                font: `${buttonTextSize * 1.2}px Arial`,
                 align: "center"
             }).setOrigin(0.5);
 
-            const leaveText = this.add.text(buttonWidth * 0.05, 0, "QUITTER LE QUIZ", {
+            const leaveText = this.add.text(buttonWidth * 0.1, 0, "QUITTER LE QUIZ", {
                 font: `bold ${buttonTextSize}px Arial`,
                 fill: "#ffffff",
                 align: "center"

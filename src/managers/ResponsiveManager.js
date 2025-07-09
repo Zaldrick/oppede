@@ -7,10 +7,7 @@
  * - Calculer les layouts de grilles
  * - Optimiser pour différentes résolutions
  */
-
-import ConfigManager from './ConfigManager.js';
-
-class ResponsiveManager {
+export class ResponsiveManager {
     constructor() {
         this.currentBreakpoint = null;
         this.screenInfo = null;
@@ -149,29 +146,39 @@ class ResponsiveManager {
     }
 
     /**
-     * Configuration de grille adaptée
+     * Configuration de grille adaptée pour les cartes
      */
     getGridConfig() {
-        const { width } = this.screenInfo;
+        const { width, height, isPortrait } = this.screenInfo;
         const scale = this.getScaleFactor();
         
-        // Adapte le nombre de colonnes selon la largeur
+        // Adapte le nombre de colonnes selon la largeur et l'orientation
         let cols = 4; // par défaut
-        if (width < 480) cols = 2;
-        else if (width < 768) cols = 3;
-        else if (width < 1024) cols = 4;
-        else cols = 5;
+        if (isPortrait) {
+            if (width < 480) cols = 2;
+            else if (width < 768) cols = 3;
+            else cols = 4;
+        } else {
+            if (width < 768) cols = 3;
+            else if (width < 1024) cols = 4;
+            else if (width < 1440) cols = 5;
+            else cols = 6;
+        }
 
-        const cellSize = (width * 0.8) / cols * scale;
-        const spacing = cellSize * 0.1;
+        const availableWidth = width * 0.8; // 80% de la largeur
+        const cardWidth = Math.min(120 * scale, availableWidth / cols * 0.8);
+        const cardHeight = cardWidth * 1.5; // Ratio carte
+        const spacing = cardWidth * 0.1;
 
         return {
             cols,
-            rows: Math.ceil(16 / cols), // Assure 16 cellules max
-            cellSize,
+            rows: 2, // Toujours 2 lignes pour le carrousel
+            cardWidth,
+            cardHeight,
             spacing,
-            totalWidth: cols * cellSize + (cols - 1) * spacing,
-            startX: (width - (cols * cellSize + (cols - 1) * spacing)) / 2,
+            totalWidth: cols * cardWidth + (cols - 1) * spacing,
+            startX: (width - (cols * cardWidth + (cols - 1) * spacing)) / 2,
+            cardsPerPage: cols * 2 // 2 lignes
         };
     }
 
@@ -183,12 +190,12 @@ class ResponsiveManager {
         const scale = this.getScaleFactor();
         
         return {
-            xs: baseUnit * 0.25 * scale,
-            sm: baseUnit * 0.5 * scale,
-            md: baseUnit * 1 * scale,
-            lg: baseUnit * 1.5 * scale,
-            xl: baseUnit * 2 * scale,
-            xxl: baseUnit * 3 * scale,
+            xs: Math.max(4, baseUnit * 0.25 * scale),
+            sm: Math.max(8, baseUnit * 0.5 * scale),
+            md: Math.max(12, baseUnit * 1 * scale),
+            lg: Math.max(16, baseUnit * 1.5 * scale),
+            xl: Math.max(20, baseUnit * 2 * scale),
+            xxl: Math.max(24, baseUnit * 3 * scale),
         };
     }
 
@@ -196,49 +203,60 @@ class ResponsiveManager {
      * Configuration typographique adaptée
      */
     getTypographyConfig() {
-        const { width } = this.screenInfo;
+        const { width, isPortrait } = this.screenInfo;
         const scale = this.getScaleFactor();
         
         const baseSizes = {
-            xs: { title: 24, subtitle: 18, body: 14, caption: 12 },
-            sm: { title: 28, subtitle: 20, body: 16, caption: 14 },
-            md: { title: 32, subtitle: 24, body: 18, caption: 16 },
-            lg: { title: 36, subtitle: 28, body: 20, caption: 18 },
-            xl: { title: 42, subtitle: 32, body: 24, caption: 20 },
+            xs: { title: 20, subtitle: 16, body: 12, caption: 10, button: 14 },
+            sm: { title: 24, subtitle: 18, body: 14, caption: 12, button: 16 },
+            md: { title: 28, subtitle: 22, body: 16, caption: 14, button: 18 },
+            lg: { title: 32, subtitle: 26, body: 18, caption: 16, button: 20 },
+            xl: { title: 36, subtitle: 30, body: 20, caption: 18, button: 22 },
         };
 
         const sizes = baseSizes[this.currentBreakpoint];
         
+        // Ajustement spécial pour les écrans très larges
+        const maxScale = isPortrait ? 1.2 : 1.4;
+        const finalScale = Math.min(scale, maxScale);
+        
         return {
-            title: Math.round(sizes.title * scale),
-            subtitle: Math.round(sizes.subtitle * scale),
-            body: Math.round(sizes.body * scale),
-            caption: Math.round(sizes.caption * scale),
+            title: Math.round(sizes.title * finalScale),
+            subtitle: Math.round(sizes.subtitle * finalScale),
+            body: Math.round(sizes.body * finalScale),
+            caption: Math.round(sizes.caption * finalScale),
+            button: Math.round(sizes.button * finalScale),
             
             // Styles Phaser prêts à l'emploi
             titleStyle: {
-                fontSize: `${Math.round(sizes.title * scale)}px`,
+                fontSize: `${Math.round(sizes.title * finalScale)}px`,
                 fontFamily: 'Arial',
                 color: '#ffffff',
                 fontStyle: 'bold'
             },
             
             subtitleStyle: {
-                fontSize: `${Math.round(sizes.subtitle * scale)}px`,
+                fontSize: `${Math.round(sizes.subtitle * finalScale)}px`,
                 fontFamily: 'Arial',
                 color: '#ffffff'
             },
             
             bodyStyle: {
-                fontSize: `${Math.round(sizes.body * scale)}px`,
+                fontSize: `${Math.round(sizes.body * finalScale)}px`,
                 fontFamily: 'Arial',
                 color: '#ffffff'
             },
             
             captionStyle: {
-                fontSize: `${Math.round(sizes.caption * scale)}px`,
+                fontSize: `${Math.round(sizes.caption * finalScale)}px`,
                 fontFamily: 'Arial',
                 color: '#cccccc'
+            },
+
+            buttonStyle: {
+                fontSize: `${Math.round(sizes.button * finalScale)}px`,
+                fontFamily: 'Arial',
+                color: '#ffffff'
             }
         };
     }
@@ -253,50 +271,44 @@ class ResponsiveManager {
         return {
             // Boutons
             button: {
-                minWidth: width * 0.2 * scale,
-                minHeight: height * 0.06 * scale,
+                minWidth: Math.max(100, width * 0.15 * scale),
+                minHeight: Math.max(40, height * 0.06 * scale),
                 padding: {
-                    x: width * 0.02 * scale,
-                    y: height * 0.01 * scale,
+                    x: Math.max(8, width * 0.02 * scale),
+                    y: Math.max(4, height * 0.01 * scale),
                 }
             },
             
-            // Joystick (mobile)
-            joystick: {
-                size: Math.min(width, height) * 0.15 * scale,
-                position: {
-                    x: width * 0.15,
-                    y: height * (isPortrait ? 0.85 : 0.80),
-                }
+            // Zone de détail des cartes
+            detailZone: {
+                imageWidth: Math.min(150 * scale, width * 0.25),
+                imageHeight: Math.min(225 * scale, width * 0.25 * 1.5),
+                textAreaWidth: width * (isPortrait ? 0.6 : 0.5),
+                topMargin: height * 0.02,
             },
             
-            // Boutons d'action (mobile)
-            actionButtons: {
-                size: Math.min(width, height) * 0.08 * scale,
-                positions: {
-                    A: { x: width * 0.85, y: height * 0.75 },
-                    B: { x: width * 0.75, y: height * 0.85 },
-                }
+            // Zone de sélection en bas
+            selectionZone: {
+                height: Math.max(80, height * 0.12),
+                cardWidth: Math.min(50 * scale, (width - 60) / 5 * 0.8),
+                bottomMargin: Math.max(60, height * 0.08),
             },
-            
-            // Modales et overlays
-            modal: {
-                width: width * (isPortrait ? 0.9 : 0.7),
-                height: height * (isPortrait ? 0.7 : 0.8),
-                padding: width * 0.05 * scale,
+
+            // Carrousel de cartes
+            carousel: {
+                topMargin: Math.max(60, height * 0.08),
+                height: Math.max(200, height * 0.25),
+                arrowSize: Math.max(20, width * 0.03),
             },
-            
-            // Cartes (Triple Triad, etc.)
-            card: {
-                width: Math.min(width * 0.15 * scale, 120),
-                height: Math.min(width * 0.15 * scale, 120) * ConfigManager.LAYOUT.IMAGES.CARD_ASPECT_RATIO,
+
+            // Marges et paddings généraux
+            layout: {
+                padding: Math.max(16, Math.min(width, height) * 0.03),
+                sectionSpacing: Math.max(20, height * 0.03),
+                borderRadius: Math.max(4, scale * 6),
             }
         };
     }
-
-    /**
-     * Utilitaires pour les développeurs
-     */
 
     /**
      * Calcule une taille responsive
@@ -362,7 +374,6 @@ class ResponsiveManager {
             breakpoint: this.currentBreakpoint,
             scale: this.getScaleFactor(),
             baseUnit: this.getBaseUnit(),
-            isMobile: ConfigManager.isMobile(),
         };
     }
 }
