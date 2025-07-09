@@ -1,0 +1,212 @@
+[
+  {
+    "question": "En quelle année a eu lieu la Révolution française ?",
+    "answers": [ "1789", "1792", "1776", "1804" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "En quelle année a commencé la Première Guerre mondiale ?",
+    "answers": [ "1912", "1913", "1914", "1915" ],
+    "correct": 2,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "En quelle année l'homme a-t-il marché sur la Lune pour la première fois ?",
+    "answers": [ "1967", "1968", "1969", "1970" ],
+    "correct": 2,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui était le roi de France pendant la Révolution française ?",
+    "answers": [ "Louis XIV", "Louis XV", "Louis XVI", "Louis XVII" ],
+    "correct": 2,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "En quelle année s'est terminée la Seconde Guerre mondiale ?",
+    "answers": [ "1944", "1945", "1946", "1947" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel empereur a conquis une grande partie de l'Europe au début du 19e siècle ?",
+    "answers": [ "César", "Napoléon", "Charlemagne", "Alexandre" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle guerre a opposé le Nord et le Sud des États-Unis ?",
+    "answers": [ "Guerre de Sécession", "Guerre d'Indépendance", "Guerre de 1812", "Guerre hispano-américaine" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "En quelle année a été construite la muraille de Chine ?",
+    "answers": [ "220 av. J.-C.", "300 av. J.-C.", "150 av. J.-C.", "400 av. J.-C." ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a découvert l'Amérique en 1492 ?",
+    "answers": [ "Vasco de Gama", "Christophe Colomb", "Magellan", "Amerigo Vespucci" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans quel pays est né Adolf Hitler ?",
+    "answers": [ "Allemagne", "Autriche", "Pologne", "Tchécoslovaquie" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui était le premier empereur romain ?",
+    "answers": [ "Jules César", "Auguste", "Néron", "Trajan" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle bataille a marqué la fin de l'Empire napoléonien ?",
+    "answers": [ "Austerlitz", "Waterloo", "Iéna", "Wagram" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui a unifié l'Allemagne au XIXe siècle ?",
+    "answers": [ "Bismarck", "Guillaume Ier", "François-Joseph", "Metternich" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel traité a mis fin à la Première Guerre mondiale ?",
+    "answers": [ "Traité de Versailles", "Traité de Trianon", "Traité de Sèvres", "Traité de Saint-Germain" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "En quelle année a eu lieu la chute du mur de Berlin ?",
+    "answers": [ "1987", "1988", "1989", "1990" ],
+    "correct": 2,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui était le dirigeant de l'URSS pendant la Seconde Guerre mondiale ?",
+    "answers": [ "Lénine", "Staline", "Khrouchtchev", "Brejnev" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle dynastie a régné en France avant les Bourbons ?",
+    "answers": [ "Capétiens", "Valois", "Mérovingiens", "Carolingiens" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "En quelle année a eu lieu la bataille de Hastings ?",
+    "answers": [ "1066", "1067", "1068", "1069" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui a fondé l'Empire mongol ?",
+    "answers": [ "Kubilaï Khan", "Gengis Khan", "Ögedei Khan", "Batu Khan" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle révolution a eu lieu en Russie en 1917 ?",
+    "answers": [ "Révolution de Février", "Révolution d'Octobre", "Les deux", "Aucune" ],
+    "correct": 2,
+    "category": "Histoire",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel pharaon a fait construire la Grande Pyramide de Gizeh ?",
+    "answers": [ "Khéops", "Khéphren", "Mykérinos", "Ramsès II" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle civilisation a inventé l'écriture cunéiforme ?",
+    "answers": [ "Égyptiens", "Grecs", "Sumériens", "Phéniciens" ],
+    "correct": 2,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "En quelle année a eu lieu la bataille de Marathon ?",
+    "answers": [ "490 av. J.-C.", "480 av. J.-C.", "470 av. J.-C.", "460 av. J.-C." ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui était l'empereur byzantin lors de la conquête de Constantinople par les Ottomans ?",
+    "answers": [ "Constantin XI", "Jean VIII", "Manuel II", "Constantin XII" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle bataille a marqué la fin de l'indépendance de l'Écosse face à l'Angleterre ?",
+    "answers": [ "Culloden", "Bannockburn", "Stirling", "Falkirk" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "En quelle année a eu lieu le massacre de la Saint-Barthélemy ?",
+    "answers": [ "1572", "1573", "1574", "1575" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui était le général carthaginois qui a traversé les Alpes ?",
+    "answers": [ "Hannibal", "Hasdrubal", "Hamilcar", "Magon" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle bataille a marqué la fin de l'Empire napoléonien en 1815 ?",
+    "answers": [ "Leipzig", "Waterloo", "Borodino", "Austerlitz" ],
+    "correct": 1,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "En quelle année a eu lieu le génocide arménien ?",
+    "answers": [ "1915", "1916", "1917", "1918" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui était le dernier empereur d'Occident ?",
+    "answers": [ "Romulus Augustule", "Odoacre", "Théodoric", "Justinien" ],
+    "correct": 0,
+    "category": "Histoire",
+    "difficulty": "difficile"
+  }
+]

@@ -34,10 +34,52 @@ export class QuizGameScene extends Phaser.Scene {
         console.log('[Quiz Game] Données reçues:', this.gameData);
         console.log('[Quiz Game] Mode de jeu:', this.gameData?.gameMode);
         
+        // Créer un fond global pour tout le quiz
+        this.createGlobalBackground();
+        
         // Toujours lancer le quiz interactif (plus de mode "développement")
         this.gameState = 'waiting';
         this.setupSocketEvents();
         this.showWaitingForStart();
+    }
+
+    createGlobalBackground() {
+        const { width, height } = this.sys.game.canvas;
+        
+        // Fond principal avec dégradé
+        this.globalBg = this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e, 0.95)
+            .setOrigin(0.5)
+            .setDepth(-100); // Toujours en arrière-plan
+        
+        // Overlay avec effet subtil
+        this.globalOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x667eea, 0.08)
+            .setOrigin(0.5)
+            .setDepth(-99);
+
+        // Particules d'arrière-plan animées
+        this.globalParticles = [];
+        for (let i = 0; i < 25; i++) {
+            const particle = this.add.circle(
+                Phaser.Math.Between(0, width),
+                Phaser.Math.Between(0, height),
+                Phaser.Math.Between(2, 8),
+                0x8b5cf6,
+                0.2
+            ).setDepth(-98);
+            
+            this.globalParticles.push(particle);
+            
+            this.tweens.add({
+                targets: particle,
+                x: particle.x + Phaser.Math.Between(-200, 200),
+                y: particle.y + Phaser.Math.Between(-200, 200),
+                alpha: { from: 0.2, to: 0.05 },
+                duration: Phaser.Math.Between(8000, 15000),
+                repeat: -1,
+                yoyo: true,
+                ease: 'Sine.easeInOut'
+            });
+        }
     }
 
     showWaitingForStart() {
@@ -128,7 +170,7 @@ export class QuizGameScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         const backText = this.add.text(width * 0.05, 0, "RETOUR AU LOBBY", {
-            font: `bold ${textSize}px Arial`, showQuestion
+            font: `bold ${textSize}px Arial`,
             fill: "#ffffff",
             align: "center"
         }).setOrigin(0.5);
@@ -138,12 +180,10 @@ export class QuizGameScene extends Phaser.Scene {
         // Effets d'interaction pour le bouton retour
         backBg.on('pointerover', () => {
             backContainer.setScale(1.05);
-            // backBg.setTint(0x9ca3af); // ← Retirer cette ligne
         });
 
         backBg.on('pointerout', () => {
             backContainer.setScale(1);
-            // backBg.clearTint(); // ← Retirer cette ligne
         });
 
         backBg.on('pointerdown', () => {
@@ -193,8 +233,12 @@ export class QuizGameScene extends Phaser.Scene {
 
         // En attente des autres joueurs
         this.socket.on('quiz:waitingForAnswers', (data) => {
+            // Afficher/mettre à jour pour tous les joueurs qui ont répondu
             if (this.hasAnswered) {
                 this.updateWaitingDisplay(data.answersReceived, data.totalPlayers);
+            } else {
+                // Si pas encore répondu, créer l'affichage d'attente au cas où
+                this.showWaitingForOthers(data.answersReceived, data.totalPlayers);
             }
         });
 
@@ -299,6 +343,7 @@ export class QuizGameScene extends Phaser.Scene {
             repeat: 3
         });
     }
+
     showQuestion() {
         this.clearScreen();
 
@@ -310,48 +355,34 @@ export class QuizGameScene extends Phaser.Scene {
         // Container principal
         this.currentContainer = this.add.container(0, 0);
 
-        // Ajouter un fond opaque pour améliorer la lisibilité
-        const backgroundOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8)
-            .setOrigin(0.5);
-
-        // Barre de progression
-        const progressBg = this.add.rectangle(width / 2, height * 0.08, width * 0.8, 8, 0x333333)
-            .setOrigin(0.5);
-        const progressBar = this.add.rectangle(width / 2, height * 0.08, 0, 8, 0x10b981)
-            .setOrigin(0.5);
-
-        const progressWidth = (this.questionNumber / this.totalQuestions) * width * 0.8;
-        this.tweens.add({
-            targets: progressBar,
-            width: progressWidth,
-            duration: 500,
-            ease: 'Power2'
-        });
-
-        // Numéro de question et catégorie
-        const questionHeader = this.add.text(width / 2, height * 0.15,
+        // Numéro de question et catégorie (plus de barre de progression)
+        const questionHeader = this.add.text(width / 2, height * 0.12,
             `Question ${this.questionNumber}/${this.totalQuestions} • ${this.currentQuestion.category}`, {
-            font: `bold ${answerSize}px Arial`,
-            fill: "#a78bfa",
+            font: `bold ${answerSize * 1.2}px Arial`,
+            fill: "#ffffff",
+            stroke: "#4f46e5",
+            strokeThickness: 2,
             align: "center"
         }).setOrigin(0.5);
 
-        // Question avec fond semi-transparent pour plus de lisibilité
-        const questionBg = this.add.rectangle(width / 2, height * 0.25, width * 0.95, height * 0.15, 0x2d3748, 0.9)
+        // Question avec fond amélioré
+        const questionBg = this.add.rectangle(width / 2, height * 0.22, width * 0.95, height * 0.15, 0x2d3748, 0.95)
             .setOrigin(0.5);
 
-        const questionBorder = this.add.rectangle(width / 2, height * 0.25, width * 0.95 + 4, height * 0.15 + 4, 0x4f46e5, 0.6)
+        const questionBorder = this.add.rectangle(width / 2, height * 0.22, width * 0.95 + 6, height * 0.15 + 6, 0x4f46e5, 0.8)
             .setOrigin(0.5);
 
-        const questionText = this.add.text(width / 2, height * 0.25, this.currentQuestion.question, {
+        const questionText = this.add.text(width / 2, height * 0.22, this.currentQuestion.question, {
             font: `bold ${questionSize}px Arial`,
             fill: "#ffffff",
             align: "center",
-            wordWrap: { width: width * 0.85 }
+            wordWrap: { width: width * 0.85 },
+            stroke: "#000000",
+            strokeThickness: 1
         }).setOrigin(0.5);
 
-        // Timer circulaire
-        this.createTimerCircle(width * 0.9, height * 0.15);
+        // Timer circulaire mis en avant (depth élevé)
+        this.createTimerCircle(width * 0.9, height * 0.12);
 
         // Réponses
         this.answerButtons = [];
@@ -364,7 +395,7 @@ export class QuizGameScene extends Phaser.Scene {
             const row = Math.floor(index / 2);
             const col = index % 2;
             const x = width / 2 + (col === 0 ? -buttonWidth / 2 - spacing / 2 : buttonWidth / 2 + spacing / 2);
-            const y = height * 0.5 + row * (buttonHeight + spacing);
+            const y = height * 0.45 + row * (buttonHeight + spacing);
 
             const answerContainer = this.add.container(x, y);
 
@@ -372,7 +403,7 @@ export class QuizGameScene extends Phaser.Scene {
                 .setOrigin(0.5)
                 .setInteractive({ useHandCursor: true });
 
-            const answerBorder = this.add.rectangle(0, 0, buttonWidth + 4, buttonHeight + 4, 0xffffff, 0.4)
+            const answerBorder = this.add.rectangle(0, 0, buttonWidth + 4, buttonHeight + 4, 0xffffff, 0.5)
                 .setOrigin(0.5);
 
             const answerLabel = this.add.text(-buttonWidth * 0.4, 0, String.fromCharCode(65 + index), {
@@ -380,7 +411,7 @@ export class QuizGameScene extends Phaser.Scene {
                 fill: "#ffffff",
                 align: "center",
                 stroke: "#000000",
-                strokeThickness: 2
+                strokeThickness: 3
             }).setOrigin(0.5);
 
             const answerTextObj = this.add.text(-buttonWidth * 0.1, 0, answer, {
@@ -389,7 +420,7 @@ export class QuizGameScene extends Phaser.Scene {
                 align: "left",
                 wordWrap: { width: buttonWidth * 0.6 },
                 stroke: "#000000",
-                strokeThickness: 1
+                strokeThickness: 2
             }).setOrigin(0, 0.5);
 
             answerContainer.add([answerBorder, answerBg, answerLabel, answerTextObj]);
@@ -416,11 +447,8 @@ export class QuizGameScene extends Phaser.Scene {
             this.answerButtons.push({ container: answerContainer, bg: answerBg, index });
         });
 
-        // Ajouter tous les éléments au container principal avec le fond en premier
+        // Ajouter tous les éléments au container principal
         this.currentContainer.add([
-            backgroundOverlay, // Fond opaque en premier
-            progressBg,
-            progressBar,
             questionHeader,
             questionBorder,
             questionBg,
@@ -433,21 +461,26 @@ export class QuizGameScene extends Phaser.Scene {
     }
 
     createTimerCircle(x, y) {
-        const radius = 30;
+        const radius = 35; // Légèrement plus grand pour la visibilité
         
         // Cercle de fond
-        this.timerBg = this.add.circle(x, y, radius, 0x333333, 0.8);
+        this.timerBg = this.add.circle(x, y, radius, 0x333333, 0.9)
+            .setDepth(1000); // Profondeur élevée pour être devant
         
         // Texte du timer
         this.timerText = this.add.text(x, y, this.timeLeft, {
-            font: `bold 24px Arial`,
+            font: `bold 28px Arial`, // Plus gros pour la lisibilité
             fill: "#ffffff",
-            align: "center"
-        }).setOrigin(0.5);
+            align: "center",
+            stroke: "#000000",
+            strokeThickness: 2
+        }).setOrigin(0.5)
+          .setDepth(1001); // Encore plus devant
 
         // Cercle de progression
         this.timerCircle = this.add.graphics()
-            .setPosition(x, y);
+            .setPosition(x, y)
+            .setDepth(1000);
 
         this.currentContainer.add([this.timerBg, this.timerText, this.timerCircle]);
     }
@@ -484,6 +517,8 @@ export class QuizGameScene extends Phaser.Scene {
                 this.timerText.setTint(0xff0000);
             } else if (this.timeLeft <= 10) {
                 this.timerText.setTint(0xffa500);
+            } else {
+                this.timerText.clearTint();
             }
         }
 
@@ -491,9 +526,9 @@ export class QuizGameScene extends Phaser.Scene {
         if (this.timerCircle) {
             const angle = (this.timeLeft / 30) * 360;
             this.timerCircle.clear();
-            this.timerCircle.lineStyle(6, this.timeLeft <= 5 ? 0xff0000 : this.timeLeft <= 10 ? 0xffa500 : 0x10b981);
+            this.timerCircle.lineStyle(8, this.timeLeft <= 5 ? 0xff0000 : this.timeLeft <= 10 ? 0xffa500 : 0x10b981);
             this.timerCircle.beginPath();
-            this.timerCircle.arc(0, 0, 30, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + angle), false);
+            this.timerCircle.arc(0, 0, 35, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + angle), false);
             this.timerCircle.strokePath();
         }
     }
@@ -504,8 +539,7 @@ export class QuizGameScene extends Phaser.Scene {
         this.hasAnswered = true;
         this.selectedAnswer = answerIndex;
 
-        // Surligne la réponse sélectionnée - SANS setTint
-        // bg.setTint(0xffff00); // ← Retirer cette ligne
+        // Surligne la réponse sélectionnée
         container.setScale(1.1);
 
         // Désactive les autres boutons
@@ -580,6 +614,45 @@ export class QuizGameScene extends Phaser.Scene {
 
         this.currentContainer = this.add.container(0, 0);
 
+        // AJOUT: Fond coloré selon la réponse du joueur
+        const isCorrect = this.selectedAnswer === data.correctAnswer;
+        const hasAnswered = this.selectedAnswer >= 0;
+        
+        let bgColor, bgAlpha;
+        if (!hasAnswered) {
+            // Pas de réponse = fond neutre gris
+            bgColor = 0x6b7280;
+            bgAlpha = 0.8;
+        } else if (isCorrect) {
+            // Correct = fond vert
+            bgColor = 0x10b981;
+            bgAlpha = 0.8;
+        } else {
+            // Incorrect = fond rouge
+            bgColor = 0xef4444;
+            bgAlpha = 0.8;
+        }
+
+        // Fond principal avec couleur selon le résultat
+        const resultBackground = this.add.rectangle(width / 2, height / 2, width, height, bgColor, bgAlpha)
+            .setOrigin(0.5);
+        
+        // Overlay avec dégradé pour un effet plus subtil
+        const resultOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.3)
+            .setOrigin(0.5);
+
+        this.currentContainer.add([resultBackground, resultOverlay]);
+
+        // Animation du fond (pulsation subtile)
+        this.tweens.add({
+            targets: resultBackground,
+            alpha: bgAlpha - 0.2,
+            duration: 1000,
+            yoyo: true,
+            repeat: 2,
+            ease: 'Sine.easeInOut'
+        });
+
         // Affiche d'abord la réponse du joueur
         if (this.selectedAnswer !== null) {
             this.showPlayerAnswer(data);
@@ -590,57 +663,81 @@ export class QuizGameScene extends Phaser.Scene {
             this.showCorrectAnswer(data);
         });
 
-        // Enfin affiche le classement après 3 secondes
+        // SUPPRESSION du classement - remplacé par les points gagnés
         this.time.delayedCall(3000, () => {
-            this.showLeaderboard(data.leaderboard);
+            this.showPointsGained(data);
         });
     }
 
     showPlayerAnswer(data) {
         const { width, height } = this.sys.game.canvas;
         const baseSize = Math.min(width, height);
-        const titleSize = Math.min(baseSize * 0.06, 36);
+        const titleSize = Math.min(baseSize * 0.08, 48);
 
         const isCorrect = this.selectedAnswer === data.correctAnswer;
-        const resultText = isCorrect ? "✅ CORRECT !" : "❌ INCORRECT !";
-        const resultColor = isCorrect ? "#10b981" : "#ef4444";
+        const hasAnswered = this.selectedAnswer >= 0;
 
-        const resultTitle = this.add.text(width / 2, height * 0.3, resultText, {
+        let resultText, resultColor, resultIcon;
+        if (!hasAnswered) {
+            resultText = "⏰ TEMPS ÉCOULÉ !";
+            resultColor = "#9ca3af";
+            resultIcon = "⏰";
+        } else if (isCorrect) {
+            resultText = "🎉 BRAVO ! CORRECT !";
+            resultColor = "#ffffff";
+            resultIcon = "🎉";
+        } else {
+            resultText = "💥 OUPS ! INCORRECT !";
+            resultColor = "#ffffff";
+            resultIcon = "💥";
+        }
+
+        // Titre principal avec effet plus visible
+        const resultTitle = this.add.text(width / 2, height * 0.25, resultText, {
             font: `bold ${titleSize}px Arial`,
             fill: resultColor,
             stroke: "#000000",
-            strokeThickness: 4,
+            strokeThickness: 6,
             align: "center"
         }).setOrigin(0.5);
 
-        // Si incorrect, affiche la réponse du joueur en rouge
-        if (!isCorrect && this.selectedAnswer >= 0) {
+        // Si incorrect, affiche la réponse du joueur
+        if (!isCorrect && hasAnswered) {
+            const playerAnswerBg = this.add.rectangle(width / 2, height * 0.4, width * 0.9, height * 0.1, 0x000000, 0.7)
+                .setOrigin(0.5);
+            
             const playerAnswerText = this.add.text(width / 2, height * 0.4, 
                 `Votre réponse: ${this.currentQuestion.answers[this.selectedAnswer]}`, {
-                font: `${titleSize * 0.7}px Arial`,
-                fill: "#ef4444",
-                align: "center"
+                font: `bold ${titleSize * 0.7}px Arial`,
+                fill: "#ffffff",
+                stroke: "#000000",
+                strokeThickness: 3,
+                align: "center",
+                wordWrap: { width: width * 0.85 }
             }).setOrigin(0.5);
-            this.currentContainer.add(playerAnswerText);
-        } else if (this.selectedAnswer < 0) {
-            const noAnswerText = this.add.text(width / 2, height * 0.4, "Temps écoulé !", {
-                font: `${titleSize * 0.7}px Arial`,
-                fill: "#6b7280",
-                align: "center"
-            }).setOrigin(0.5);
-            this.currentContainer.add(noAnswerText);
+            
+            this.currentContainer.add([playerAnswerBg, playerAnswerText]);
         }
 
         this.currentContainer.add(resultTitle);
 
-        // Animation d'apparition
+        // Animation d'apparition plus spectaculaire
+        resultTitle.setScale(0);
         this.tweens.add({
             targets: resultTitle,
             scaleX: 1.2,
             scaleY: 1.2,
             duration: 300,
-            yoyo: true,
-            ease: 'Power2'
+            ease: 'Back.easeOut',
+            onComplete: () => {
+                this.tweens.add({
+                    targets: resultTitle,
+                    scaleX: 1,
+                    scaleY: 1,
+                    duration: 200,
+                    ease: 'Power2'
+                });
+            }
         });
     }
 
@@ -649,66 +746,117 @@ export class QuizGameScene extends Phaser.Scene {
         const baseSize = Math.min(width, height);
         const titleSize = Math.min(baseSize * 0.06, 36);
 
-        const correctAnswerText = this.add.text(width / 2, height * 0.55, 
+        // Fond pour la bonne réponse
+        const correctAnswerBg = this.add.rectangle(width / 2, height * 0.58, width * 0.95, height * 0.15, 0x000000, 0.8)
+            .setOrigin(0.5);
+        
+        const correctAnswerBorder = this.add.rectangle(width / 2, height * 0.58, width * 0.95 + 6, height * 0.15 + 6, 0x10b981, 0.8)
+            .setOrigin(0.5);
+
+        const correctAnswerText = this.add.text(width / 2, height * 0.58, 
             `💡 Bonne réponse: ${data.correctAnswerText}`, {
-            font: `bold ${titleSize * 0.8}px Arial`,
-            fill: "#10b981",
+            font: `bold ${titleSize * 0.9}px Arial`,
+            fill: "#ffffff",
             stroke: "#000000",
             strokeThickness: 3,
             align: "center",
-            wordWrap: { width: width * 0.9 }
+            wordWrap: { width: width * 0.85 }
         }).setOrigin(0.5);
 
-        this.currentContainer.add(correctAnswerText);
+        this.currentContainer.add([correctAnswerBorder, correctAnswerBg, correctAnswerText]);
 
-        // Animation d'apparition
+        // Animation d'apparition glissante
+        correctAnswerBg.setAlpha(0);
+        correctAnswerBorder.setAlpha(0);
+        correctAnswerText.setAlpha(0);
+        correctAnswerText.setY(height * 0.65);
+
         this.tweens.add({
-            targets: correctAnswerText,
-            alpha: { from: 0, to: 1 },
-            y: { from: height * 0.6, to: height * 0.55 },
+            targets: [correctAnswerBg, correctAnswerBorder, correctAnswerText],
+            alpha: 1,
             duration: 500,
             ease: 'Power2'
         });
+
+        this.tweens.add({
+            targets: correctAnswerText,
+            y: height * 0.58,
+            duration: 500,
+            ease: 'Back.easeOut'
+        });
     }
 
-    showLeaderboard(leaderboard) {
+    showPointsGained(data) {
         const { width, height } = this.sys.game.canvas;
         const baseSize = Math.min(width, height);
-        const textSize = Math.min(baseSize * 0.035, 20);
+        const textSize = Math.min(baseSize * 0.06, 36);
 
-        const leaderTitle = this.add.text(width / 2, height * 0.7, "🏆 CLASSEMENT", {
-            font: `bold ${textSize * 1.5}px Arial`,
-            fill: "#fbbf24",
-            align: "center"
-        }).setOrigin(0.5);
-
-        const maxVisible = Math.min(5, leaderboard.length);
-        leaderboard.slice(0, maxVisible).forEach((player, index) => {
-            const y = height * 0.75 + index * (textSize * 1.3);
-            const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}.`;
-            const isCurrentPlayer = player.id === this.playerId;
-            
-            const playerText = this.add.text(width / 2, y, 
-                `${medal} ${player.name}: ${player.score} pts`, {
-                font: `${isCurrentPlayer ? 'bold' : ''} ${textSize}px Arial`,
-                fill: isCurrentPlayer ? "#fbbf24" : "#ffffff",
+        // Trouve le joueur actuel dans les données de points
+        const currentPlayerPoints = data.pointsDistribution?.find(p => p.playerId === this.playerId);
+        
+        if (currentPlayerPoints && currentPlayerPoints.points > 0) {
+            // Affiche les points gagnés
+            const pointsText = this.add.text(width / 2, height * 0.75, 
+                `+ ${currentPlayerPoints.points} points !`, {
+                font: `bold ${textSize}px Arial`,
+                fill: "#fbbf24",
+                stroke: "#000000",
+                strokeThickness: 4,
                 align: "center"
             }).setOrigin(0.5);
 
-            this.currentContainer.add(playerText);
+            this.currentContainer.add(pointsText);
 
-            // Animation d'apparition
+            // Animation d'apparition spectaculaire
+            pointsText.setScale(0);
             this.tweens.add({
-                targets: playerText,
-                alpha: { from: 0, to: 1 },
-                x: { from: width * 0.3, to: width / 2 },
-                duration: 300,
-                delay: index * 100,
+                targets: pointsText,
+                scaleX: 1.2,
+                scaleY: 1.2,
+                duration: 400,
+                ease: 'Back.easeOut',
+                onComplete: () => {
+                    this.tweens.add({
+                        targets: pointsText,
+                        scaleX: 1,
+                        scaleY: 1,
+                        duration: 200,
+                        ease: 'Power2'
+                    });
+                }
+            });
+
+            // Animation de pulsation
+            this.tweens.add({
+                targets: pointsText,
+                alpha: 0.8,
+                duration: 800,
+                yoyo: true,
+                repeat: 2,
+                ease: 'Sine.easeInOut'
+            });
+        } else {
+            // Aucun point gagné
+            const noPointsText = this.add.text(width / 2, height * 0.75, 
+                "0 point", {
+                font: `bold ${textSize * 0.8}px Arial`,
+                fill: "#9ca3af",
+                stroke: "#000000",
+                strokeThickness: 3,
+                align: "center"
+            }).setOrigin(0.5);
+
+            this.currentContainer.add(noPointsText);
+
+            // Animation simple
+            noPointsText.setAlpha(0);
+            this.tweens.add({
+                targets: noPointsText,
+                alpha: 1,
+                duration: 500,
                 ease: 'Power2'
             });
-        });
-
-        this.currentContainer.add(leaderTitle);
+        }
     }
 
     showFinalResults(data) {
@@ -721,25 +869,60 @@ export class QuizGameScene extends Phaser.Scene {
 
         this.currentContainer = this.add.container(0, 0);
 
-        // Titre
+        // Fond spécial pour les résultats finaux
+        const finalBg = this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e, 0.9)
+            .setOrigin(0.5);
+        
+        const finalOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x8b5cf6, 0.15)
+            .setOrigin(0.5);
+
+        // Effet de confettis
+        for (let i = 0; i < 20; i++) {
+            const confetti = this.add.circle(
+                Phaser.Math.Between(0, width),
+                Phaser.Math.Between(0, height * 0.5),
+                Phaser.Math.Between(3, 8),
+                Phaser.Math.Between(0xff6b35, 0xfbbf24),
+                0.8
+            );
+            
+            this.tweens.add({
+                targets: confetti,
+                y: height + 50,
+                rotation: Phaser.Math.Between(0, 6.28),
+                duration: Phaser.Math.Between(2000, 4000),
+                ease: 'Power2',
+                delay: Phaser.Math.Between(0, 2000)
+            });
+        }
+
+        // Titre avec effet spectaculaire
         const title = this.add.text(width / 2, height * 0.15, "🎉 QUIZ TERMINÉ !", {
             font: `bold ${titleSize}px Arial`,
             fill: "#ffffff",
             stroke: "#8b5cf6",
-            strokeThickness: 4,
+            strokeThickness: 6,
             align: "center"
         }).setOrigin(0.5);
 
-        // Podium
-        const podiumTitle = this.add.text(width / 2, height * 0.25, "🏆 PODIUM", {
-            font: `bold ${textSize * 1.3}px Arial`,
+        // Podium avec fond encadré
+        const podiumBg = this.add.rectangle(width / 2, height * 0.5, width * 0.9, height * 0.4, 0x2d3748, 0.9)
+            .setOrigin(0.5);
+        
+        const podiumBorder = this.add.rectangle(width / 2, height * 0.5, width * 0.9 + 6, height * 0.4 + 6, 0xfbbf24, 0.8)
+            .setOrigin(0.5);
+
+        const podiumTitle = this.add.text(width / 2, height * 0.32, "🏆 PODIUM", {
+            font: `bold ${textSize * 1.5}px Arial`,
             fill: "#fbbf24",
+            stroke: "#000000",
+            strokeThickness: 3,
             align: "center"
         }).setOrigin(0.5);
 
         // Affiche le top 3
         data.podium.forEach((player, index) => {
-            const y = height * 0.35 + index * (textSize * 1.8);
+            const y = height * 0.4 + index * (textSize * 1.8);
             const isCurrentPlayer = player.id === this.playerId;
             
             const podiumText = this.add.text(width / 2, y, 
@@ -757,9 +940,9 @@ export class QuizGameScene extends Phaser.Scene {
         // Bouton quitter
         const quitButton = this.createQuitButton(width / 2, height * 0.85);
 
-        this.currentContainer.add([title, podiumTitle, quitButton]);
+        this.currentContainer.add([finalBg, finalOverlay, podiumBg, podiumBorder, title, podiumTitle, quitButton]);
 
-        // Animation finale
+        // Animations spectaculaires
         this.tweens.add({
             targets: title,
             scaleX: 1.1,
@@ -768,6 +951,16 @@ export class QuizGameScene extends Phaser.Scene {
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
+        });
+
+        // Animation du podium
+        this.tweens.add({
+            targets: [podiumBg, podiumBorder],
+            alpha: { from: 0, to: 1 },
+            scaleX: { from: 0.8, to: 1 },
+            scaleY: { from: 0.8, to: 1 },
+            duration: 800,
+            ease: 'Back.easeOut'
         });
     }
 
@@ -840,7 +1033,14 @@ export class QuizGameScene extends Phaser.Scene {
             this.timer = null;
         }
 
-        this.children.removeAll();
+        // NE PAS détruire le fond global et les particules
+        this.children.list.forEach(child => {
+            if (child !== this.globalBg && 
+                child !== this.globalOverlay && 
+                !this.globalParticles.includes(child)) {
+                child.destroy();
+            }
+        });
     }
 
     returnToLobby() {

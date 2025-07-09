@@ -387,6 +387,7 @@ export class QuizLobbyScene extends Phaser.Scene {
             border.setStrokeStyle(4, isSelected ? 0xffffff : 0x666666);
         });
     }
+
     createGameWithOptions() {
         if (this.selectedCategories.length === 0) {
             console.warn("Aucune catégorie sélectionnée");
@@ -397,10 +398,10 @@ export class QuizLobbyScene extends Phaser.Scene {
 
         this.currentGame = {
             gameId,
-            hostId: this.socket.id, // ← Changement ici : utiliser socket.id
+            hostId: this.socket.id, // ← Utilise socket.id
             hostName: this.playerName,
             maxPlayers: 999,
-            players: [{ id: this.playerId, name: this.playerName, socketId: this.socket.id }], // ← Ajouter socketId
+            players: [{ id: this.socket.id, name: this.playerName, socketId: this.socket.id }], // ← Cohérence avec socket.id
             status: 'waiting',
             // Nouvelles options Trivial Pursuit
             gameMode: 'trivial-pursuit',
@@ -410,9 +411,12 @@ export class QuizLobbyScene extends Phaser.Scene {
         };
         this.isHost = true;
 
+        console.log('[QuizLobby] Création quiz avec hostId:', this.socket.id);
+        console.log('[QuizLobby] playerId utilisé pour la partie:', this.socket.id);
+
         this.socket.emit('quiz:createGame', {
             gameId,
-            hostId: this.socket.id, // ← Changement ici aussi
+            hostId: this.socket.id, // ← Utilise socket.id
             hostName: this.playerName,
             maxPlayers: 999,
             gameMode: 'trivial-pursuit',
@@ -469,29 +473,6 @@ export class QuizLobbyScene extends Phaser.Scene {
         });
 
         return buttonContainer;
-    }
-
-    createGame(maxPlayers) {
-        const gameId = `quiz-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-        
-        this.currentGame = {
-            gameId,
-            hostId: this.playerId,
-            hostName: this.playerName,
-            maxPlayers,
-            players: [{ id: this.playerId, name: this.playerName }],
-            status: 'waiting'
-        };
-        this.isHost = true;
-
-        this.socket.emit('quiz:createGame', {
-            gameId,
-            hostId: this.playerId,
-            hostName: this.playerName,
-            maxPlayers
-        });
-
-        this.showWaitingRoom();
     }
 
     showWaitingRoom() {
@@ -959,7 +940,7 @@ export class QuizLobbyScene extends Phaser.Scene {
             MusicManager.stop();
             this.scene.start("QuizGameScene", {
                 gameId: gameData.gameId,
-                playerId: this.playerId,
+                playerId: this.isHost ? this.socket.id : this.playerId, // ← CORRECTION : utiliser socket.id pour l'organisateur
                 playerName: this.playerName,
                 isHost: this.isHost,
                 gameData: gameData.gameData || gameData // Passer les bonnes données

@@ -1,0 +1,212 @@
+[
+  {
+    "question": "Quelle planète est la plus proche du Soleil ?",
+    "answers": [ "Vénus", "Terre", "Mercure", "Mars" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel scientifique a développé la théorie de l'évolution ?",
+    "answers": [ "Newton", "Einstein", "Darwin", "Galilée" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien de pattes a une araignée ?",
+    "answers": [ "6", "8", "10", "12" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel organe du corps humain produit l'insuline ?",
+    "answers": [ "Foie", "Pancréas", "Estomac", "Reins" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle est la formule chimique de l'eau ?",
+    "answers": [ "H2O", "CO2", "NaCl", "O2" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien y a-t-il de planètes dans notre système solaire ?",
+    "answers": [ "7", "8", "9", "10" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel animal est le plus rapide du monde ?",
+    "answers": [ "Guépard", "Faucon pèlerin", "Antilope", "Lièvre" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "À quelle température l'eau bout-elle ?",
+    "answers": [ "90°C", "95°C", "100°C", "105°C" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel gaz est nécessaire à la respiration ?",
+    "answers": [ "Azote", "Oxygène", "Dioxyde de carbone", "Hydrogène" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien de chambres a le cœur humain ?",
+    "answers": [ "2", "3", "4", "5" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel est l'élément chimique avec le symbole 'Au' ?",
+    "answers": [ "Argent", "Or", "Aluminium", "Arsenic" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est la vitesse de la lumière ?",
+    "answers": [ "300 000 km/s", "150 000 km/s", "450 000 km/s", "600 000 km/s" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel gaz représente environ 78% de l'atmosphère terrestre ?",
+    "answers": [ "Oxygène", "Azote", "Dioxyde de carbone", "Argon" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est l'unité de mesure de la force ?",
+    "answers": [ "Joule", "Watt", "Newton", "Pascal" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien de vertèbres cervicales a l'être humain ?",
+    "answers": [ "5", "6", "7", "8" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel est le plus grand organe du corps humain ?",
+    "answers": [ "Foie", "Cerveau", "Peau", "Poumons" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle planète est surnommée la 'planète rouge' ?",
+    "answers": [ "Venus", "Mars", "Jupiter", "Saturne" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel est le pH de l'eau pure ?",
+    "answers": [ "6", "7", "8", "9" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien de paires de chromosomes a l'être humain ?",
+    "answers": [ "22", "23", "24", "25" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel scientifique a découvert la pénicilline ?",
+    "answers": [ "Louis Pasteur", "Alexander Fleming", "Marie Curie", "Robert Koch" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien d'os y a-t-il dans le corps humain adulte ?",
+    "answers": [ "206", "208", "210", "212" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de cœurs a une pieuvre ?",
+    "answers": [ "1", "2", "3", "4" ],
+    "correct": 2,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est le nombre d'Avogadro ?",
+    "answers": [ "6,022 × 10²³", "6,022 × 10²²", "6,022 × 10²⁴", "6,022 × 10²¹" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de temps met la lumière du Soleil pour atteindre la Terre ?",
+    "answers": [ "8 minutes", "8 minutes 20 secondes", "10 minutes", "12 minutes" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est l'élément le plus abondant dans l'univers ?",
+    "answers": [ "Hélium", "Hydrogène", "Oxygène", "Carbone" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien d'estomacs a une vache ?",
+    "answers": [ "1", "2", "3", "4" ],
+    "correct": 3,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la constante de Planck ?",
+    "answers": [ "6,626 × 10⁻³⁴ J⋅s", "6,626 × 10⁻³³ J⋅s", "6,626 × 10⁻³⁵ J⋅s", "6,626 × 10⁻³² J⋅s" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de neurones contient approximativement le cerveau humain ?",
+    "answers": [ "86 milliards", "100 milliards", "120 milliards", "150 milliards" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est le point d'ébullition de l'azote liquide ?",
+    "answers": [ "-196°C", "-183°C", "-210°C", "-273°C" ],
+    "correct": 0,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de bases azotées composent l'ADN ?",
+    "answers": [ "3", "4", "5", "6" ],
+    "correct": 1,
+    "category": "Science et Nature",
+    "difficulty": "difficile"
+  }
+]

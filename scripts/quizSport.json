@@ -1,0 +1,212 @@
+[
+  {
+    "question": "Combien de joueurs y a-t-il dans une équipe de football ?",
+    "answers": [ "10", "11", "12", "13" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel pays a remporté la Coupe du Monde de football 2018 ?",
+    "answers": [ "Brésil", "Allemagne", "France", "Argentine" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel sport pratique-t-on à Wimbledon ?",
+    "answers": [ "Golf", "Tennis", "Cricket", "Rugby" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien de temps dure un match de football ?",
+    "answers": [ "80 minutes", "90 minutes", "100 minutes", "120 minutes" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien de joueurs y a-t-il sur le terrain dans une équipe de basketball ?",
+    "answers": [ "4", "5", "6", "7" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel sport se joue sur un green ?",
+    "answers": [ "Tennis", "Golf", "Cricket", "Rugby" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien d'anneaux olympiques y a-t-il ?",
+    "answers": [ "4", "5", "6", "7" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans quel sport marque-t-on des 'paniers' ?",
+    "answers": [ "Handball", "Basketball", "Volleyball", "Water-polo" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien de sets gagne-t-on généralement pour remporter un match de tennis ?",
+    "answers": [ "1", "2", "3", "4" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel sport pratique-t-on avec une raquette et un volant ?",
+    "answers": [ "Tennis", "Squash", "Badminton", "Tennis de table" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "facile"
+  },
+  {
+    "question": "En quelle année ont eu lieu les premiers Jeux Olympiques modernes ?",
+    "answers": [ "1892", "1894", "1896", "1898" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien de sets faut-il gagner pour remporter un match de tennis masculin en Grand Chelem ?",
+    "answers": [ "2", "3", "4", "5" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans quel sport utilise-t-on un puck ?",
+    "answers": [ "Football", "Hockey sur glace", "Basketball", "Volleyball" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est la distance d'un marathon ?",
+    "answers": [ "40,195 km", "42,195 km", "44,195 km", "46,195 km" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien de joueurs composent une équipe de rugby à XV ?",
+    "answers": [ "13", "14", "15", "16" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans quel sport y a-t-il des 'strikes' et des 'spares' ?",
+    "answers": [ "Baseball", "Bowling", "Cricket", "Golf" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est la hauteur du filet de volleyball ?",
+    "answers": [ "2,24 m", "2,43 m", "2,50 m", "2,60 m" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien de tours comprend un combat de boxe professionnel maximum ?",
+    "answers": [ "10", "12", "15", "20" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans quel sport utilise-t-on le terme 'ace' ?",
+    "answers": [ "Golf", "Tennis", "Les deux", "Aucun des deux" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Combien de joueurs y a-t-il dans une équipe de water-polo ?",
+    "answers": [ "6", "7", "8", "9" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel est le record du monde du 100m masculin (en 2023) ?",
+    "answers": [ "9.58 secondes", "9.63 secondes", "9.69 secondes", "9.72 secondes" ],
+    "correct": 0,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de disciplines composent un décathlon ?",
+    "answers": [ "8", "9", "10", "12" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la vitesse maximale d'une balle de tennis servie par un professionnel ?",
+    "answers": [ "220 km/h", "240 km/h", "260 km/h", "280 km/h" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de fois le Brésil a-t-il remporté la Coupe du Monde de football ?",
+    "answers": [ "4", "5", "6", "7" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est le record du monde du saut en hauteur masculin ?",
+    "answers": [ "2,43 m", "2,45 m", "2,47 m", "2,50 m" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans quelle ville se sont déroulés les premiers Jeux Olympiques d'hiver ?",
+    "answers": [ "Saint-Moritz", "Chamonix", "Garmisch-Partenkirchen", "Lake Placid" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien de trous y a-t-il sur un parcours de golf standard ?",
+    "answers": [ "16", "17", "18", "19" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la longueur réglementaire d'une piscine olympique ?",
+    "answers": [ "25 m", "40 m", "50 m", "100 m" ],
+    "correct": 2,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Combien pèse un ballon de basket réglementaire ?",
+    "answers": [ "550-600 g", "600-650 g", "650-700 g", "700-750 g" ],
+    "correct": 1,
+    "category": "Sport",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est le record du monde féminin du marathon ?",
+    "answers": [ "2h14min04s", "2h15min25s", "2h17min01s", "2h19min12s" ],
+    "correct": 0,
+    "category": "Sport",
+    "difficulty": "difficile"
+  }
+]

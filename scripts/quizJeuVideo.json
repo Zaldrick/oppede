@@ -1,0 +1,212 @@
+[
+  {
+    "question": "Quel est le nom du héros principal de la série 'The Legend of Zelda' ?",
+    "answers": [ "Zelda", "Link", "Ganondorf", "Epona" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans quel jeu trouve-t-on les personnages Mario et Luigi ?",
+    "answers": [ "Sonic", "Super Mario Bros", "Street Fighter", "Pac-Man" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel est le nom du monde principal dans 'Minecraft' ?",
+    "answers": [ "Overworld", "Nether", "End", "Aether" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans 'League of Legends', combien de champions y a-t-il sur la Faille de l'invocateur par équipe ?",
+    "answers": [ "4", "5", "6", "10" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle société a créé la PlayStation ?",
+    "answers": [ "Nintendo", "Microsoft", "Sony", "Sega" ],
+    "correct": 2,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans 'World of Warcraft', quelle est la monnaie principale ?",
+    "answers": [ "Or", "Gil", "Zenny", "Septims" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans 'Counter-Strike', combien de joueurs maximum par équipe ?",
+    "answers": [ "4", "5", "6", "8" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel jeu de bataille royale a popularisé le genre en 2017 ?",
+    "answers": [ "PUBG", "Fortnite", "Apex Legends", "Call of Duty Warzone" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle franchise de jeu vidéo a pour slogan 'Gotta catch 'em all' ?",
+    "answers": [ "Digimon", "Pokémon", "Monster Hunter", "Dragon Quest" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel personnage principal incarne-t-on dans 'Tomb Raider' ?",
+    "answers": [ "Lara Croft", "Nathan Drake", "Ezio Auditore", "Solid Snake" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle console de jeu Nintendo est sortie en 2017 ?",
+    "answers": [ "Nintendo DS", "Nintendo Wii", "Nintendo Switch", "Nintendo 3DS" ],
+    "correct": 2,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui est le créateur de la série 'Metal Gear' ?",
+    "answers": [ "Shigeru Miyamoto", "Hideo Kojima", "Hironobu Sakaguchi", "Tetsuya Nomura" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans 'Final Fantasy VII', comment s'appelle l'épée de Cloud ?",
+    "answers": [ "Masamune", "Buster Sword", "Ultima Weapon", "Excalibur" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel studio a développé 'The Witcher 3: Wild Hunt' ?",
+    "answers": [ "Bioware", "CD Projekt RED", "Bethesda", "Ubisoft" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans 'Portal', comment s'appelle l'IA antagoniste ?",
+    "answers": [ "HAL 9000", "GLaDOS", "SHODAN", "Cortana" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans 'Half-Life', comment s'appelle le complexe de recherche ?",
+    "answers": [ "Aperture Science", "Black Mesa", "Umbrella Corp", "Weyland-Yutani" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans 'Dark Souls', qui est le premier boss que l'on affronte ?",
+    "answers": [ "Asylum Demon", "Taurus Demon", "Bell Gargoyle", "Gwyn" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel moteur graphique a été créé par Epic Games ?",
+    "answers": [ "Unity", "CryEngine", "Unreal Engine", "Source Engine" ],
+    "correct": 2,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans 'Overwatch', quel est le nom du gorilla scientifique ?",
+    "answers": [ "Donkey Kong", "Winston", "Hammond", "Caesar" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel est le nom de famille de Mario ?",
+    "answers": [ "Mario", "Bros", "Nintendo", "Plombier" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans 'Bloodborne', comment s'appelle la ville principale ?",
+    "answers": [ "Lordran", "Drangleic", "Yharnam", "Boletaria" ],
+    "correct": 2,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel jeu Rockstar a été développé en premier ?",
+    "answers": [ "Grand Theft Auto", "Red Dead Revolver", "Max Payne", "Manhunt" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans 'Silent Hill 2', comment s'appelle le protagoniste ?",
+    "answers": [ "Harry Mason", "James Sunderland", "Heather Mason", "Henry Townshend" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel développeur a créé la série 'Deus Ex' ?",
+    "answers": [ "Ion Storm", "Looking Glass Studios", "Eidos Montreal", "Square Enix" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans 'Chrono Trigger', comment s'appelle l'époque préhistorique ?",
+    "answers": [ "65 000 000 BC", "600 AD", "1000 AD", "2300 AD" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est le nom complet de 'GLaDOS' dans Portal ?",
+    "answers": [ "Genetic Lifeform and Disk Operating System", "Genetic Lifeform and Data Operating System", "General Laboratory and Disk Operating System", "Genetic Laboratory and Disk Operating System" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans 'Persona 5', comment s'appelle le chat du groupe ?",
+    "answers": [ "Teddie", "Koromaru", "Morgana", "Aigis" ],
+    "correct": 2,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel jeu a introduit le concept de 'New Game+' ?",
+    "answers": [ "Chrono Trigger", "Final Fantasy", "Dragon Quest", "Secret of Mana" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans 'System Shock', comment s'appelle l'IA maléfique ?",
+    "answers": [ "GLaDOS", "SHODAN", "HAL 9000", "AM" ],
+    "correct": 1,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel est le nom du développeur principal de 'Undertale' ?",
+    "answers": [ "Toby Fox", "Daisuke Amaya", "Jonathan Blow", "Edmund McMillen" ],
+    "correct": 0,
+    "category": "Jeu Vidéo",
+    "difficulty": "difficile"
+  }
+]

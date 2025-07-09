@@ -1,0 +1,212 @@
+[
+  {
+    "question": "Qui a peint 'La Joconde' ?",
+    "answers": [ "Picasso", "Van Gogh", "Léonard de Vinci", "Monet" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a écrit 'Les Misérables' ?",
+    "answers": [ "Émile Zola", "Victor Hugo", "Gustave Flaubert", "Honoré de Balzac" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a écrit 'Hamlet' ?",
+    "answers": [ "Charles Dickens", "William Shakespeare", "Oscar Wilde", "George Orwell" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a composé 'La Marseillaise' ?",
+    "answers": [ "Rouget de Lisle", "Chopin", "Mozart", "Beethoven" ],
+    "correct": 0,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle couleur obtient-on en mélangeant le rouge et le jaune ?",
+    "answers": [ "Violet", "Vert", "Orange", "Marron" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a écrit 'Le Petit Prince' ?",
+    "answers": [ "Jules Verne", "Antoine de Saint-Exupéry", "Marcel Proust", "Albert Camus" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans quel musée se trouve la Joconde ?",
+    "answers": [ "Musée d'Orsay", "Louvre", "Musée Rodin", "Centre Pompidou" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a écrit 'Roméo et Juliette' ?",
+    "answers": [ "Molière", "William Shakespeare", "Racine", "Corneille" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Combien y a-t-il de notes dans une gamme ?",
+    "answers": [ "6", "7", "8", "9" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Qui a peint 'La Nuit étoilée' ?",
+    "answers": [ "Picasso", "Van Gogh", "Monet", "Renoir" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel mouvement artistique Picasso a-t-il co-fondé ?",
+    "answers": [ "Impressionnisme", "Surréalisme", "Cubisme", "Fauvisme" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui a composé 'La 9ème Symphonie' ?",
+    "answers": [ "Mozart", "Bach", "Beethoven", "Vivaldi" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel peintre a coupé son oreille ?",
+    "answers": [ "Picasso", "Van Gogh", "Monet", "Renoir" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui a écrit '1984' ?",
+    "answers": [ "Aldous Huxley", "Ray Bradbury", "George Orwell", "Isaac Asimov" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "De combien de cordes dispose une guitare classique ?",
+    "answers": [ "4", "5", "6", "7" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui a écrit 'L'Étranger' ?",
+    "answers": [ "Jean-Paul Sartre", "Albert Camus", "André Malraux", "Simone de Beauvoir" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel compositeur a écrit 'Le Lac des cygnes' ?",
+    "answers": [ "Tchaïkovski", "Stravinski", "Prokofiev", "Rachmaninov" ],
+    "correct": 0,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Qui a peint 'Guernica' ?",
+    "answers": [ "Dalí", "Miró", "Picasso", "Goya" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle œuvre de Proust commence par 'Longtemps, je me suis couché de bonne heure' ?",
+    "answers": [ "Du côté de chez Swann", "Le Temps retrouvé", "Sodome et Gomorrhe", "À l'ombre des jeunes filles en fleurs" ],
+    "correct": 0,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel groupe a chanté 'Bohemian Rhapsody' ?",
+    "answers": [ "The Beatles", "Queen", "Led Zeppelin", "The Rolling Stones" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans quel musée se trouve la Vénus de Milo ?",
+    "answers": [ "Musée d'Orsay", "Louvre", "Musée Rodin", "Centre Pompidou" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui a composé 'L'Art de la fugue' ?",
+    "answers": [ "Mozart", "Bach", "Beethoven", "Haendel" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel mouvement artistique André Breton a-t-il fondé ?",
+    "answers": [ "Dadaïsme", "Surréalisme", "Futurisme", "Constructivisme" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui a écrit 'Ulysse' ?",
+    "answers": [ "James Joyce", "Virginia Woolf", "D.H. Lawrence", "T.S. Eliot" ],
+    "correct": 0,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel peintre a créé la technique du 'dripping' ?",
+    "answers": [ "Jackson Pollock", "Mark Rothko", "Willem de Kooning", "Franz Kline" ],
+    "correct": 0,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans quelle ville est né Pablo Picasso ?",
+    "answers": [ "Madrid", "Barcelone", "Málaga", "Séville" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui a composé 'Prélude à l'après-midi d'un faune' ?",
+    "answers": [ "Debussy", "Ravel", "Fauré", "Satie" ],
+    "correct": 0,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel écrivain russe a écrit 'Crime et Châtiment' ?",
+    "answers": [ "Tolstoï", "Dostoïevski", "Gogol", "Tchekhov" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Qui a peint 'L'École d'Athènes' ?",
+    "answers": [ "Michel-Ange", "Raphaël", "Léonard de Vinci", "Botticelli" ],
+    "correct": 1,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel poète français a écrit 'Les Fleurs du mal' ?",
+    "answers": [ "Verlaine", "Rimbaud", "Baudelaire", "Mallarmé" ],
+    "correct": 2,
+    "category": "Art & Littérature",
+    "difficulty": "difficile"
+  }
+]

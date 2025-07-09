@@ -1,0 +1,212 @@
+[
+  {
+    "question": "Combien y a-t-il de continents ?",
+    "answers": [ "5", "6", "7", "8" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel fleuve traverse Paris ?",
+    "answers": [ "La Loire", "La Seine", "Le Rhône", "La Garonne" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel océan borde la côte ouest de l'Afrique ?",
+    "answers": [ "Atlantique", "Indien", "Pacifique", "Arctique" ],
+    "correct": 0,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle est la capitale de la France ?",
+    "answers": [ "Lyon", "Marseille", "Paris", "Toulouse" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel est le plus grand pays du monde ?",
+    "answers": [ "Canada", "Chine", "États-Unis", "Russie" ],
+    "correct": 3,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Sur quel continent se trouve l'Égypte ?",
+    "answers": [ "Asie", "Afrique", "Europe", "Amérique" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle mer borde l'Espagne au sud ?",
+    "answers": [ "Mer du Nord", "Mer Méditerranée", "Mer Noire", "Mer Baltique" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quel pays a la forme d'une botte ?",
+    "answers": [ "Espagne", "Grèce", "Italie", "Portugal" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle chaîne de montagnes sépare la France de l'Espagne ?",
+    "answers": [ "Les Alpes", "Les Pyrénées", "Les Vosges", "Le Jura" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Dans quel pays se trouve la ville de Tokyo ?",
+    "answers": [ "Chine", "Corée du Sud", "Japon", "Thaïlande" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "facile"
+  },
+  {
+    "question": "Quelle est la capitale de l'Australie ?",
+    "answers": [ "Sydney", "Melbourne", "Canberra", "Perth" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle chaîne de montagnes sépare l'Europe de l'Asie ?",
+    "answers": [ "Les Alpes", "L'Himalaya", "L'Oural", "Le Caucase" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est la capitale du Canada ?",
+    "answers": [ "Toronto", "Vancouver", "Montréal", "Ottawa" ],
+    "correct": 3,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel est le plus long fleuve du monde ?",
+    "answers": [ "Amazone", "Nil", "Mississippi", "Yangtsé" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans quel pays se trouve Machu Picchu ?",
+    "answers": [ "Bolivie", "Pérou", "Équateur", "Chili" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est la capitale du Brésil ?",
+    "answers": [ "São Paulo", "Rio de Janeiro", "Brasília", "Salvador" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel détroit sépare l'Europe de l'Afrique ?",
+    "answers": [ "Détroit de Gibraltar", "Détroit du Bosphore", "Détroit de Malacca", "Détroit de Béring" ],
+    "correct": 0,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle est la plus grande île du monde ?",
+    "answers": [ "Madagascar", "Groenland", "Nouvelle-Guinée", "Bornéo" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Dans quel océan se trouvent les îles Maldives ?",
+    "answers": [ "Océan Atlantique", "Océan Pacifique", "Océan Indien", "Océan Arctique" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quelle ville est surnommée la 'Ville éternelle' ?",
+    "answers": [ "Athènes", "Rome", "Istanbul", "Jérusalem" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "moyen"
+  },
+  {
+    "question": "Quel est le plus grand désert du monde ?",
+    "answers": [ "Sahara", "Gobi", "Antarctique", "Kalahari" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel pays a le plus de fuseaux horaires ?",
+    "answers": [ "Russie", "États-Unis", "Chine", "Canada" ],
+    "correct": 0,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la capitale du Kazakhstan ?",
+    "answers": [ "Almaty", "Astana", "Chimkent", "Aktobe" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel pays a pour capitale Oulan-Bator ?",
+    "answers": [ "Kazakhstan", "Kirghizistan", "Mongolie", "Ouzbékistan" ],
+    "correct": 2,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la plus petite république du monde ?",
+    "answers": [ "Saint-Marin", "Vatican", "Monaco", "Andorre" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans quel pays se trouve le lac Titicaca ?",
+    "answers": [ "Pérou et Bolivie", "Chili et Argentine", "Colombie et Venezuela", "Équateur et Colombie" ],
+    "correct": 0,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la capitale de l'Érythrée ?",
+    "answers": [ "Asmara", "Massawa", "Keren", "Assab" ],
+    "correct": 0,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quel fleuve traverse Baghdad ?",
+    "answers": [ "Euphrate", "Tigre", "Jourdain", "Oronte" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Quelle est la capitale du Bhoutan ?",
+    "answers": [ "Thimphou", "Paro", "Punakha", "Jakar" ],
+    "correct": 0,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  },
+  {
+    "question": "Dans quel pays se trouve la région de Transylvanie ?",
+    "answers": [ "Hongrie", "Roumanie", "Bulgarie", "Serbie" ],
+    "correct": 1,
+    "category": "Géographie",
+    "difficulty": "difficile"
+  }
+]
