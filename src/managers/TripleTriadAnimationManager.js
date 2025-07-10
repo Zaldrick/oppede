@@ -178,6 +178,10 @@ export class TripleTriadAnimationManager {
             return null;
         }
         
+        // ✅ CORRECTION : Sauvegarde les dimensions originales
+        const originalDisplayWidth = cellWidth * TRIPLE_TRIAD_CONSTANTS.VISUAL_BOARD.CARD_SCALE;
+        const originalDisplayHeight = cellHeight * TRIPLE_TRIAD_CONSTANTS.VISUAL_BOARD.CARD_SCALE;
+        
         const animationId = `capture_${Date.now()}`;
         this.activeAnimations.add(animationId);
         
@@ -188,13 +192,16 @@ export class TripleTriadAnimationManager {
             duration: TRIPLE_TRIAD_CONSTANTS.ANIMATIONS.CARD_CAPTURE.CLOSE_DURATION,
             ease: TRIPLE_TRIAD_CONSTANTS.ANIMATIONS.CARD_CAPTURE.CLOSE_EASE,
             onUpdate: () => {
+                // ✅ CORRECTION : Maintient les dimensions pendant l'animation
+                cardImg.setDisplaySize(originalDisplayWidth * cardImg.scaleX, originalDisplayHeight);
                 if (cellRect) cellRect.setAlpha(0.5);
             },
             onComplete: () => {
                 // Phase 2: Changer la texture et la bordure
                 cardImg.setTexture(`item_${cardImage}`);
-                cardImg.setDisplaySize(cellWidth * TRIPLE_TRIAD_CONSTANTS.VISUAL_BOARD.CARD_SCALE, 
-                                     cellHeight * TRIPLE_TRIAD_CONSTANTS.VISUAL_BOARD.CARD_SCALE);
+                // ✅ CORRECTION : Remet les bonnes dimensions
+                cardImg.setDisplaySize(originalDisplayWidth, originalDisplayHeight);
+                cardImg.setOrigin(0.5, 0.5);
                 
                 if (cellRect) {
                     const borderColor = TripleTriadUtils.getOwnerBorderColor(newOwner);
@@ -216,8 +223,8 @@ export class TripleTriadAnimationManager {
                 
                 const flash = this.scene.add.rectangle(
                     position.x, position.y, 
-                    cellWidth * TRIPLE_TRIAD_CONSTANTS.VISUAL_BOARD.CARD_SCALE, 
-                    cellHeight * TRIPLE_TRIAD_CONSTANTS.VISUAL_BOARD.CARD_SCALE, 
+                    originalDisplayWidth, 
+                    originalDisplayHeight, 
                     flashColor, 1
                 ).setOrigin(0.5).setDepth(cardImg.depth + 1);
                 
@@ -237,14 +244,26 @@ export class TripleTriadAnimationManager {
                     scaleX: 1.08,
                     duration: TRIPLE_TRIAD_CONSTANTS.ANIMATIONS.CARD_CAPTURE.OPEN_DURATION,
                     ease: TRIPLE_TRIAD_CONSTANTS.ANIMATIONS.CARD_CAPTURE.OPEN_EASE,
+                    onUpdate: () => {
+                        // ✅ CORRECTION : Maintient les dimensions pendant l'animation
+                        cardImg.setDisplaySize(originalDisplayWidth * cardImg.scaleX, originalDisplayHeight);
+                    },
                     onComplete: () => {
                         this.scene.tweens.add({
                             targets: cardImg,
                             scaleX: 1,
                             duration: TRIPLE_TRIAD_CONSTANTS.ANIMATIONS.CARD_CAPTURE.FINAL_DURATION,
                             ease: TRIPLE_TRIAD_CONSTANTS.ANIMATIONS.CARD_CAPTURE.OPEN_EASE,
+                            onUpdate: () => {
+                                // ✅ CORRECTION : Maintient les dimensions pendant l'animation
+                                cardImg.setDisplaySize(originalDisplayWidth * cardImg.scaleX, originalDisplayHeight);
+                            },
                             onComplete: () => {
+                                // ✅ CORRECTION : Remet la taille finale proprement
                                 cardImg.scaleX = 1;
+                                cardImg.scaleY = 1;
+                                cardImg.setDisplaySize(originalDisplayWidth, originalDisplayHeight);
+                                cardImg.setOrigin(0.5, 0.5);
                                 this.activeAnimations.delete(animationId);
                                 if (onComplete) onComplete();
                             }

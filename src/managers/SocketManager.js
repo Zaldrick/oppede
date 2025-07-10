@@ -65,8 +65,8 @@
         this.socket.on("interaction", (data) => {
             if (data.to === this.myId) {
                 const message = (data.action === "defier")
-                    ? `Le joueur ${data.from}\n vous a défié !`
-                    : `Le joueur ${data.from}\n vous fait signe !`;
+                    ? `Le joueur ${decodeURIComponent(data.from)}\n vous a défié !`
+                    : `Le joueur ${decodeURIComponent(data.from)}\n vous fait signe !`;
                 this.scene.displayMessage(message);
             }
         });
@@ -101,9 +101,13 @@
         });
 
         // Challenge Triple Triad
-        this.socket.on('challenge:received', ({ challengerId, matchId }) => {
+        this.socket.on('challenge:received', ({ challengerId, matchId, rules }) => {
             this.scene.registry.set('ttMatchId', matchId);
-            this.displayChallengePopup(challengerId);
+            // ✅ NOUVEAU : Stocke les règles du défi reçu
+            if (rules) {
+                this.scene.registry.set("tripleTriadChallengeRules", rules);
+            }
+            this.displayChallengePopup(challengerId, rules);
         });
 
         this.socket.on('challenge:accepted', ({ opponentId, opponentPlayerId, matchId }) => {
@@ -111,16 +115,27 @@
             const playerId = playerData && playerData._id ? playerData._id : null;
             this.scene.registry.set('ttMatchId', matchId);
             console.log("Match ID reçu :", matchId);
+            
+            // ✅ CORRIGÉ : Récupère les règles configurées pour le défi ET nettoie après usage
+            const challengeRules = this.scene.registry.get("tripleTriadChallengeRules");
+            this.scene.registry.remove("tripleTriadChallengeRules"); // Nettoie immédiatement
+            
+            // ✅ NOUVEAU : Lance directement la sélection de cartes avec les règles
             this.scene.scene.launch("TripleTriadSelectScene", {
                 playerId,
                 mode: "pvp",
-                opponentId: opponentPlayerId
+                opponentId: opponentPlayerId,
+                rules: challengeRules // Utilise les règles configurées
             });
             this.scene.scene.pause();
         });
 
         this.socket.on('challenge:cancelled', ({ challengerId, challengedId }) => {
             this.scene.displayMessage("Le défi a été annulé.");
+            
+            // ✅ NOUVEAU : Nettoie les règles stockées
+            this.scene.registry.remove("tripleTriadChallengeRules");
+            
             if (this.challengePopup) {
                 this.challengePopup.destroy();
                 this.challengePopup = null;
@@ -153,15 +168,19 @@
 
         const matchId = `tt-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
         this.scene.registry.set('ttMatchId', matchId);
+        
+        // ✅ NOUVEAU : Récupère les règles configurées pour le défi
+        const challengeRules = this.scene.registry.get("tripleTriadChallengeRules");
+        
         this.socket.emit("challenge:send", {
             challengerId: this.myId,
             challengedId: targetId,
             challengerPlayerId: myPlayerId,
             challengedPlayerId: targetPlayerId,
-            matchId
+            matchId,
+            rules: challengeRules // Envoie les règles avec le défi
         });
     }
-
 
     sendQuizInvite(targetId) {
         if (this.socket) {
@@ -179,7 +198,7 @@
         }
     }
 
-    displayChallengePopup(challengerId) {
+    displayChallengePopup(challengerId, rules = null) {
         if (this.challengePopup) {
             this.challengePopup.destroy();
         }
@@ -198,21 +217,40 @@
 
         this.challengePopup = this.scene.add.container(popupX, popupY);
 
-        const bg = this.scene.add.rectangle(0, 0, 340, 180, 0x222244, 0.95).setOrigin(0.5).setDepth(1003);
-        const txt = this.scene.add.text(0, -40, `Défi reçu de ${challengerPseudo}\nAccepter le duel ?`, {
-            font: "22px Arial",
+        // Affiche les règles du défi si elles sont disponibles
+        let challengeText = `Défi reçu de ${decodeURIComponent(challengerPseudo)}\n`;
+        
+        if (rules) {
+            const activeRules = Object.entries(rules).filter(([key, value]) => value);
+            if (activeRules.length > 0) {
+                const ruleLabels = {
+                    same: "Identique",
+                    plus: "Plus",
+                    murale: "Murale", 
+                    mortSubite: "Mort Subite"
+                };
+                const ruleNames = activeRules.map(([key]) => ruleLabels[key] || key).join(", ");
+                challengeText += `Règles: ${ruleNames}\n`;
+            }
+        }
+        
+        challengeText += "Accepter le duel ?";
+
+        const bg = this.scene.add.rectangle(0, 0, 380, 200, 0x222244, 0.95).setOrigin(0.5).setDepth(1003);
+        const txt = this.scene.add.text(0, -50, challengeText, {
+            font: "20px Arial",
             fill: "#fff",
             align: "center"
         }).setOrigin(0.5).setDepth(1004);
 
-        const btnAccept = this.scene.add.text(-60, 40, "Accepter", {
+        const btnAccept = this.scene.add.text(-70, 50, "Accepter", {
             font: "20px Arial",
             fill: "#00ff00",
             backgroundColor: "#333",
             padding: { x: 12, y: 8 }
         }).setOrigin(0.5).setInteractive().setDepth(1004);
 
-        const btnRefuse = this.scene.add.text(60, 40, "Refuser", {
+        const btnRefuse = this.scene.add.text(70, 50, "Refuser", {
             font: "20px Arial",
             fill: "#ff3333",
             backgroundColor: "#333",
@@ -236,6 +274,10 @@
 
         btnRefuse.on("pointerdown", () => {
             this.socket.emit('challenge:cancel', { challengerId, challengedId: this.myId });
+            
+            // Nettoie les règles stockées lors du refus
+            this.scene.registry.remove("tripleTriadChallengeRules");
+            
             this.challengePopup.destroy();
             this.challengePopup = null;
         });

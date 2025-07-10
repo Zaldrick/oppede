@@ -347,14 +347,14 @@ export class TripleTriadRulesEngine {
         } else if (playerScore < opponentScore) {
             return {
                 result: 'defeat',
-                text: 'DEFAITE',
+                text: 'DÉFAITE',
                 color: TRIPLE_TRIAD_CONSTANTS.COLORS.DEFEAT,
                 music: TRIPLE_TRIAD_CONSTANTS.AUDIO.DEFEAT
             };
         } else {
             return {
                 result: 'tie',
-                text: 'EGALITÉ',
+                text: 'ÉGALITÉ',
                 color: TRIPLE_TRIAD_CONSTANTS.COLORS.TIE,
                 music: TRIPLE_TRIAD_CONSTANTS.AUDIO.DEFEAT
             };

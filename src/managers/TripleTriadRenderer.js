@@ -1,4 +1,4 @@
-import { TRIPLE_TRIAD_CONSTANTS } from './TripleTriadConstants.js';
+﻿import { TRIPLE_TRIAD_CONSTANTS } from './TripleTriadConstants.js';
 import { TripleTriadUtils } from './TripleTriadUtils.js';
 
 /**
@@ -14,7 +14,7 @@ export class TripleTriadRenderer {
     }
     
     /**
-     * Dessine l'arri�re-plan du jeu
+     * Dessine l'arrière-plan du jeu
      */
     drawBackground() {
         const { width, height } = this.scene.sys.game.canvas;
@@ -53,12 +53,18 @@ export class TripleTriadRenderer {
                 const position = TripleTriadUtils.getBoardCellPosition(row, col, boardDimensions);
                 const card = board[row][col];
                 
-                // Couleur de bordure selon le propri�taire
+                // Couleur de bordure selon le propriétaire
                 let borderColor = TRIPLE_TRIAD_CONSTANTS.COLORS.CELL_BORDER_DEFAULT;
                 if (card) {
-                    borderColor = TripleTriadUtils.getOwnerBorderColor(
-                        card.owner, gameState.playerId, gameState.opponentId, gameState.isPvP
-                    );
+                    if (gameState.isPvP) {
+                        // Mode PvP : utilise les IDs des joueurs
+                        if (card.owner === gameState.playerId) borderColor = TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_BORDER; // bleu joueur
+                        else if (card.owner === gameState.opponentId) borderColor = TRIPLE_TRIAD_CONSTANTS.COLORS.OPPONENT_BORDER; // rouge adversaire
+                    } else {
+                        // Mode IA : utilise "player" et "opponent"
+                        if (card.owner === "player") borderColor = TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_BORDER;
+                        else if (card.owner === "opponent") borderColor = TRIPLE_TRIAD_CONSTANTS.COLORS.OPPONENT_BORDER;
+                    }
                 }
                 
                 // Cellule
@@ -139,43 +145,103 @@ export class TripleTriadRenderer {
     }
     
     /**
-     * Dessine la main du joueur
+     * Dessine la main du joueur avec les cartes disponiblesdrawAll
      */
-    drawPlayerHand(playerCards, activePlayer, gameEnded, onCardInteraction) {
+    drawPlayerHand(cards, activePlayer, gameEnded, onCardInteraction) {
         const { width, height } = this.scene.sys.game.canvas;
-        const { cardWidth, cardHeight } = TripleTriadUtils.calculateCardDimensions(width);
-        
-        playerCards.forEach((card, index) => {
-            const position = TripleTriadUtils.getPlayerHandPosition(width, height, index);
-            
-            const cardImage = this.scene.add.image(position.x, position.y, `item_${card.image}`)
-                .setDisplaySize(cardWidth, cardHeight)
+        const handDimensions = TripleTriadUtils.calculateHandDimensions(width, height);
+
+        // ✅ DEBUG COMPLET
+        console.log('[DEBUG] drawPlayerHand - ÉTAT COMPLET:');
+        console.log('  activePlayer:', activePlayer);
+        console.log('  TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER:', TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER);
+        console.log('  gameEnded:', gameEnded);
+        console.log('  activePlayer === PLAYER?', activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER);
+        console.log('[DEBUG] drawPlayerHand - état des cartes:',
+            cards.map((c, i) => `${i}: ${c.nom || c.name} - played: ${c.played}`)); // ✅ AJOUTE LE POINT-VIRGULE
+
+        cards.forEach((card, index) => {
+            const x = handDimensions.startX + index * (handDimensions.cardWidth + handDimensions.spacing);
+            const y = handDimensions.playerY;
+
+            // ✅ CORRECTION : Vérifie l'état en temps réel
+            const canPlay = activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER &&
+                !card.played &&
+                !gameEnded;
+
+            console.log(`[DEBUG] Carte ${index} - played: ${card.played}, canPlay: ${canPlay}`);
+
+            const cardImage = this.scene.add.image(x, y, `item_${card.image}`)
+                .setDisplaySize(handDimensions.cardWidth, handDimensions.cardHeight)
                 .setOrigin(0.5)
-                .setAlpha(card.played ? 0.3 : 1)
-                .setInteractive({ 
-                    draggable: !card.played && activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER && !gameEnded 
+                .setAlpha(card.played ? 0.3 : 1) // ✅ Alpha selon l'état
+                .setInteractive({
+                    draggable: canPlay // ✅ Draggable selon l'état
                 });
-            
-            // Effet de lueur si c'est le tour du joueur
-            if (activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER && !card.played && !gameEnded) {
+
+            // ✅ Effet de lueur seulement si jouable
+            if (canPlay) {
                 this.applyGlowEffect(
-                    cardImage, position.x, position.y, cardWidth, cardHeight,
-                    TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_GLOW,
-                    TRIPLE_TRIAD_CONSTANTS.CARDS.GLOW_ALPHA,
-                    TRIPLE_TRIAD_CONSTANTS.CARDS.GLOW_SCALE
+                    cardImage, x, y,
+                    handDimensions.cardWidth, handDimensions.cardHeight,
+                    TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_GLOW, 0.5, 1.3
                 );
             }
-            
-            // �v�nements de drag
-            if (onCardInteraction) {
-                this.setupCardDragEvents(cardImage, index, position, onCardInteraction);
+
+            // ✅ Setup interactions seulement si jouable
+            if (onCardInteraction && canPlay) {
+                this.setupCardInteraction(cardImage, index, card, onCardInteraction);
             }
-            
+
             this.container.add(cardImage);
-            
-            // Valeurs de la carte
-            this.drawCardValues(position.x, position.y, cardWidth, cardHeight, card);
+            this.drawCardValues(x, y, handDimensions.cardWidth, handDimensions.cardHeight, card);
         });
+    }
+    setupCardInteraction(cardImage, cardIndex, card, onCardInteraction) {
+        const originalPosition = { x: cardImage.x, y: cardImage.y };
+
+        cardImage.on('dragstart', (pointer) => {
+            // ✅ CORRECTION : Vérifie l'état en temps réel depuis le manager
+            const currentCard = this.scene.boardManager.playerCards[cardIndex];
+            if (currentCard.played) {
+                console.log('[DEBUG] Tentative de drag sur carte déjà jouée, annulation');
+                return;
+            }
+
+            this.scene.gameState.draggedCardIdx = cardIndex;
+            cardImage.setAlpha(0.7);
+            if (onCardInteraction) onCardInteraction('dragstart', cardIndex, pointer);
+        });
+
+        cardImage.on('drag', (pointer, dragX, dragY) => {
+            // ✅ Vérifie l'état en temps réel
+            const currentCard = this.scene.boardManager.playerCards[cardIndex];
+            if (currentCard.played) return;
+
+            cardImage.x = dragX;
+            cardImage.y = dragY;
+            if (onCardInteraction) onCardInteraction('drag', cardIndex, pointer, dragX, dragY);
+        });
+
+        cardImage.on('dragend', (pointer, dropX, dropY, dropped) => {
+            // ✅ Vérifie l'état en temps réel
+            const currentCard = this.scene.boardManager.playerCards[cardIndex];
+            if (currentCard.played) return;
+
+            cardImage.setAlpha(1);
+            cardImage.x = originalPosition.x;
+            cardImage.y = originalPosition.y;
+
+            if (!dropped) {
+                this.scene.gameState.draggedCardIdx = null;
+            }
+
+            if (onCardInteraction) {
+                onCardInteraction('dragend', cardIndex, pointer, dropX, dropY, dropped);
+            }
+        });
+
+        this.scene.input.setDraggable(cardImage);
     }
     
     /**
@@ -193,7 +259,7 @@ export class TripleTriadRenderer {
                 .setOrigin(0.5)
                 .setAlpha(card.played ? 0.3 : 1);
             
-            // Effet de lueur si c'est le tour de l'adversaire
+            // Effet de lueur seulement si c'est le tour de l'adversaire ET carte non jouée
             if (activePlayer === TRIPLE_TRIAD_CONSTANTS.PLAYERS.OPPONENT && !card.played && !gameEnded) {
                 this.applyGlowEffect(
                     cardImage, position.x, position.y, cardWidth, cardHeight,
@@ -249,7 +315,7 @@ export class TripleTriadRenderer {
         const { width, height } = this.scene.sys.game.canvas;
         const fontSize = Math.round(width * 0.1);
         
-        // Score du joueur (en bas � droite)
+        // Score du joueur (en bas à droite)
         const playerScoreText = this.scene.add.text(
             width * TRIPLE_TRIAD_CONSTANTS.LAYOUT.SCORE_MARGIN.RIGHT,
             height * TRIPLE_TRIAD_CONSTANTS.LAYOUT.SCORE_MARGIN.BOTTOM,
@@ -260,7 +326,7 @@ export class TripleTriadRenderer {
             }
         ).setOrigin(1, 1);
         
-        // Score de l'adversaire (en haut � droite)
+        // Score de l'adversaire (en haut à droite)
         const opponentScoreText = this.scene.add.text(
             width * TRIPLE_TRIAD_CONSTANTS.LAYOUT.SCORE_MARGIN.RIGHT,
             height * TRIPLE_TRIAD_CONSTANTS.LAYOUT.SCORE_MARGIN.TOP,
@@ -277,36 +343,7 @@ export class TripleTriadRenderer {
     }
     
     /**
-     * Configure les �v�nements de drag pour une carte
-     */
-    setupCardDragEvents(cardImage, cardIndex, position, onCardInteraction) {
-        let draggedCardIndex = null;
-        
-        cardImage.on('dragstart', (pointer) => {
-            draggedCardIndex = cardIndex;
-            cardImage.setAlpha(0.7);
-            if (onCardInteraction) onCardInteraction('dragstart', cardIndex, pointer);
-        });
-        
-        cardImage.on('drag', (pointer, dragX, dragY) => {
-            cardImage.x = dragX;
-            cardImage.y = dragY;
-            if (onCardInteraction) onCardInteraction('drag', cardIndex, pointer, dragX, dragY);
-        });
-        
-        cardImage.on('dragend', (pointer, dropX, dropY, dropped) => {
-            cardImage.setAlpha(1);
-            cardImage.x = position.x;
-            cardImage.y = position.y;
-            if (!dropped) draggedCardIndex = null;
-            if (onCardInteraction) onCardInteraction('dragend', cardIndex, pointer, dropX, dropY, dropped);
-        });
-        
-        this.scene.input.setDraggable(cardImage);
-    }
-    
-    /**
-     * Applique un effet de lueur � un objet
+     * Applique un effet de lueur à un objet
      */
     applyGlowEffect(targetObject, x, y, cardWidth, cardHeight, color, alpha, scale) {
         const glowKey = `glow_${targetObject.texture.key}_${x}_${y}`;

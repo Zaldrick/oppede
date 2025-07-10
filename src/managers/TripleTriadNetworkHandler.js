@@ -206,17 +206,18 @@ export class TripleTriadNetworkHandler {
      * Nettoie les gestionnaires d'événements
      */
     cleanup() {
-        // Supprime tous les gestionnaires d'événements
-        this.eventHandlers.forEach((handler, event) => {
-            this.socket.off(event, handler);
-        });
-        this.eventHandlers.clear();
+        if (this.socket) {
+            this.socket.off('tt:matchReady');
+            this.socket.off('tt:update');
+            this.socket.off('tt:gameEnd');
+            this.socket.off('tt:opponentDisconnected');
+        }
         
-        // Remet à zéro les propriétés
         this.matchId = null;
         this.playerId = null;
         this.opponentId = null;
-        this.isPvP = false;
+        
+        console.log('[NetworkHandler] Nettoyage terminé');
     }
     
     /**

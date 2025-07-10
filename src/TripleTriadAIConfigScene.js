@@ -29,7 +29,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             murale: true,
             mortSubite: false
         };
-        // ? NOUVEAU : Gère les cartes pré-sélectionnées
+        // Gère les cartes pré-sélectionnées
         this.preSelectedCards = data.preSelectedCards || null;
     }
     
@@ -189,7 +189,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
     startGame() {
         this.scene.stop();
         
-        // ? NOUVEAU : Si on a des cartes pré-sélectionnées, lance directement le jeu
+        // Si on a des cartes pré-sélectionnées, lance directement le jeu
         if (this.preSelectedCards) {
             this.scene.launch("TripleTriadGameScene", {
                 mode: "ai",

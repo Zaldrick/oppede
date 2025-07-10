@@ -336,6 +336,22 @@ export class TripleTriadAIPlayer {
     }
     
     /**
+     * Obtient le délai de réflexion selon la difficulté
+     */
+    getThinkingDelay() {
+        switch (this.difficulty) {
+            case 'easy':
+                return 800 + Math.random() * 400; // 800-1200ms
+            case 'medium':
+                return 1200 + Math.random() * 600; // 1200-1800ms
+            case 'hard':
+                return 1500 + Math.random() * 800; // 1500-2300ms
+            default:
+                return 1000;
+        }
+    }
+    
+    /**
      * Définit la difficulté de l'IA
      */
     setDifficulty(difficulty) {

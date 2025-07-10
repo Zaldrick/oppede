@@ -265,12 +265,16 @@ class TripleTriadManager {
         }
     }
 
-    handleChallengeSend(socket, { challengerId, challengedId, challengerPlayerId, challengedPlayerId, matchId }) {
-        this.challenges[challengedId] = { challengerId, matchId };
+    handleChallengeSend(socket, { challengerId, challengedId, challengerPlayerId, challengedPlayerId, matchId, rules }) {
+        console.log(`[TripleTriad] Challenge envoyé: ${challengerId} -> ${challengedId}`);
+        console.log(`[TripleTriad] Règles incluses:`, rules);
+        
+        this.challenges[challengedId] = { challengerId, matchId, rules };
         this.io.to(challengedId).emit('challenge:received', { 
             challengerId, 
             challengerPlayerId,
-            matchId
+            matchId,
+            rules // ? NOUVEAU : Envoie les règles avec le défi
         });
     }
 

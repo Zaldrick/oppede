@@ -34,9 +34,9 @@ export const TRIPLE_TRIAD_CONSTANTS = {
         CELL_BORDER_DEFAULT: 0xffffff,
         PLAYER_BORDER: 0x3399ff,
         OPPONENT_BORDER: 0xff3333,
-        SUCCESS: 0x33ff33,
-        DEFEAT: 0xff3333,
-        TIE: 0xffff33,
+        SUCCESS: "#33ff33",     // ? CORRIGÉ : Format CSS pour les textes
+        DEFEAT: "#ff3333",      // ? CORRIGÉ : Format CSS pour les textes
+        TIE: "#ffff33",         // ? CORRIGÉ : Format CSS pour les textes
         PLAYER_GLOW: 0xcbe2ea,
         OPPONENT_GLOW: 0xeacbcb
     },

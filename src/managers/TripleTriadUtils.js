@@ -62,6 +62,26 @@ export class TripleTriadUtils {
         const cardHeight = cardWidth * TRIPLE_TRIAD_CONSTANTS.CARDS.ASPECT_RATIO;
         return { cardWidth, cardHeight };
     }
+
+    /**
+     * Calcule les dimensions pour afficher la main d'un joueur
+     */
+    static calculateHandDimensions(screenWidth, screenHeight) {
+        const { cardWidth, cardHeight } = this.calculateCardDimensions(screenWidth);
+        const spacing = TRIPLE_TRIAD_CONSTANTS.LAYOUT.CARD_SPACING;
+        const totalWidth = (cardWidth + spacing) * TRIPLE_TRIAD_CONSTANTS.CARDS.HAND_SIZE - spacing;
+        const startX = screenWidth / 2 - totalWidth / 2;
+        
+        return {
+            cardWidth,
+            cardHeight,
+            spacing,
+            totalWidth,
+            startX,
+            playerY: screenHeight - cardHeight - TRIPLE_TRIAD_CONSTANTS.LAYOUT.HAND_BOTTOM_MARGIN,
+            opponentY: cardHeight / 2 + 10
+        };
+    }
     
     /**
      * Calcule les dimensions des cellules du plateau
@@ -136,15 +156,14 @@ export class TripleTriadUtils {
     /**
      * Obtient la couleur de bordure selon le propriétaire
      */
-    static getOwnerBorderColor(owner, playerId = null, opponentId = null, isPvP = false) {
-        if (isPvP) {
-            if (owner === playerId) return TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_BORDER;
-            if (owner === opponentId) return TRIPLE_TRIAD_CONSTANTS.COLORS.OPPONENT_BORDER;
+    static getOwnerBorderColor(owner) {
+        if (owner === "player") {
+            return TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_BORDER;
+        } else if (owner === "opponent") {
+            return TRIPLE_TRIAD_CONSTANTS.COLORS.OPPONENT_BORDER;
         } else {
-            if (owner === "player") return TRIPLE_TRIAD_CONSTANTS.COLORS.PLAYER_BORDER;
-            if (owner === "opponent") return TRIPLE_TRIAD_CONSTANTS.COLORS.OPPONENT_BORDER;
+            return TRIPLE_TRIAD_CONSTANTS.COLORS.CELL_BORDER_DEFAULT;
         }
-        return TRIPLE_TRIAD_CONSTANTS.COLORS.CELL_BORDER_DEFAULT;
     }
     
     /**

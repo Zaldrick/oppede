@@ -158,12 +158,22 @@ export class UIManager {
     this.interactionMenu.add([option1, option2, option3, option4]);
 
     option1.on("pointerdown", () => {
-      // ✅ NOUVEAU : Lance le menu de config PvP au lieu d'envoyer directement le défi
-      this.interactionMenu.destroy();
-      this.interactionMenu = null;
+      // ✅ CORRIGÉ : Récupère le playerId (database ID) et le pseudo depuis les données des joueurs
+      const latestPlayersData = this.scene.remotePlayerManager?.getLatestPlayersData();
+      const targetPlayerData = latestPlayersData?.[targetId];
       
-      // Lance le menu de configuration PvP
-      this.scene.startTripleTriadPvP(targetId, targetId);
+      if (targetPlayerData && targetPlayerData.playerId) {
+        // Lance le menu de configuration PvP avec le database player ID
+        this.interactionMenu.destroy();
+        this.interactionMenu = null;
+        
+        this.scene.startTripleTriadPvP(targetPlayerData.playerId, targetPlayerData.pseudo || targetId);
+      } else {
+        console.error(`[UIManager] Impossible de trouver les données du joueur pour ${targetId}`);
+        this.scene.displayMessage(`Impossible de défier ce joueur.\nDonnées manquantes.`);
+        this.interactionMenu.destroy();
+        this.interactionMenu = null;
+      }
     });
 
     option2.on("pointerdown", () => {

@@ -439,8 +439,8 @@ export class TripleTriadSelectScene extends Phaser.Scene {
             setCookie("tripleTriadSelection", JSON.stringify(this.selected));
 
             const selectedCards = this.cards.filter(c => this.selected.includes(c._id.toString()));
-            
-            // ✅ NOUVEAU : Si on vient du menu IA, on lance directement le jeu
+
+            // Si on vient du menu IA, on lance directement le jeu
             if (this.mode === "ai" && this.customRules) {
                 // Partie contre l'IA - avec règles pré-configurées
                 this.scene.stop();
@@ -453,9 +453,9 @@ export class TripleTriadSelectScene extends Phaser.Scene {
                 });
                 return;
             }
-            
-            // ✅ NOUVEAU : Si on vient du menu PvP, on lance directement le jeu
-            if (this.mode === "pvp" && this.customRules) {
+
+            // Si on vient du menu PvP, on lance directement le jeu
+            if (this.mode === "pvp") {
                 const matchId = this.registry.get('ttMatchId');
                 this.scene.stop();
                 this.scene.launch("TripleTriadGameScene", {
@@ -464,13 +464,34 @@ export class TripleTriadSelectScene extends Phaser.Scene {
                     playerId: this.playerId,
                     opponentId: this.opponentId,
                     playerCards: selectedCards,
-                    rules: this.customRules
+                    rules: this.customRules || {
+                        same: true,
+                        plus: true,
+                        murale: true,
+                        mortSubite: false
+                    }
                 });
                 return;
             }
-            
-            // ✅ NOUVEAU : Si pas de mode spécifique, affiche le menu de sélection
-            this.showModeSelectionMenu(selectedCards);
+
+            // Si mode IA sans règles (accès direct menu), lance config IA
+            if (this.mode === "ai") {
+                this.scene.stop();
+                this.scene.resume("GameScene");
+                this.scene.scene.launch("TripleTriadAIConfigScene", {
+                    playerId: this.playerId,
+                    preSelectedCards: selectedCards
+                });
+                return;
+            }
+
+            // Fallback : Si aucun mode défini, lance config IA par défaut
+            this.scene.stop();
+            this.scene.resume("GameScene");
+            this.scene.scene.launch("TripleTriadAIConfigScene", {
+                playerId: this.playerId,
+                preSelectedCards: selectedCards
+            });
         }
     }
     
@@ -582,13 +603,7 @@ export class TripleTriadSelectScene extends Phaser.Scene {
         this.modeSelectionMenu.setScrollFactor(0).setDepth(1000);
     }
 
-    close() {
-        // ✅ NOUVEAU : Nettoie le menu de sélection de mode s'il existe
-        if (this.modeSelectionMenu) {
-            this.modeSelectionMenu.destroy();
-            this.modeSelectionMenu = null;
-        }
-        
+    close() {    
         this.scene.stop();
         this.scene.resume("GameScene");
     }

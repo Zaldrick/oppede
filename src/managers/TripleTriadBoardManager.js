@@ -10,12 +10,13 @@ export class TripleTriadBoardManager {
     constructor(scene) {
         this.scene = scene;
         this.board = TripleTriadUtils.createEmptyBoard();
-        this.boardCells = []; // Objets Phaser des cellules
         this.playerCards = [];
         this.opponentCards = [];
-        this.playerScore = TRIPLE_TRIAD_CONSTANTS.SCORES.INITIAL_PLAYER;
-        this.opponentScore = TRIPLE_TRIAD_CONSTANTS.SCORES.INITIAL_OPPONENT;
-        this.activePlayer = TRIPLE_TRIAD_CONSTANTS.PLAYERS.PLAYER;
+        this.activePlayer = 0; // 0: joueur, 1: adversaire
+        this.draggedCardIdx = null;
+        this.boardCells = [];
+        this.playerScore = 5;
+        this.opponentScore = 5;
         this.gameEnded = false;
     }
     
@@ -103,8 +104,9 @@ export class TripleTriadBoardManager {
     /**
      * Obtient les positions disponibles pour jouer
      */
-    getAvailablePositions() {
-        return TripleTriadUtils.getAvailablePositions(this.board);
+    getAvailableCards(owner) {
+        const cards = owner === "player" ? this.playerCards : this.opponentCards;
+        return cards.filter(card => !card.played);
     }
     
     /**
