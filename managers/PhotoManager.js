@@ -1,4 +1,4 @@
-const multer = require('multer');
+﻿const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const { ObjectId } = require('mongodb');
@@ -43,23 +43,91 @@ class PhotoManager {
             res.json({ url: photoDoc.url });
         });
 
-        // Route pour voter sur une photo
+        // ✅ NOUVEAU : Route pour voter sur une photo avec attribution de points
         app.post('/api/photos/:id/vote', async (req, res) => {
             const { id } = req.params;
             const db = await this.db.connectToDatabase();
             const photosCollection = db.collection('photos');
 
-            const updateResult = await photosCollection.updateOne(
-                { _id: new ObjectId(id) },
-                { $inc: { votes: 1 } }
-            );
-            if (updateResult.matchedCount === 0) {
-                return res.status(404).json({ error: "Photo not found" });
+            try {
+                // Récupérer la photo pour connaître l'uploader
+                const photo = await photosCollection.findOne({ _id: new ObjectId(id) });
+                if (!photo) {
+                    return res.status(404).json({ error: "Photo non trouvée" });
+                }
+
+                // Incrémenter le nombre de votes
+                const updateResult = await photosCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $inc: { votes: 1 } }
+                );
+
+                if (updateResult.matchedCount === 0) {
+                    return res.status(404).json({ error: "Photo non trouvée" });
+                }
+
+                // ✅ NOUVEAU : Attribuer 1 point au propriétaire de la photo
+                if (photo.uploader && photo.uploader.trim() !== "" && photo.uploader.toLowerCase() !== "inconnu") {
+                    console.log(`[PhotoManager] Attribution d'1 point pour like sur photo de ${photo.uploader}`);
+
+                    try {
+                        // Trouver l'ID du joueur par son pseudo
+                        const playersCollection = db.collection('players');
+                        const uploaderPlayer = await playersCollection.findOne({
+                            pseudo: { $regex: new RegExp(`^${photo.uploader.trim()}$`, 'i') }
+                        });
+
+                        if (uploaderPlayer) {
+                            const fetch = require('node-fetch');
+                            const response = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    playerId: uploaderPlayer._id.toString(),
+                                    points: 1,
+                                    source: 'photo_like'
+                                })
+                            });
+
+                            if (response.ok) {
+                                const result = await response.json();
+                                console.log(`[PhotoManager] Point attribué à ${photo.uploader}: ${result.newTotalScore} points total`);
+
+                                res.json({
+                                    success: true,
+                                    newVotes: photo.votes + 1,
+                                    pointsAwarded: {
+                                        uploader: photo.uploader,
+                                        pointsEarned: 1,
+                                        newTotalScore: result.newTotalScore
+                                    }
+                                });
+                            } else {
+                                console.error(`[PhotoManager] Erreur API points: ${response.status}`);
+                                res.json({ success: true, newVotes: photo.votes + 1 });
+                            }
+                        } else {
+                            console.warn(`[PhotoManager] Joueur "${photo.uploader}" non trouvé en base`);
+                            res.json({ success: true, newVotes: photo.votes + 1 });
+                        }
+                    } catch (pointsError) {
+                        console.error('[PhotoManager] Erreur lors de l\'attribution des points:', pointsError);
+                        res.json({ success: true, newVotes: photo.votes + 1 });
+                    }
+                } else {
+                    console.log(`[PhotoManager] Like sur photo sans uploader valide: "${photo.uploader}"`);
+                    res.json({ success: true, newVotes: photo.votes + 1 });
+                }
+
+            } catch (error) {
+                console.error('[PhotoManager] Erreur lors du vote:', error);
+                res.status(500).json({ error: "Erreur lors du vote" });
             }
-            res.sendStatus(200);
         });
 
-        // Route pour r�cup�rer les photos
+        // Route pour récupérer les photos
         app.get('/api/photos', async (req, res) => {
             try {
                 const db = await this.db.connectToDatabase();
@@ -70,7 +138,7 @@ class PhotoManager {
                 const photos = await photosCollection.find(filter).toArray();
                 res.json({ photos });
             } catch (err) {
-                console.error("Erreur lors de la r�cup�ration des photos:", err);
+                console.error("Erreur lors de la récupération des photos:", err);
                 res.status(500).json({ photos: [] });
             }
         });

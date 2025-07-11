@@ -10,6 +10,7 @@
             { dr: 0, dc: -1, self: "powerLeft", opp: "powerRight" },
             { dr: 0, dc: 1, self: "powerRight", opp: "powerLeft" }
         ];
+        this.initializeFetch();
     }
 
     setupEvents(socket) {
@@ -24,6 +25,26 @@
         socket.on('tt:startMatch', (data) => this.handleStartMatch(socket, data));
         socket.on('tt:playCard', (data) => this.handlePlayCard(socket, data));
         socket.on('tt:leaveMatch', (data) => this.handleLeaveMatch(socket, data));
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Initialiser fetch selon la version de Node.js
+    async initializeFetch() {
+        try {
+            // Tenter d'utiliser fetch natif (Node.js 18+)
+            if (typeof fetch !== 'undefined') {
+                this.fetch = fetch;
+                console.log('[TripleTriad] Utilisation de fetch natif');
+            } else {
+                // Fallback sur node-fetch
+                const { default: fetch } = await import('node-fetch');
+                this.fetch = fetch;
+                console.log('[TripleTriad] Utilisation de node-fetch');
+            }
+        } catch (error) {
+            console.error('[TripleTriad] Erreur lors de l\'initialisation de fetch:', error);
+            console.log('[TripleTriad] Pour installer node-fetch: npm install node-fetch');
+            this.fetch = null;
+        }
     }
 
     handleStartMatch(socket, { matchId, playerId, opponentId, playerCards, rules }) {
@@ -191,16 +212,23 @@
 
         // ✅ ATTRIBUTION DES POINTS POUR LES DEUX JOUEURS
         const pointsDistribution = [];
-
         try {
-            const fetch = require('node-fetch');
+            // ✅ Vérifier que fetch est disponible
+            if (!this.fetch) {
+                console.error(`[TripleTriad] ❌ Fetch non disponible - attribution de points impossible`);
+                console.log(`[TripleTriad] ⚠️  Pour corriger: npm install node-fetch`);
+                this.emitGameEndWithoutPoints(matchId, finalScores, winnerId, winnerScore, loserId, loserScore);
+                return;
+            }
+
+            console.log(`[TripleTriad] ✅ Fetch disponible, attribution en cours...`);
 
             // Attribution des points au gagnant (score * 2)
             if (winnerId) {
                 const winnerPoints = winnerScore * 2;
                 console.log(`[TripleTriad] Attribution de ${winnerPoints} points au gagnant ${winnerId} (${winnerScore} * 2)`);
 
-                const winnerResponse = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
+                const winnerResponse = await this.fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -229,7 +257,7 @@
                 const loserPoints = loserScore * 2;
                 console.log(`[TripleTriad] Attribution de ${loserPoints} points au perdant ${loserId} (${loserScore} * 2)`);
 
-                const loserResponse = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
+                const loserResponse = await this.fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -263,7 +291,7 @@
 
                     console.log(`[TripleTriad] Attribution de ${equalityPoints} points d'égalité à ${playerId} (${playerScore} * 2)`);
 
-                    const response = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
+                    const response = await this.fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -307,6 +335,18 @@
             loserId,
             loserScore,
             pointsDistribution
+        });
+    }
+    emitGameEndWithoutPoints(matchId, finalScores, winnerId, winnerScore, loserId, loserScore) {
+        console.log(`[TripleTriad] ⚠️  Fin de match sans attribution de points pour ${matchId}`);
+
+        this.io.to(matchId).emit('tt:gameEnd', {
+            finalScores,
+            winnerId,
+            winnerScore,
+            loserId,
+            loserScore,
+            pointsDistribution: []
         });
     }
 

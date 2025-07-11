@@ -4,6 +4,29 @@ class QuizManager {
         this.db = databaseManager;
         this.quizGames = {};
         this.quizInvites = {};
+
+        // ✅ NOUVEAU : Import correct de fetch
+        this.initializeFetch();
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Initialiser fetch selon la version de Node.js
+    async initializeFetch() {
+        try {
+            // Tenter d'utiliser fetch natif (Node.js 18+)
+            if (typeof fetch !== 'undefined') {
+                this.fetch = fetch;
+                console.log('[Quiz] Utilisation de fetch natif');
+            } else {
+                // Fallback sur node-fetch
+                const { default: fetch } = await import('node-fetch');
+                this.fetch = fetch;
+                console.log('[Quiz] Utilisation de node-fetch');
+            }
+        } catch (error) {
+            console.error('[Quiz] Erreur lors de l\'initialisation de fetch:', error);
+            console.log('[Quiz] Pour installer node-fetch: npm install node-fetch');
+            this.fetch = null;
+        }
     }
 
     setupEvents(socket) {
@@ -18,10 +41,159 @@ class QuizManager {
         socket.on('quiz:invite', (data) => this.handleQuizInvite(socket, data));
     }
 
+    // ... (tous les autres méthodes restent identiques jusqu'à endQuizGame)
+
+    // ✅ CORRIGÉ : Attribution des points avec fetch correct
+    async endQuizGame(gameId) {
+        const game = this.quizGames[gameId];
+        if (!game) {
+            console.log(`[Quiz] endQuizGame: Jeu ${gameId} introuvable`);
+            return;
+        }
+
+        console.log(`[Quiz] 🏁 FIN DU QUIZ ${gameId} - DEBUT ATTRIBUTION POINTS`);
+        console.log(`[Quiz] Joueurs finaux:`, game.players.map(p => ({ id: p.id, name: p.name, score: p.score })));
+
+        // ✅ PROTECTION: Vérifier que les joueurs existent et ont des scores
+        if (!game.players || game.players.length === 0) {
+            console.error(`[Quiz] ❌ Aucun joueur trouvé pour le quiz ${gameId}`);
+            return;
+        }
+
+        const finalLeaderboard = game.players
+            .sort((a, b) => b.score - a.score)
+            .map((player, index) => ({
+                id: player.id,
+                name: player.name,
+                score: player.score,
+                rank: index + 1,
+                medal: index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}.`
+            }));
+
+        const podium = finalLeaderboard.slice(0, 3);
+
+        // ✅ CORRIGÉ : Attribution des points avec vérification de fetch
+        const pointsDistribution = [];
+
+        try {
+            console.log(`[Quiz] 💰 DÉBUT ATTRIBUTION POINTS pour ${game.players.length} joueurs`);
+
+            // ✅ Vérifier que fetch est disponible
+            if (!this.fetch) {
+                console.error(`[Quiz] ❌ Fetch non disponible - attribution de points impossible`);
+                console.log(`[Quiz] ⚠️  Pour corriger: npm install node-fetch`);
+                this.emitGameEndWithoutPoints(gameId, finalLeaderboard, podium, game);
+                return;
+            }
+
+            console.log(`[Quiz] ✅ Fetch disponible, attribution en cours...`);
+
+            for (const player of game.players) {
+                const finalScore = player.score || 0;
+
+                if (finalScore > 0) {
+                    console.log(`[Quiz] 📤 Attribution de ${finalScore} points à ${player.name} (ID: ${player.id})`);
+
+                    const apiUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/players/add-points`;
+
+                    try {
+                        const response = await this.fetch(apiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                playerId: player.id,
+                                points: finalScore,
+                                source: 'quiz_completion'
+                            })
+                        });
+
+                        console.log(`[Quiz] 📥 Réponse API status: ${response.status} pour ${player.name}`);
+
+                        if (response.ok) {
+                            const result = await response.json();
+                            console.log(`[Quiz] ✅ Points attribués à ${player.name}: ${result.newTotalScore} points total`);
+
+                            pointsDistribution.push({
+                                playerId: player.id,
+                                playerName: player.name,
+                                pointsEarned: finalScore,
+                                newTotalScore: result.newTotalScore,
+                                rank: finalLeaderboard.find(p => p.id === player.id)?.rank || 0
+                            });
+                        } else {
+                            const errorText = await response.text().catch(() => 'Erreur inconnue');
+                            console.error(`[Quiz] ❌ Erreur API pour ${player.name}: ${response.status} - ${errorText}`);
+                        }
+                    } catch (fetchError) {
+                        console.error(`[Quiz] ❌ Erreur réseau pour ${player.name}:`, fetchError.message);
+                    }
+                } else {
+                    console.log(`[Quiz] ⏭️  Aucun point à attribuer pour ${player.name} (score: ${finalScore})`);
+                }
+            }
+
+            console.log(`[Quiz] 🎉 ATTRIBUTION TERMINÉE - ${pointsDistribution.length}/${game.players.length} joueurs récompensés`);
+
+            // ✅ Émettre notification des points attribués
+            if (pointsDistribution.length > 0) {
+                this.io.to(gameId).emit('quiz:pointsAwarded', {
+                    pointsDistribution
+                });
+                console.log(`[Quiz] 📢 Notification points envoyée`);
+            }
+
+        } catch (error) {
+            console.error('[Quiz] ❌ ERREUR lors de l\'attribution des points:', error);
+        }
+
+        console.log(`[Quiz] 📊 Classement final pour ${gameId}:`, finalLeaderboard);
+        console.log(`[Quiz] 🏆 Podium pour ${gameId}:`, podium);
+
+        const endData = {
+            finalLeaderboard: finalLeaderboard,
+            podium: podium,
+            gameId: gameId,
+            totalQuestions: game.questions.length,
+            pointsDistribution: pointsDistribution
+        };
+
+        console.log(`[Quiz] 📡 Envoi quiz:gameEnd avec ${pointsDistribution.length} attributions de points`);
+
+        this.io.to(gameId).emit('quiz:gameEnd', endData);
+
+        setTimeout(() => {
+            delete this.quizGames[gameId];
+            console.log(`[Quiz] 🗑️  Quiz ${gameId} supprimé de la mémoire`);
+        }, 30000);
+    }
+
+    // ✅ Méthode fallback si l'attribution de points échoue
+    emitGameEndWithoutPoints(gameId, finalLeaderboard, podium, game) {
+        console.log(`[Quiz] ⚠️  Fin de quiz sans attribution de points pour ${gameId}`);
+
+        const endData = {
+            finalLeaderboard: finalLeaderboard,
+            podium: podium,
+            gameId: gameId,
+            totalQuestions: game.questions.length,
+            pointsDistribution: []
+        };
+
+        this.io.to(gameId).emit('quiz:gameEnd', endData);
+
+        setTimeout(() => {
+            delete this.quizGames[gameId];
+            console.log(`[Quiz] Quiz ${gameId} supprimé de la mémoire`);
+        }, 30000);
+    }
+
+    // ... (reste des méthodes identiques)
+
     handleRequestGamesList(socket) {
-        const availableGames = Object.values(this.quizGames).filter(game => 
-            game.status === 'waiting' && game.players
-            .length < game.maxPlayers
+        const availableGames = Object.values(this.quizGames).filter(game =>
+            game.status === 'waiting' && game.players.length < game.maxPlayers
         );
         socket.emit('quiz:gamesList', availableGames);
     }
@@ -32,7 +204,7 @@ class QuizManager {
 
         this.quizGames[gameId] = {
             gameId,
-            hostId: hostId,  
+            hostId: hostId,
             hostName,
             maxPlayers,
             players: [{
@@ -52,7 +224,7 @@ class QuizManager {
             totalQuestions: totalQuestions || 10,
             playerAnswers: {},
             questionStartTime: null,
-            questionTimeout: null // ✅ Ajouté pour gérer le timeout
+            questionTimeout: null
         };
 
         socket.join(gameId);
@@ -135,7 +307,6 @@ class QuizManager {
             game.status === 'waiting' && game.players.length < game.maxPlayers
         ));
     }
-
 
     handleCancelGame(socket, { gameId }) {
         const game = this.quizGames[gameId];
@@ -233,9 +404,9 @@ class QuizManager {
             console.log(`[Quiz] Jeu ${gameId} introuvable pour la réponse`);
             return;
         }
-        
+
         console.log(`[Quiz] Réponse reçue de ${playerId}: ${answer} pour ${gameId}`);
-        
+
         // ✅ RENFORCÉ: Vérification du joueur ET anti-spam
         const player = game.players.find(p => p.id === playerId);
         if (!player) {
@@ -247,54 +418,54 @@ class QuizManager {
             console.error(`[Quiz] Socket ID ${socket.id} ne correspond pas au joueur ${playerId}`);
             return;
         }
-        
+
         // ✅ ANTI-SPAM: Vérification stricte - une seule réponse par joueur
         if (game.playerAnswers[playerId]) {
             console.log(`[Quiz] ${playerId} a déjà répondu à cette question - IGNORÉ`);
             return; // ← Bloque complètement les doublons
         }
-        
+
         // ✅ SÉCURITÉ: Vérifier que la partie est encore en cours
         if (game.status !== 'playing') {
             console.log(`[Quiz] Réponse ignorée - jeu ${gameId} non actif (status: ${game.status})`);
             return;
         }
-        
+
         // ✅ Enregistrer la réponse
         game.playerAnswers[playerId] = {
             answer: answer,
             timeRemaining: timeRemaining,
             timestamp: Date.now()
         };
-        
+
         const answersReceived = Object.keys(game.playerAnswers).length;
         const totalPlayers = game.players.length;
-        
+
         console.log(`[Quiz] ${answersReceived}/${totalPlayers} réponses reçues pour ${gameId}`);
-        
+
         // Confirmer à celui qui a répondu
         socket.emit('quiz:answerReceived', {
             answersReceived: answersReceived,
             totalPlayers: totalPlayers
         });
-        
+
         // Notifier TOUS les joueurs de l'état
         this.io.to(gameId).emit('quiz:waitingForAnswers', {
             answersReceived: answersReceived,
             totalPlayers: totalPlayers
         });
-        
+
         // ✅ NOUVEAU: Annuler le timeout si tout le monde a répondu
         if (answersReceived >= totalPlayers) {
             console.log(`[Quiz] Toutes les réponses reçues pour ${gameId}, envoi des résultats`);
-            
+
             // ✅ Annuler le timeout de la question
             if (game.questionTimeout) {
                 clearTimeout(game.questionTimeout);
                 game.questionTimeout = null;
                 console.log(`[Quiz] Timeout de question annulé pour ${gameId}`);
             }
-            
+
             setTimeout(() => {
                 this.sendRoundResults(gameId);
             }, 1000);
@@ -364,7 +535,7 @@ class QuizManager {
             console.error(`[Quiz] sendRoundResults: Question ${game.currentQuestion} introuvable pour ${gameId}`);
             console.error(`[Quiz] Questions disponibles:`, game.questions.length);
             console.error(`[Quiz] Index actuel:`, game.currentQuestion);
-            
+
             // ✅ FALLBACK: Passer à la question suivante ou terminer le jeu
             game.currentQuestion++;
             if (game.currentQuestion >= game.questions.length) {
@@ -435,94 +606,45 @@ class QuizManager {
         }, 5000);
     }
 
-    endQuizGame(gameId) {
-        const game = this.quizGames[gameId];
-        if (!game) {
-            console.log(`[Quiz] endQuizGame: Jeu ${gameId} introuvable`);
-            return;
-        }
-        
-        console.log(`[Quiz] Fin du quiz ${gameId}`);
-        console.log(`[Quiz] Joueurs finaux:`, game.players.map(p => ({ id: p.id, name: p.name, score: p.score })));
-        
-        // ✅ PROTECTION: Vérifier que les joueurs existent et ont des scores
-        if (!game.players || game.players.length === 0) {
-            console.error(`[Quiz] Aucun joueur trouvé pour le quiz ${gameId}`);
-            return;
-        }
-        
-        const finalLeaderboard = game.players
-            .sort((a, b) => b.score - a.score)
-            .map((player, index) => ({
-                id: player.id,
-                name: player.name,
-                score: player.score,
-                rank: index + 1,
-                medal: index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `${index + 1}.`
-            }));
-        
-        const podium = finalLeaderboard.slice(0, 3);
-        
-        // ✅ DEBUG: Logs détaillés du podium
-        console.log(`[Quiz] Classement final pour ${gameId}:`, finalLeaderboard);
-        console.log(`[Quiz] Podium pour ${gameId}:`, podium);
-        
-        const endData = {
-            finalLeaderboard: finalLeaderboard,
-            podium: podium,
-            gameId: gameId,
-            totalQuestions: game.questions.length
-        };
-        
-        console.log(`[Quiz] Données envoyées pour quiz:gameEnd:`, endData);
-        
-        this.io.to(gameId).emit('quiz:gameEnd', endData);
-        
-        setTimeout(() => {
-            delete this.quizGames[gameId];
-            console.log(`[Quiz] Quiz ${gameId} supprimé de la mémoire`);
-        }, 30000);
-    }
-
     handleDisconnect(socket) {
         // ✅ CORRIGÉ: Gestion propre des déconnexions
         for (const gameId in this.quizGames) {
             const game = this.quizGames[gameId];
             const playerIndex = game.players.findIndex(p => p.socketId === socket.id);
-            
+
             if (playerIndex !== -1) {
                 const leavingPlayer = game.players[playerIndex];
                 console.log(`[Quiz] Déconnexion de ${leavingPlayer.name} du quiz ${gameId}`);
-                
+
                 game.players.splice(playerIndex, 1);
-                
+
                 // ✅ CORRIGÉ: Comparer avec l'ID du joueur, pas socket.id
                 if (leavingPlayer.id === game.hostId || game.players.length === 0) {
                     console.log(`[Quiz] Fermeture du quiz ${gameId} (organisateur parti ou plus de joueurs)`);
-                    
+
                     // ✅ NOUVEAU: Nettoyer le timeout avant de supprimer le jeu
                     if (game.questionTimeout) {
                         clearTimeout(game.questionTimeout);
                         game.questionTimeout = null;
                     }
-                    
+
                     this.io.to(gameId).emit('quiz:gameCancelled');
                     delete this.quizGames[gameId];
                 } else {
                     // ✅ Continuer le jeu avec les joueurs restants
                     console.log(`[Quiz] Continuation du quiz ${gameId} avec ${game.players.length} joueurs`);
                     this.io.to(gameId).emit('quiz:gameUpdated', game);
-                    
+
                     // ✅ IMPORTANT: Si on attend des réponses, vérifier si on peut passer à la suite
                     if (game.status === 'playing' && Object.keys(game.playerAnswers).length >= game.players.length) {
                         console.log(`[Quiz] Toutes les réponses reçues après déconnexion, envoi des résultats`);
-                        
+
                         // ✅ NOUVEAU: Annuler le timeout actuel
                         if (game.questionTimeout) {
                             clearTimeout(game.questionTimeout);
                             game.questionTimeout = null;
                         }
-                        
+
                         setTimeout(() => {
                             this.sendRoundResults(gameId);
                         }, 1000);

@@ -15,6 +15,7 @@
     "mongodb": "^6.16.0",
     "mongoose": "^8.14.1",
     "multer": "^2.0.1",
+    "node-fetch": "^3.3.2",
     "phaser": "^3.88.2",
     "phaser3-nineslice": "^0.5.0",
     "phaser3-rex-plugins": "^1.80.15",
