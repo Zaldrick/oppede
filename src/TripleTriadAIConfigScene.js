@@ -2,10 +2,10 @@ import Phaser from "phaser";
 
 /**
  * Menu de configuration pour jouer contre l'IA
- * Permet de choisir la difficulté et les règles
+ * Permet de choisir la difficultÃ© et les rÃ¨gles
  */
 export class TripleTriadAIConfigScene extends Phaser.Scene {
-    
+
     constructor() {
         super("TripleTriadAIConfigScene");
         this.selectedDifficulty = 'medium';
@@ -19,7 +19,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
         this.container = null;
         this.preSelectedCards = null;
     }
-    
+
     init(data) {
         this.playerId = data.playerId;
         this.selectedDifficulty = data.difficulty || 'medium';
@@ -29,53 +29,53 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             murale: true,
             mortSubite: false
         };
-        // Gère les cartes pré-sélectionnées
+        // GÃ¨re les cartes prÃ©-sÃ©lectionnÃ©es
         this.preSelectedCards = data.preSelectedCards || null;
     }
-    
+
     create() {
         const { width, height } = this.sys.game.canvas;
-        
+
         // Fond
         this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.95);
-        
+
         this.container = this.add.container(0, 0);
-        
+
         this.drawConfigMenu();
     }
-    
+
     drawConfigMenu() {
         const { width, height } = this.sys.game.canvas;
-        
+
         // Nettoie le container
         this.container.removeAll(true);
-        
+
         // === TITRE ===
         this.container.add(this.add.text(width / 2, height * 0.1, "Configuration IA", {
             font: `${Math.round(width * 0.06)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
-        
-        // === SECTION DIFFICULTÉ ===
-        const difficultyY = height * 0.25;
-        
-        this.container.add(this.add.text(width / 2, difficultyY, "Difficulté de l'IA", {
+
+        // === SECTION DIFFICULTÃ‰ ===
+        const difficultyY = height * 0.18; // âœ… RÃ‰DUIT de 0.25 Ã  0.18
+
+        this.container.add(this.add.text(width / 2, difficultyY, "Puissance de l'IA", {
             font: `${Math.round(width * 0.045)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
-        
+
         const difficulties = [
-            { key: 'easy', label: 'Facile', desc: 'IA débutante' },
-            { key: 'medium', label: 'Moyen', desc: 'IA équilibrée' },
-            { key: 'hard', label: 'Difficile', desc: 'IA experte' }
+            { key: 'facile', label: 'Pauvre', desc: 'IA avec des cartes wish' },
+            { key: 'normal', label: 'Ok Tier', desc: 'IA de classe moyen' },
+            { key: 'difficile', label: 'Balkany', desc: 'Rire de droite' }
         ];
-        
+
         difficulties.forEach((diff, index) => {
-            const btnY = difficultyY + 60 + index * 50;
+            const btnY = difficultyY + 50 + index * 45; // âœ… RÃ‰DUIT l'espacement entre boutons
             const isSelected = this.selectedDifficulty === diff.key;
-            
+
             const btn = this.add.text(width / 2 - 100, btnY, diff.label, {
                 font: `${Math.round(width * 0.04)}px Arial`,
                 fill: isSelected ? "#0f0" : "#fff",
@@ -88,38 +88,38 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
                     this.selectedDifficulty = diff.key;
                     this.drawConfigMenu();
                 });
-            
+
             this.container.add(btn);
-            
+
             // Description
             this.container.add(this.add.text(width / 2 + 20, btnY, diff.desc, {
                 font: `${Math.round(width * 0.03)}px Arial`,
                 fill: "#ccc"
             }).setOrigin(0, 0.5));
         });
-        
-        // === SECTION RÈGLES ===
-        const rulesY = height * 0.55;
-        
-        this.container.add(this.add.text(width / 2, rulesY, "Règles du jeu", {
-            font: `${Math.round(width * 0.045)}px Arial`,
+
+        // === SECTION RÃˆGLES ===
+        const rulesY = height * 0.45; // âœ… RÃ‰DUIT de 0.55 Ã  0.42
+
+        this.container.add(this.add.text(width / 2, rulesY, "RÃ¨gles du jeu", {
+            font: `${Math.round(width * 0.046)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
-        
+
         const rules = [
-            { key: 'same', label: 'Identique', desc: 'Capture si valeurs égales' },
-            { key: 'plus', label: 'Plus', desc: 'Capture si même somme' },
-            { key: 'murale', label: 'Murale', desc: 'Les murs comptent comme 10' },
-            { key: 'mortSubite', label: 'Mort Subite', desc: 'Rejeu en cas d\'égalité' }
+            { key: 'same', label: 'Identique', desc: 'Capture si valeurs Ã©gales' },
+            { key: 'plus', label: 'Plus', desc: 'Capture si mÃªme somme' },
+            { key: 'murale', label: 'Murale', desc: 'Les murs comptent comme un A' },
+            { key: 'mortSubite', label: 'Mort Subite', desc: 'Rejeu en cas d\'Ã©galitÃ©' }
         ];
-        
+
         rules.forEach((rule, index) => {
-            const btnY = rulesY + 60 + index * 50;
+            const btnY = rulesY + 50 + index * 45; // âœ… RÃ‰DUIT l'espacement entre rÃ¨gles
             const isSelected = this.selectedRules[rule.key];
-            
-            const checkbox = this.add.text(width / 2 - 120, btnY, isSelected ? "?" : "?", {
-                font: `${Math.round(width * 0.04)}px Arial`,
+
+            const checkbox = this.add.text(width / 2 - 120, btnY, isSelected ? "â˜‘" : "â˜", {
+                font: `${Math.round(width * 0.1)}px Arial`,
                 fill: isSelected ? "#0f0" : "#fff"
             })
                 .setOrigin(0.5)
@@ -128,9 +128,9 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
                     this.selectedRules[rule.key] = !this.selectedRules[rule.key];
                     this.drawConfigMenu();
                 });
-            
+
             this.container.add(checkbox);
-            
+
             const label = this.add.text(width / 2 - 80, btnY, rule.label, {
                 font: `${Math.round(width * 0.04)}px Arial`,
                 fill: "#fff"
@@ -141,19 +141,19 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
                     this.selectedRules[rule.key] = !this.selectedRules[rule.key];
                     this.drawConfigMenu();
                 });
-            
+
             this.container.add(label);
-            
+
             // Description
             this.container.add(this.add.text(width / 2 + 20, btnY, rule.desc, {
                 font: `${Math.round(width * 0.03)}px Arial`,
                 fill: "#ccc"
             }).setOrigin(0, 0.5));
         });
-        
+
         // === BOUTONS ===
-        const btnY = height * 0.9;
-        
+        const btnY = height * 0.85; // âœ… RÃ‰DUIT de 0.9 Ã  0.85
+
         // Bouton Retour
         const backBtn = this.add.text(width / 2 - 100, btnY, "Retour", {
             font: `${Math.round(width * 0.04)}px Arial`,
@@ -164,9 +164,9 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             .setPadding(20, 10, 20, 10)
             .setInteractive()
             .on('pointerdown', () => this.goBack());
-        
+
         this.container.add(backBtn);
-        
+
         // Bouton Commencer
         const startBtn = this.add.text(width / 2 + 100, btnY, "Commencer", {
             font: `${Math.round(width * 0.04)}px Arial`,
@@ -177,19 +177,19 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             .setPadding(20, 10, 20, 10)
             .setInteractive()
             .on('pointerdown', () => this.startGame());
-        
+
         this.container.add(startBtn);
     }
-    
+
     goBack() {
         this.scene.stop();
         this.scene.resume("GameScene");
     }
-    
+
     startGame() {
         this.scene.stop();
-        
-        // Si on a des cartes pré-sélectionnées, lance directement le jeu
+
+        // Si on a des cartes prÃ©-sÃ©lectionnÃ©es, lance directement le jeu
         if (this.preSelectedCards) {
             this.scene.launch("TripleTriadGameScene", {
                 mode: "ai",
@@ -199,7 +199,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
                 rules: this.selectedRules
             });
         } else {
-            // Lance la scène de sélection de cartes avec la configuration choisie
+            // Lance la scÃ¨ne de sÃ©lection de cartes avec la configuration choisie
             this.scene.launch("TripleTriadSelectScene", {
                 playerId: this.playerId,
                 mode: "ai",

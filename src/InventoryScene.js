@@ -7,7 +7,8 @@ export class InventoryScene extends Phaser.Scene {
     }
 
     init(data) {
-        this.inventory = data.inventory || [];
+        // ✅ CORRECTION : S'assurer que l'inventaire est toujours un tableau
+        this.inventory = Array.isArray(data.inventory) ? data.inventory : [];
         this.playerId = data.playerId;
         this.selectedItem = null;
 
@@ -23,6 +24,77 @@ export class InventoryScene extends Phaser.Scene {
         await this.reloadInventory();
         await this.ensureInventoryImagesLoaded();
         this.drawInventory();
+
+        // ✅ NOUVEAU : Écouter les événements de mise à jour d'inventaire
+        this.setupInventoryEventListeners();
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Configuration des écouteurs d'événements
+    setupInventoryEventListeners() {
+        // Écouter les événements de l'ouverture de booster
+        this.scene.get('BoosterOpeningScene')?.events.on('booster:cardsReceived', this.handleCardsReceived, this);
+
+        // Écouter les événements globaux du jeu
+        this.game.events.on('inventory:update', this.handleInventoryUpdate, this);
+        this.game.events.on('cards:added', this.handleCardsAdded, this);
+
+        console.log('[InventoryScene] Event listeners configurés');
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Gestionnaire de réception de cartes
+    async handleCardsReceived(data) {
+        console.log('[InventoryScene] Cartes reçues depuis booster:', data);
+
+        if (data && data.cards && Array.isArray(data.cards)) {
+            // Ajouter les cartes à l'inventaire local immédiatement
+            await this.addCardsToInventory(data.cards);
+
+            // Recharger complètement l'inventaire pour être sûr
+            await this.reloadInventory();
+            await this.ensureInventoryImagesLoaded();
+            this.drawInventory();
+
+            // ✅ NOUVEAU : Mettre à jour le cache global de l'inventaire
+            this.updateGlobalInventoryCache();
+
+            this.displayMessage(`${data.cards.length} cartes ajoutées à votre inventaire !`);
+        }
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Gestionnaire de mise à jour d'inventaire
+    async handleInventoryUpdate() {
+        console.log('[InventoryScene] Mise à jour d\'inventaire demandée');
+        await this.reloadInventory();
+        await this.ensureInventoryImagesLoaded();
+        this.drawInventory();
+        this.updateGlobalInventoryCache();
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Gestionnaire d'ajout de cartes
+    async handleCardsAdded(cards) {
+        console.log('[InventoryScene] Cartes ajoutées:', cards);
+        if (Array.isArray(cards)) {
+            await this.addCardsToInventory(cards);
+            this.updateGlobalInventoryCache();
+        }
+    }
+
+    // ✅ NOUVELLE MÉTHODE : Mise à jour du cache global
+    updateGlobalInventoryCache() {
+        // Mettre à jour le cache de l'inventaire dans GameScene
+        const gameScene = this.scene.get('GameScene');
+        if (gameScene) {
+            gameScene.inventory = [...this.inventory]; // Copie profonde
+            console.log('[InventoryScene] Cache GameScene mis à jour:', gameScene.inventory.length, 'items');
+        }
+
+        // Mettre à jour le cache global du registre
+        this.registry.set('playerInventory', [...this.inventory]);
+
+        // Émettre un événement global pour notifier les autres scènes
+        this.game.events.emit('inventory:cacheUpdated', this.inventory);
+
+        console.log('[InventoryScene] Cache global mis à jour:', this.inventory.length, 'items');
     }
 
     drawInventory() {
@@ -45,10 +117,24 @@ export class InventoryScene extends Phaser.Scene {
         const titleStyle = ConfigManager.getTextStyle('title', width);
         this.add.text(width / 2, height * 0.13, "Inventaire", titleStyle).setOrigin(0.5);
 
+        // ✅ CORRECTION : Vérifier que l'inventaire est un tableau avant de filtrer
+        const filteredInventory = Array.isArray(this.inventory)
+            ? this.inventory.filter(item => item && item.type !== "card")
+            : [];
+
+        // ✅ NOUVEAU : Afficher un message si l'inventaire est vide
+        if (filteredInventory.length === 0) {
+            const emptyMessageStyle = ConfigManager.getTextStyle('message', width);
+            this.add.text(
+                width / 2,
+                height * 0.5,
+                "Votre inventaire est vide",
+                emptyMessageStyle
+            ).setOrigin(0.5);
+        }
+
         // Grid settings depuis ConfigManager
         const { cellSize, gridCols, gridRows } = this.config;
-        const gridWidth = gridCols * cellSize;
-        const gridHeight = gridRows * cellSize;
         const startX = ConfigManager.getCenteredGridPosition(width, gridCols, cellSize);
         const startY = height * 0.22;
 
@@ -60,8 +146,6 @@ export class InventoryScene extends Phaser.Scene {
         const largeItemImage = this.add.image(width * 0.32, height * 0.64, null)
             .setOrigin(0.5)
             .setVisible(false);
-
-        const filteredInventory = this.inventory.filter(item => item.type !== "card");
 
         // Populate grid
         for (let row = 0; row < gridRows; row++) {
@@ -101,7 +185,7 @@ export class InventoryScene extends Phaser.Scene {
                     this.add.text(
                         x + cellSize * ConfigManager.LAYOUT.GRID.QUANTITY_OFFSET,
                         y + cellSize * ConfigManager.LAYOUT.GRID.QUANTITY_OFFSET,
-                        item.quantite || 1,
+                        item.quantite || item['quantité'] || 1,
                         quantityStyle
                     ).setOrigin(0.5);
                 }
@@ -141,12 +225,11 @@ export class InventoryScene extends Phaser.Scene {
         const detailText = this.add.text(
             +width * 0.16,
             -height * 0.1,
-            `Nom: ${item.nom}\nQuantité: ${item.quantite || 1}\nPrix: ${item.prix}`,
-            {
-                font: `${width * 0.04}px Arial`,
-                fill: "#ffffff",
-                align: "left",
-            }
+            `Nom: ${item.nom}\nQuantité: ${item.quantite || item['quantité'] || 1}\nPrix: ${item.prix}`, {
+            font: `${width * 0.04}px Arial`,
+            fill: "#ffffff",
+            align: "left",
+        }
         ).setOrigin(0.5);
         detailsContainer.add(detailText);
 
@@ -245,7 +328,15 @@ export class InventoryScene extends Phaser.Scene {
                     );
                 } else {
                     this.scene.pause();
-                    this.scene.launch("BoosterOpeningScene", { booster: item });
+
+                    // ✅ NOUVEAU : Écouter la fermeture de la scène BoosterOpening
+                    const boosterScene = this.scene.launch("BoosterOpeningScene", { booster: item });
+
+                    // Écouter quand la scène se ferme pour recharger l'inventaire
+                    this.scene.get('BoosterOpeningScene').events.once('shutdown', async () => {
+                        console.log('[InventoryScene] BoosterOpeningScene fermée, rechargement inventaire...');
+                        await this.handleInventoryUpdate();
+                    });
                 }
             } catch (err) {
                 this.displayMessage("Erreur ouverture booster : " + err.message);
@@ -391,9 +482,17 @@ export class InventoryScene extends Phaser.Scene {
             await this._loadingImages;
             return;
         }
+
+        // ✅ CORRECTION : Vérifier que l'inventaire est un tableau avant forEach
+        if (!Array.isArray(this.inventory)) {
+            console.warn('[InventoryScene] inventory n\'est pas un tableau:', this.inventory);
+            this.inventory = [];
+            return;
+        }
+
         let needsLoading = false;
         this.inventory.forEach(item => {
-            if (!item.image) return;
+            if (!item || !item.image) return;
             const iconKey = `item_${item.image}`;
             const iconPath = ConfigManager.ASSETS.PATHS.ITEMS + item.image;
             if (!this.textures.exists(iconKey)) {
@@ -401,6 +500,7 @@ export class InventoryScene extends Phaser.Scene {
                 needsLoading = true;
             }
         });
+
         if (needsLoading) {
             this._loadingImages = new Promise(resolve => this.load.once('complete', resolve));
             this.load.start();
@@ -413,20 +513,59 @@ export class InventoryScene extends Phaser.Scene {
         try {
             const playerId = this.playerId || window.playerId;
             if (!playerId) {
+                console.warn('[InventoryScene] Aucun playerId disponible');
                 this.displayMessage("Impossible de recharger l'inventaire : joueur inconnu.");
+                this.inventory = []; // ✅ CORRECTION : S'assurer qu'on a un tableau
                 return;
             }
+
+            console.log(`[InventoryScene] Chargement inventaire pour joueur: ${playerId}`);
             const res = await fetch(`${ConfigManager.NETWORK.API.BASE_URL}${ConfigManager.NETWORK.ENDPOINTS.INVENTORY}/${playerId}`);
+
+            // ✅ CORRECTION : Gérer les erreurs 404 et autres codes d'erreur
+            if (!res.ok) {
+                if (res.status === 404) {
+                    console.log(`[InventoryScene] Inventaire non trouvé pour le joueur ${playerId} - création d'un inventaire vide`);
+                    this.inventory = [];
+                    return;
+                } else {
+                    throw new Error(`Erreur HTTP: ${res.status} ${res.statusText}`);
+                }
+            }
+
             const data = await res.json();
-            this.inventory = data.inventory || data || [];
+            console.log('[InventoryScene] Données reçues:', data);
+
+            // ✅ CORRECTION : S'assurer que le résultat est toujours un tableau
+            if (Array.isArray(data)) {
+                this.inventory = data;
+            } else if (data && Array.isArray(data.inventory)) {
+                this.inventory = data.inventory;
+            } else if (data && typeof data === 'object') {
+                // Si c'est un objet avec d'autres propriétés, on prend ce qu'on peut
+                this.inventory = data.items || data.data || [];
+            } else {
+                console.warn('[InventoryScene] Format de données inattendu:', data);
+                this.inventory = [];
+            }
+
+            console.log(`[InventoryScene] Inventaire chargé: ${this.inventory.length} items`);
+
         } catch (err) {
+            console.error('[InventoryScene] Erreur lors du rechargement:', err);
             this.displayMessage("Erreur lors du rechargement de l'inventaire !");
-            console.error(err);
+            this.inventory = []; // ✅ CORRECTION : S'assurer qu'on a un tableau même en cas d'erreur
         }
     }
 
     async addCardsToInventory(cards) {
         if (!Array.isArray(cards) || !cards.length) return;
+
+        // ✅ CORRECTION : S'assurer que l'inventaire est un tableau
+        if (!Array.isArray(this.inventory)) {
+            this.inventory = [];
+        }
+
         const playerId = this.playerId || (this.data && this.data.playerId) || window.playerId;
         console.log("addCardsToInventory - playerId:", playerId, "cards:", cards);
         if (!playerId) {
@@ -473,6 +612,12 @@ export class InventoryScene extends Phaser.Scene {
 
         if (this.sound) this.sound.play("poubelle");
 
+        // ✅ CORRECTION : S'assurer que l'inventaire est un tableau
+        if (!Array.isArray(this.inventory)) {
+            this.inventory = [];
+            this.displayMessage("Erreur : inventaire invalide.");
+            return;
+        }
         const idx = this.inventory.findIndex(c => (c.item_id || c._id) === itemId);
         if (idx !== -1) {
             if (this.inventory[idx].quantite > 1) {
@@ -494,9 +639,26 @@ export class InventoryScene extends Phaser.Scene {
             await this.reloadInventory();
             await this.ensureInventoryImagesLoaded();
             this.drawInventory();
+
+            // ✅ NOUVEAU : Mettre à jour le cache après suppression
+            this.updateGlobalInventoryCache();
         } catch (err) {
             this.displayMessage("Erreur lors de la suppression !");
             console.error(err);
         }
+    }
+
+    // ✅ NOUVEAU : Nettoyage des événements à la destruction
+    destroy() {
+        // Nettoyer les event listeners
+        this.game.events.off('inventory:update', this.handleInventoryUpdate, this);
+        this.game.events.off('cards:added', this.handleCardsAdded, this);
+
+        const boosterScene = this.scene.get('BoosterOpeningScene');
+        if (boosterScene) {
+            boosterScene.events.off('booster:cardsReceived', this.handleCardsReceived, this);
+        }
+
+        super.destroy();
     }
 }

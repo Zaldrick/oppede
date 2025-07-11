@@ -1,5 +1,6 @@
 import Phaser from "phaser";
-import { loadCardImages } from "./utils/loadCardImages.js";
+import { loadCardImages } from "./utils/loadCardImages.js"
+import { openBooster } from "./openBooster.js";    ;
 export class BoosterOpeningScene extends Phaser.Scene {
     constructor() {
         super("BoosterOpeningScene");
@@ -44,19 +45,19 @@ export class BoosterOpeningScene extends Phaser.Scene {
     }
 
     create() {
-            // Fond noir transparent pour masquer l'ancienne scène
-    this.add.rectangle(
-        this.cameras.main.centerX,
-        this.cameras.main.centerY,
-        this.cameras.main.width,
-        this.cameras.main.height,
-        0x000000,
-        0.55 // opacité à ajuster selon ton goût
-    ).setDepth(-10);
+        // Fond noir transparent pour masquer l'ancienne scène
+        this.add.rectangle(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY,
+            this.cameras.main.width,
+            this.cameras.main.height,
+            0x000000,
+            0.55 // opacité à ajuster selon ton goût
+        ).setDepth(-10);
+
         // Limite la taille d'affichage du boosterPack
         const maxWidth = this.cameras.main.width * 0.35;
         const maxHeight = this.cameras.main.height * 0.5;
-        // Dans create() de BoosterOpeningScene
         let boosterImageKey = 'boosterPack'; // valeur par défaut
 
         if (this.booster && this.booster.image) {
@@ -66,11 +67,10 @@ export class BoosterOpeningScene extends Phaser.Scene {
                 'boosterOr.png': 'boosterOr',
                 'boosterP.png': 'boosterP'
             };
-            
+
             boosterImageKey = imageMapping[this.booster.image] || 'boosterPack';
         }
 
-        // Puis utiliser boosterImageKey au lieu de 'boosterPack' hardcodé
         const boosterImg = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, boosterImageKey);
         const tex = this.textures.get(boosterImageKey).getSourceImage();
         if (tex) {
@@ -80,26 +80,20 @@ export class BoosterOpeningScene extends Phaser.Scene {
             boosterImg.setScale(scale);
         }
 
-        console.log("Cartes possibles en create:", this.booster.possibleCards);
-        this.cards = this.generateBoosterCards(this.booster);
-        console.log("Cartes tirées pour le booster:", this.cards);
-
         // Glisser de gauche à droite pour ouvrir, avec feedback visuel
         let dragStartX = null;
         let dragDelta = 0;
         let dragActive = false;
         let boosterOpened = false; // Ajout d'un flag pour bloquer le drag après ouverture
-        // Seuil dynamique : la moitié de la largeur de l'image
         const openThreshold = boosterImg.displayWidth / 2;
 
         const instructionText = this.add.text(
             this.cameras.main.centerX,
             this.cameras.main.centerY + 180,
             "Glisse vers la droite pour ouvrir !",
-            { font:  "28px 'Press Start 2P', monospace", fill: "#fff" }
+            { font: "28px 'Press Start 2P', monospace", fill: "#fff" }
         ).setOrigin(0.5);
 
-        // Découpe le booster en deux moitiés (haut et bas)
         const boosterTop = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY - boosterImg.height / 4, 'boosterPack')
             .setCrop(0, 0, boosterImg.width, boosterImg.height / 2)
             .setOrigin(0.5, 1)
@@ -109,7 +103,6 @@ export class BoosterOpeningScene extends Phaser.Scene {
             .setOrigin(0.5, 0)
             .setVisible(false);
 
-        // Scale les moitiés comme l'image principale
         if (tex) {
             const scaleX = maxWidth / tex.width;
             const scaleY = maxHeight / tex.height;
@@ -118,16 +111,13 @@ export class BoosterOpeningScene extends Phaser.Scene {
             boosterBottom.setScale(scale);
         }
 
-        // Traînée lumineuse
         let trailGraphics = this.add.graphics();
         let lastTrailX = null;
 
         boosterImg.setInteractive({ draggable: true });
 
-        // Correction : pointermove/pointerup doivent être sur this.input, pas boosterImg
-        // Sinon, si le curseur sort de l'image, tu ne reçois plus les events !
         this.input.on('pointerdown', (pointer) => {
-            if (boosterOpened) return; // Empêche tout drag après ouverture
+            if (boosterOpened) return;
             if (!boosterImg.getBounds().contains(pointer.x, pointer.y)) return;
             dragStartX = pointer.x;
             dragDelta = 0;
@@ -139,7 +129,6 @@ export class BoosterOpeningScene extends Phaser.Scene {
         this.input.on('pointermove', (pointer) => {
             if (!dragActive || boosterOpened) return;
             dragDelta = pointer.x - dragStartX;
-            // Traînée lumineuse
             if (lastTrailX !== null) {
                 trailGraphics.lineStyle(10, 0xffff88, 0.7);
                 trailGraphics.beginPath();
@@ -155,7 +144,6 @@ export class BoosterOpeningScene extends Phaser.Scene {
             if (!dragActive || boosterOpened) return;
             dragActive = false;
             lastTrailX = null;
-            // Fade out la traînée lumineuse
             this.tweens.add({
                 targets: trailGraphics,
                 alpha: 0,
@@ -163,10 +151,8 @@ export class BoosterOpeningScene extends Phaser.Scene {
                 onComplete: () => trailGraphics.clear() && trailGraphics.setAlpha(1)
             });
             if (dragDelta > openThreshold) {
-                boosterOpened = true; // Bloque tout drag futur
-                // Animation de flash/disparition du booster
+                boosterOpened = true;
                 this.sound.play('booster_opening');
-                // Flash blanc rapide
                 const flash = this.add.rectangle(
                     this.cameras.main.centerX,
                     this.cameras.main.centerY,
@@ -193,80 +179,117 @@ export class BoosterOpeningScene extends Phaser.Scene {
                         this.startReveal();
                     }
                 });
-            } else {
-                // Rien à faire, le booster reste en place
             }
         });
-
-        // ...ne PAS appeler startReveal() ici...
     }
 
-    generateBoosterCards(booster) {
-        // Si booster.possibleCards ne contient que des noms ou des IDs, il faut faire une requête pour récupérer les objets complets AVANT d'appeler cette scène !
-        // Ici, on suppose que possibleCards contient déjà les objets complets { nom, image, rarity, ... }
-        const cards = [];
-        for (let i = 0; i < booster.cardCount; i++) {
-
-            let rarity = 1;
-            if (booster.rarityChances) {
-                // On construit un tableau de raretés et de chances cumulées
-                const rarityMap = [];
-                let sum = 0;
-                for (const key in booster.rarityChances) {
-                    // Supporte les deux formats : "oneStar", "twoStars", "fourStar", "fivesStars", etc.
-                    let rNum = 1;
-                    if (/^one/i.test(key)) rNum = 1;
-                    else if (/^two/i.test(key)) rNum = 2;
-                    else if (/^three/i.test(key)) rNum = 3;
-                    else if (/^four/i.test(key)) rNum = 4;
-                    else if (/^five/i.test(key)) rNum = 5;
-                    else if (/^\d/.test(key)) rNum = parseInt(key, 10);
-                    else continue;
-                    sum += booster.rarityChances[key];
-                    rarityMap.push({ rarity: rNum, chance: sum });
-                }
-                // Normalise si la somme > 1
-                if (sum > 1) {
-                    rarityMap.forEach(r => r.chance /= sum);
-                }
-                const rand = Math.random();
-                rarity = rarityMap.find(r => rand < r.chance)?.rarity || rarityMap[0]?.rarity || 1;
-            }
-
-            // Filtre les cartes possibles par rareté
-            const pool = booster.possibleCards.filter(c => c.rarity === rarity);
-            if (!pool.length) {
-                // Si aucune carte pour cette rareté, fallback sur toutes les cartes du booster
-                console.warn(`Aucune carte de rareté ${rarity} dans le booster, fallback sur toutes les cartes`);
-                cards.push(booster.possibleCards[Math.floor(Math.random() * booster.possibleCards.length)]);
-            } else {
-                cards.push(pool[Math.floor(Math.random() * pool.length)]);
-            }
-        }
-        return cards;
-    }
-    
     getOptimalFontSize(text, maxWidth, baseFontSize = 60, minFontSize = 25) {
-    const charWidth = baseFontSize * 0.6; // Approximation largeur caractère
-    const estimatedWidth = text.length * charWidth;
-    
-    if (estimatedWidth <= maxWidth) {
-        return baseFontSize;
-    }
-    
-    const ratio = maxWidth / estimatedWidth;
-    return Math.max(Math.floor(baseFontSize * ratio), minFontSize);
-}
+        const charWidth = baseFontSize * 0.6;
+        const estimatedWidth = text.length * charWidth;
 
-    startReveal() {
+        if (estimatedWidth <= maxWidth) {
+            return baseFontSize;
+        }
+
+        const ratio = maxWidth / estimatedWidth;
+        return Math.max(Math.floor(baseFontSize * ratio), minFontSize);
+    }
+
+    async startReveal() {
         this.state = "revealing";
+
+        try {
+            const playerPseudo = this.registry.get("playerPseudo");
+            if (!playerPseudo) {
+                console.error("Impossible de trouver le pseudo du joueur dans le registry");
+                this.displayError("Erreur: Pseudo du joueur manquant");
+                return;
+            }
+
+            console.log("🎯 Pseudo du joueur:", playerPseudo);
+
+            const playerResponse = await fetch(`${process.env.REACT_APP_API_URL}/api/players/${playerPseudo}`);
+            if (!playerResponse.ok) {
+                console.error("Erreur lors de la récupération des données du joueur");
+                this.displayError("Erreur: Impossible de récupérer les données du joueur");
+                return;
+            }
+
+            const playerData = await playerResponse.json();
+            console.log("🎯 Données du joueur récupérées:", playerData);
+
+            if (!this.booster || !this.booster.item_id) {
+                console.error("Impossible de trouver l'item_id du booster");
+                console.log("🎯 Booster actuel:", this.booster);
+                this.displayError("Erreur: Données du booster manquantes");
+                return;
+            }
+
+            const playerId = playerData._id;
+            const boosterItemId = this.booster.item_id;
+
+            console.log("🎯 Données à envoyer à l'API:");
+            console.log("  - playerId:", playerId, "type:", typeof playerId);
+            console.log("  - boosterItemId:", boosterItemId, "type:", typeof boosterItemId);
+
+            const serverCards = await openBooster(playerId, boosterItemId);
+
+            console.log("🎯 Cartes reçues du serveur:", serverCards);
+
+            this.cards = serverCards;
+
+            this.notifyCardsReceived();
+
+        } catch (error) {
+            console.error("❌ Erreur lors de l'ouverture du booster:", error);
+            this.displayError("Erreur lors de l'ouverture du booster: " + error.message);
+            return;
+        }
+
         this.revealIdx = 0;
         this.revealStack = [];
         this.revealCard();
     }
 
+    notifyCardsReceived() {
+        console.log('[BoosterOpeningScene] Notification des cartes reçues:', this.cards);
+
+        this.events.emit('booster:cardsReceived', {
+            cards: this.cards
+        });
+
+        this.game.events.emit('cards:added', this.cards);
+        this.game.events.emit('inventory:update');
+
+        console.log('[BoosterOpeningScene] Événements de cartes émis pour', this.cards.length, 'cartes');
+    }
+
+    displayError(message) {
+        const errorText = this.add.text(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY,
+            message,
+            { font: "24px Arial", fill: "#ff0000", align: "center" }
+        ).setOrigin(0.5);
+
+        const returnBtn = this.add.text(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY + 100,
+            "Retour",
+            { font: "18px Arial", fill: "#fff", backgroundColor: "#333", padding: { x: 10, y: 5 } }
+        ).setOrigin(0.5).setInteractive();
+
+        returnBtn.on('pointerup', () => {
+            this.scene.stop();
+            if (this.scene.isPaused("InventoryScene")) {
+                this.scene.resume("InventoryScene");
+            } else {
+                this.scene.resume("GameScene");
+            }
+        });
+    }
+
     revealCard() {
-        // Nettoie la pile précédente
         this.revealStack.forEach(obj => obj.destroy && obj.destroy());
         this.revealStack = [];
 
@@ -275,7 +298,6 @@ export class BoosterOpeningScene extends Phaser.Scene {
             return;
         }
 
-        // Sécurise la récupération de la carte
         const cardCheck = this.cards[this.revealIdx];
         if (!cardCheck || !cardCheck.image) {
             console.error("Carte invalide ou sans image :", cardCheck, "à l'index", this.revealIdx);
@@ -283,18 +305,14 @@ export class BoosterOpeningScene extends Phaser.Scene {
             return;
         }
 
-        
         const card = this.cards[this.revealIdx];
         const texture = this.textures.get(`item_${card.image}`);
-        let realWidth = 100, realHeight = 150; // fallback
+        let realWidth = 100, realHeight = 150;
         if (texture && texture.getSourceImage()) {
             realWidth = texture.getSourceImage().width;
             realHeight = texture.getSourceImage().height;
         }
 
-
-        // ...dans revealCard(), après avoir récupéré realWidth et realHeight...
-        // Calcule la taille max selon l'écran (par exemple 30% largeur, 45% hauteur)
         const maxCardWidth = this.cameras.main.width * 0.6;
         const maxCardHeight = this.cameras.main.height * 0.7;
         let scale = 1;
@@ -312,55 +330,48 @@ export class BoosterOpeningScene extends Phaser.Scene {
                 this.cameras.main.centerY - (i - this.revealIdx) * stackOffset,
                 `item_${this.cards[i].image}`
             )
-            .setScale(scale * stackScale) // <-- utilise le scale dynamique
-            .setAlpha(1);
+                .setScale(scale * stackScale)
+                .setAlpha(1);
             this.revealStack.push(stackImg);
         }
-        // Image de la carte responsive
+
         const mainImg = this.add.image(this.cameras.main.centerX, this.cameras.main.centerY, `item_${card.image}`)
             .setScale(scale)
             .setAlpha(0);
         this.revealStack.push(mainImg);
 
-
-        // Affiche les valeurs autour de la carte (style TripleTriad)
-        const thumbWidth = 230; // <--- taille augmentée
+        const thumbWidth = 230;
         const thumbHeight = thumbWidth * 1.5;
         const x = this.cameras.main.centerX;
         const y = this.cameras.main.centerY;
-        const valueFont = `50px Press Start 2P`; // taille de police augmentée
-        // Haut
-        const valUp = this.add.text(x*1.38, y*1.25 - thumbHeight / 10+26 , card.powerUp, {
+        const valueFont = `50px Press Start 2P`;
+        const valUp = this.add.text(x * 1.38, y * 1.25 - thumbHeight / 10 + 26, card.powerUp, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(0.5, 1).setAlpha(0);
-        // Bas
-        const valDown = this.add.text(x*1.38, y*1.25 + thumbHeight / 10-26 , card.powerDown, {
+        const valDown = this.add.text(x * 1.38, y * 1.25 + thumbHeight / 10 - 26, card.powerDown, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(0.5, 0).setAlpha(0);
-        // Gauche
-        const valLeft = this.add.text(x*1.38 - thumbWidth / 10+10, y*1.25, card.powerLeft, {
+        const valLeft = this.add.text(x * 1.38 - thumbWidth / 10 + 10, y * 1.25, card.powerLeft, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(1, 0.5).setAlpha(0);
-        // Droite
-        const valRight = this.add.text(x*1.38 + thumbWidth / 10-10, y*1.25, card.powerRight, {
+        const valRight = this.add.text(x * 1.38 + thumbWidth / 10 - 10, y * 1.25, card.powerRight, {
             font: valueFont, fill: "#ccc", stroke: "#000", strokeThickness: 5
         }).setOrigin(0, 0.5).setAlpha(0);
 
         this.revealStack.push(valUp, valDown, valLeft, valRight);
 
-        // Dans revealCard(), utilisez cette fonction :
         const cardName = card.nom || "???";
-        const maxNameWidth = this.cameras.main.width * 0.9; // 90% de la largeur écran
+        const maxNameWidth = this.cameras.main.width * 0.9;
         const fontSize = this.getOptimalFontSize(cardName, maxNameWidth);
 
         const nameText = this.add.text(
             this.cameras.main.centerX,
-            y*1.7,
+            y * 1.7,
             cardName,
-            { 
-                font: `${fontSize}px 'Press Start 2P', monospace`, 
-                fill: "#fff", 
-                stroke: "#000", 
+            {
+                font: `${fontSize}px 'Press Start 2P', monospace`,
+                fill: "#fff",
+                stroke: "#000",
                 strokeThickness: Math.max(fontSize * 0.3, 8),
                 padding: { x: 10, y: 5 },
                 wordWrap: { width: maxNameWidth, useAdvancedWrap: true }
@@ -369,7 +380,6 @@ export class BoosterOpeningScene extends Phaser.Scene {
         nameText.setAlpha(0);
         this.revealStack.push(nameText);
 
-  
         this.tweens.add({
             targets: mainImg,
             alpha: 1,
@@ -395,9 +405,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             ease: 'Cubic.easeOut'
         });
 
-        // Swipe/click pour passer à la suivante avec animation de sortie
         this.input.once('pointerup', () => {
-            // Animation de disparition
             this.tweens.add({
                 targets: [mainImg, nameText, valUp, valDown, valLeft, valRight],
                 alpha: 0,
@@ -416,7 +424,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
         this.state = "recap";
         this.revealStack.forEach(obj => obj.destroy && obj.destroy());
         this.revealStack = [];
-        // Affiche un récapitulatif des cartes obtenues
+
         const recapBg = this.add.rectangle(
             this.cameras.main.centerX,
             this.cameras.main.centerY,
@@ -429,24 +437,20 @@ export class BoosterOpeningScene extends Phaser.Scene {
             { font: "28px Arial", fill: "#fff" }
         ).setOrigin(0.5);
 
-        // Affiche les images et noms des cartes obtenues
         const startY = this.cameras.main.centerY - 60;
 
-
-        // ...dans showRecap(), juste avant la boucle this.cards.forEach...
         const recapWidth = 420;
         const recapHeight = 340;
         const margin = 24;
         const cardsPerRow = 5;
         const rows = Math.ceil(this.cards.length / cardsPerRow);
 
-        // Calcule la taille max possible pour chaque carte selon l'espace du recap
         const availableWidth = recapWidth - margin * 2;
-        const availableHeight = recapHeight - 120 - margin; // 120 pour le titre et le bouton
+        const availableHeight = recapHeight - 120 - margin;
         const cardSpacing = availableWidth / cardsPerRow;
         const rowSpacing = availableHeight / rows;
-        const maxCardWidth = Math.min(cardSpacing * 0.85, 80);  // 80px max pour éviter trop gros
-        const maxCardHeight = Math.min(rowSpacing * 0.7, 120);  // 120px max pour éviter trop gros
+        const maxCardWidth = Math.min(cardSpacing * 0.85, 80);
+        const maxCardHeight = Math.min(rowSpacing * 0.7, 120);
 
         this.cards.forEach((card, i) => {
             const row = Math.floor(i / cardsPerRow);
@@ -454,7 +458,6 @@ export class BoosterOpeningScene extends Phaser.Scene {
             const x = this.cameras.main.centerX - (availableWidth / 2) + cardSpacing / 2 + col * cardSpacing;
             const y = startY + row * rowSpacing;
 
-            // Calcule le scale pour ne pas dépasser la taille max
             let scale = 1;
             const texture = this.textures.get(`item_${card.image}`);
             if (texture && texture.getSourceImage()) {
@@ -466,13 +469,12 @@ export class BoosterOpeningScene extends Phaser.Scene {
             }
 
             this.add.image(x, y, `item_${card.image}`).setScale(scale);
-            // Nom avec taille adaptative pour le récapitulatif
             const cardName = card.nom || "???";
-            const maxNameWidth = cardSpacing * 0.9; // 90% de l'espace disponible pour cette carte
-            const recapFontSize = this.getOptimalFontSize(cardName, maxNameWidth, 15, 12); // Taille de base 13px, minimum 8px
-            
+            const maxNameWidth = cardSpacing * 0.9;
+            const recapFontSize = this.getOptimalFontSize(cardName, maxNameWidth, 15, 12);
+
             this.add.text(x, y + maxCardHeight / 2 + 10, cardName, {
-                font: `${recapFontSize}px Arial`, 
+                font: `${recapFontSize}px Arial`,
                 fill: "#fff",
                 wordWrap: { width: maxNameWidth, useAdvancedWrap: true }
             }).setOrigin(0.5);
@@ -486,24 +488,44 @@ export class BoosterOpeningScene extends Phaser.Scene {
         ).setOrigin(0.5).setInteractive();
 
         continueBtn.on('pointerup', async () => {
-            // Ajoute les cartes à l'inventaire de InventoryScene si elle existe
+            this.game.events.emit('inventory:update');
+
             const inventoryScene = this.scene.get("InventoryScene");
-            if (inventoryScene && typeof inventoryScene.addCardsToInventory === "function") {
-                await inventoryScene.addCardsToInventory(this.cards);
-                // Recharge l'inventaire pour forcer l'affichage à jour
+            if (inventoryScene && typeof inventoryScene.reloadInventory === "function") {
                 await inventoryScene.reloadInventory();
                 await inventoryScene.ensureInventoryImagesLoaded();
                 inventoryScene.drawInventory();
             }
-            
+
             this.scene.stop();
-            // Ferme proprement la scène et reprend la précédente
             if (this.scene.isPaused("InventoryScene")) {
                 this.scene.resume("InventoryScene");
             } else {
                 this.scene.resume("GameScene");
             }
         });
+    }
+
+    addCardsToInventory() {
+        // ... logique existante d'ajout de cartes ...
+        
+        // ✅ NOUVEAU : Émettre l'événement pour notifier les autres scènes
+        this.events.emit('booster:cardsReceived', { 
+            cards: this.receivedCards // ou la variable contenant les cartes reçues
+        });
+        
+        // ✅ NOUVEAU : Émettre un événement global
+        this.game.events.emit('cards:added', this.receivedCards);
+        this.game.events.emit('inventory:update');
+        
+        console.log('[BoosterOpeningScene] Événements de cartes émis');
+    }
+
+    shutdown() {
+        // ✅ NOUVEAU : S'assurer que l'inventaire est mis à jour
+        this.game.events.emit('inventory:update');
+        
+        // Logique de fermeture existante...
     }
 }
 

@@ -101,7 +101,7 @@ export class InventoryScene extends Phaser.Scene {
                     this.add.text(
                         x + cellSize * ConfigManager.LAYOUT.GRID.QUANTITY_OFFSET, 
                         y + cellSize * ConfigManager.LAYOUT.GRID.QUANTITY_OFFSET, 
-                        item.quantite || 1, 
+                        item.quantité || ?, 
                         quantityStyle
                     ).setOrigin(0.5);
                 }
@@ -141,7 +141,7 @@ export class InventoryScene extends Phaser.Scene {
         const detailText = this.add.text(
             +width * 0.16,    
             -height * 0.1,    
-            `Nom: ${item.nom}\nQuantité: ${item.quantite || 1}\nPrix: ${item.prix}`,
+            `Nom: ${item.nom}\nQuantité: ${item.quantité || 1}\nPrix: ${item.prix}`,
             {
                 font: `${width * 0.04}px Arial`,
                 fill: "#ffffff",

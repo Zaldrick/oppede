@@ -362,7 +362,7 @@ export class TripleTriadSelectScene extends Phaser.Scene {
 
 
         // Titre au centre
-        const titleText = this.add.text(width / 2, btnY, "Choisis tes 5 cartes", {
+        const titleText = this.add.text(width / 2, btnY*.98, "Choisis tes 5 cartes", {
             font: `${Math.round(width * 0.045)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
@@ -382,23 +382,10 @@ export class TripleTriadSelectScene extends Phaser.Scene {
                 
                 const ruleNames = activeRules.map(([key]) => ruleLabels[key]).join(" • ");
                 
-                this.container.add(this.add.text(width / 2, btnY - 35, `Règles: ${ruleNames}`, {
-                    font: `${Math.round(width * 0.03)}px Arial`,
+                this.container.add(this.add.text(width / 2, btnY*1.01, `${ruleNames}`, {
+                    font: `${Math.round(width * 0.027)}px Arial`,
                     fill: "#0f0",
                     fontStyle: "bold"
-                }).setOrigin(0.5));
-            }
-            
-            if (this.mode === "ai") {
-                const difficultyLabels = {
-                    easy: "Facile",
-                    medium: "Moyen", 
-                    hard: "Difficile"
-                };
-                
-                this.container.add(this.add.text(width / 2, btnY - 55, `IA: ${difficultyLabels[this.aiDifficulty] || 'Moyen'}`, {
-                    font: `${Math.round(width * 0.03)}px Arial`,
-                    fill: "#ffcc00"
                 }).setOrigin(0.5));
             }
         }

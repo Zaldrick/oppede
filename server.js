@@ -133,6 +133,7 @@ class Server {
         }
     }
 
+
     setupRoutes() {
         console.log('🛣️ Configuration des routes...');
 
@@ -153,6 +154,9 @@ class Server {
             });
         });
 
+        // ✅ AJOUT - Routes de la boutique
+        this.setupShopRoutes();
+
         // Routes gérées par les managers
         this.managers.databaseManager.setupRoutes(this.app);
         this.managers.photoManager.setupRoutes(this.app);
@@ -162,6 +166,95 @@ class Server {
         this.app.use(boosterRoutes);
 
         console.log('✅ Routes configurées');
+    }
+
+    // ✅ NOUVELLE MÉTHODE - Configuration des routes de boutique
+    setupShopRoutes() {
+        const { ObjectId } = require('mongodb');
+
+        // Route pour récupérer les boosters disponibles à la vente
+        this.app.get('/api/items', async (req, res) => {
+            const { type } = req.query;
+
+            try {
+                const db = await this.managers.databaseManager.connectToDatabase();
+                const itemsCol = db.collection('items');
+
+                let query = {};
+                if (type) {
+                    query.type = type;
+                }
+
+                const items = await itemsCol.find(query).toArray();
+                res.json(items);
+
+            } catch (error) {
+                console.error('Erreur lors de la récupération des items:', error);
+                res.status(500).json({ error: "Erreur serveur" });
+            }
+        });
+
+        // Route pour acheter un booster
+        this.app.post('/api/shop/buy-booster', async (req, res) => {
+            const { playerId, boosterId, price } = req.body;
+
+            if (!playerId || !boosterId || !price) {
+                return res.status(400).json({ error: "Paramètres manquants" });
+            }
+
+            try {
+                const db = await this.managers.databaseManager.connectToDatabase();
+                const playersCol = db.collection('players');
+                const inventoryCol = db.collection('inventory');
+                const itemsCol = db.collection('items');
+
+                // Vérifier que le joueur existe et a assez d'argent
+                const player = await playersCol.findOne({ _id: new ObjectId(playerId) });
+                if (!player) {
+                    return res.status(404).json({ error: "Joueur non trouvé" });
+                }
+
+                if (player.totalScore < price) {
+                    return res.status(400).json({ error: "Pas assez d'argent" });
+                }
+
+                // Vérifier que le booster existe
+                const booster = await itemsCol.findOne({
+                    _id: new ObjectId(boosterId),
+                    type: "booster"
+                });
+                if (!booster) {
+                    return res.status(404).json({ error: "Booster non trouvé" });
+                }
+
+                // Débiter l'argent du joueur
+                await playersCol.updateOne(
+                    { _id: new ObjectId(playerId) },
+                    { $inc: { totalScore: -price } }
+                );
+
+                // Ajouter le booster à l'inventaire du joueur
+                await inventoryCol.updateOne(
+                    { player_id: new ObjectId(playerId), item_id: new ObjectId(boosterId) },
+                    { $inc: { quantité: 1 } },
+                    { upsert: true }
+                );
+
+                console.log(`🛒 Booster acheté: ${booster.nom} par joueur ${playerId} pour ${price} pièces`);
+
+                res.json({
+                    success: true,
+                    message: "Booster acheté avec succès",
+                    newBalance: player.totalScore - price
+                });
+
+            } catch (error) {
+                console.error('Erreur lors de l\'achat du booster:', error);
+                res.status(500).json({ error: "Erreur serveur" });
+            }
+        });
+
+        console.log('🛒 Routes de boutique configurées');
     }
 
     setupSocket() {

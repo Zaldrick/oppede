@@ -9,7 +9,7 @@ import { RemotePlayerManager } from './managers/RemotePlayerManager';
 import { MapManager } from './managers/MapManager';
 import { SocketManager } from './managers/SocketManager';
 import { UIManager } from './managers/UIManager';
-
+import { ShopManager } from './managers/ShopManager';
 // ✅ NOUVEAUX IMPORTS - Menus Triple Triad
 import { TripleTriadAIConfigScene } from './TripleTriadAIConfigScene.js';
 import { TripleTriadPvPConfigScene } from './TripleTriadPvPConfigScene.js';
@@ -98,17 +98,10 @@ export class GameScene extends Phaser.Scene {
             console.error("Error during preload. Aborting game initialization.");
             return;
         }
-
-        // Gestion du clic pour récupérer les coordonnées de la tuile
-        this.input.on('pointerdown', function (pointer) {
-            let worldPoint = pointer.positionToCamera(this.cameras.main);
-            let tileX = Math.floor(worldPoint.x / 48);
-            let tileY = Math.floor(worldPoint.y / 48);
-            let centerX = (tileX * 48) + 24;
-            let centerY = (tileY * 48) + 24;
-            console.log(`Tuile cliquée : x=${tileX}, y=${tileY}`);
-            console.log(`Centre de la tuile : x=${centerX}, y=${centerY}`);
-        }, this);
+        this.game.events.on('inventory:cacheUpdated', (newInventory) => {
+            this.inventory = [...newInventory];
+            console.log('[GameScene] Cache inventaire mis à jour:', this.inventory.length, 'items');
+        });
     }
 
     initializeManagers() {
@@ -117,6 +110,7 @@ export class GameScene extends Phaser.Scene {
         this.mapManager = new MapManager(this);
         this.socketManager = new SocketManager(this);
         this.uiManager = new UIManager(this);
+        this.shopManager = new ShopManager(this); // ← AJOUT
     }
 
     async setupGame() {
@@ -182,6 +176,11 @@ export class GameScene extends Phaser.Scene {
         this.load.image("backgroundext", "/assets/maps/exterieur.png");
         this.load.image("backgroundoppede", "/assets/maps/oppede.png");
         this.load.spritesheet("player", "/assets/apparences/Mehdi.png", {
+            frameWidth: 48,
+            frameHeight: 48,
+        });
+
+        this.load.spritesheet("marchand", "/assets/apparences/marchand.png", {
             frameWidth: 48,
             frameHeight: 48,
         });
@@ -311,6 +310,7 @@ export class GameScene extends Phaser.Scene {
         this.mapManager?.destroy();
         this.socketManager?.destroy();
         this.uiManager?.destroy();
+        this.shopManager?.destroy(); // ← AJOUT
 
         // Réinitialise les autres états
         this.myId = null;

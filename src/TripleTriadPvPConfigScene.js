@@ -51,21 +51,21 @@ export class TripleTriadPvPConfigScene extends Phaser.Scene {
         this.container.removeAll(true);
 
         // === TITRE ===
-        this.container.add(this.add.text(width / 2, height * 0.1, "Configuration du Défi", {
+        this.container.add(this.add.text(width / 2, height * 0.07, "Configuration du Défi", {
             font: `${Math.round(width * 0.06)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
 
         // === ADVERSAIRE ===
-        this.container.add(this.add.text(width / 2, height * 0.2, `Adversaire : ${this.opponentName}`, {
+        this.container.add(this.add.text(width / 2, height * 0.13, `Adversaire : ${this.opponentName}`, {
             font: `${Math.round(width * 0.04)}px Arial`,
             fill: "#ffcc00",
             fontStyle: "bold"
         }).setOrigin(0.5));
 
         // === SECTION RÈGLES ===
-        const rulesY = height * 0.3;
+        const rulesY = height * 0.25;
 
         this.container.add(this.add.text(width / 2, rulesY, "Règles du défi", {
             font: `${Math.round(width * 0.045)}px Arial`,
@@ -102,11 +102,11 @@ export class TripleTriadPvPConfigScene extends Phaser.Scene {
         ];
 
         rules.forEach((rule, index) => {
-            const btnY = rulesY + 80 + index * 80;
+            const btnY = rulesY + 80 + index * 60;
             const isSelected = this.selectedRules[rule.key];
 
             // Checkbox
-            const checkbox = this.add.text(width * 0.15, btnY, isSelected ? "?" : "?", {
+            const checkbox = this.add.text(width * 0.15, btnY, isSelected ? "☑" : "☐", {
                 font: `${Math.round(width * 0.045)}px Arial`,
                 fill: isSelected ? "#0f0" : "#fff"
             })
@@ -142,9 +142,9 @@ export class TripleTriadPvPConfigScene extends Phaser.Scene {
         });
 
         // === APERÇU DES RÈGLES SÉLECTIONNÉES ===
-        const previewY = height * 0.75;
+        /*const previewY = height * 0.75;
         const activeRules = Object.entries(this.selectedRules).filter(([key, value]) => value);
-
+        
         this.container.add(this.add.text(width / 2, previewY, "Règles actives :", {
             font: `${Math.round(width * 0.035)}px Arial`,
             fill: "#fff",
@@ -172,7 +172,7 @@ export class TripleTriadPvPConfigScene extends Phaser.Scene {
                 fill: "#ff6666"
             }).setOrigin(0.5));
         }
-
+        */
         // === BOUTONS ===
         const btnY = height * 0.9;
 

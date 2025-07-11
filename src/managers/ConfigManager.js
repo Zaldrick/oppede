@@ -1,11 +1,11 @@
-/**
- * ConfigManager - Gestionnaire centralis� de toutes les constantes et configurations
+﻿/**
+ * ConfigManager - Gestionnaire centralisé de toutes les constantes et configurations
  * 
  * Ce manager centralise :
  * - Toutes les valeurs de layout responsive
  * - Les constantes de gameplay
  * - Les configurations d'UI
- * - Les param�tres d'animation
+ * - Les paramètres d'animation
  * - Les URLs et chemins
  */
 
@@ -17,7 +17,7 @@ class ConfigManager {
     init() {
         // === CONFIGURATION RESPONSIVE ===
         this.LAYOUT = {
-            // Pourcentages de taille d'�cran
+            // Pourcentages de taille d'écran
             SCREEN: {
                 INVENTORY_WIDTH_RATIO: 0.9,
                 INVENTORY_HEIGHT_RATIO: 0.85,
@@ -32,7 +32,7 @@ class ConfigManager {
             // Grilles et cellules
             GRID: {
                 INVENTORY_COLS: 4,
-                INVENTORY_ROWS: 4,
+                INVENTORY_ROWS: 3,
                 CELL_SIZE_RATIO: 0.165,
                 CELL_CONTENT_RATIO: 0.8,
                 CELL_CONTENT_LARGE_RATIO: 0.9,
@@ -71,7 +71,8 @@ class ConfigManager {
         this.TRIPLE_TRIAD = {
             BOARD: {
                 SIZE: 3, // Plateau 3x3
-                CELL_WIDTH_RATIO: 0.80 / 3, // 80% de largeur divis� par 3
+                WIDTH_RATIO: 0.70,
+                CELL_WIDTH_RATIO: 0.80 / 3, // 80% de largeur divisé par 3
                 BORDER_WIDTH: 7,
                 BACKGROUND_COLOR: 0xA6A6A6,
                 BACKGROUND_ALPHA: 0.95,
@@ -79,14 +80,16 @@ class ConfigManager {
             },
 
             CARDS: {
-                WIDTH_RATIO: 0.125, // width / 8
+                WIDTH_RATIO: 0.125,
                 MAX_WIDTH: 60,
                 HAND_SIZE: 5,
                 VALUES_FONT_RATIO: 0.38,
+                ASPECT_RATIO: 1.5,
                 STROKE_THICKNESS: 6,
                 GLOW_ALPHA: 0.22,
                 GLOW_SCALE: 1.4,
                 GLOW_STEPS: 22,
+                SCALE_ON_BOARD: 0.9,
             },
 
             COLORS: {
@@ -208,7 +211,7 @@ class ConfigManager {
                 ANSWER_TIME: 30,
                 CATEGORIES: [
                     "Geographie",
-                    "Art & Litterature", 
+                    "Art & Litterature",
                     "Histoire",
                     "Science et Nature",
                     "Sport"
@@ -220,6 +223,33 @@ class ConfigManager {
                 DEFAULT_HAND_SIZE: 5,
                 MAX_RARITY: 5,
                 POWER_RANGE: [1, 10],
+            }
+        };
+
+        // === CONFIGURATION IA TRIPLE TRIAD ===
+        this.AI_TRIPLE_TRIAD = {
+            DIFFICULTIES: {
+                facile: {
+                    name: 'facile',        // ✅ Correspond à la BDD
+                    rarities: [1, 2], // ✅ Cohérent avec filter.rarity = { $lte: 3 }
+                    description: 'Cartes de rareté 1-2'
+                },
+                normal: {
+                    name: 'normal',      // ✅ Correspond à la BDD  
+                    rarities: [2, 3], // ✅ Cohérent avec filter.rarity = { $lte: 4 }
+                    description: 'Cartes de rareté 2-3'
+                },
+                difficile: {
+                    name: 'difficile',        // ✅ Correspond à la BDD
+                    rarities: [3, 4], // ✅ Toutes les cartes
+                    description: 'Cartes de rareté 3-4'
+                }
+            },
+
+            CARD_SELECTION: {
+                MIN_CARDS_REQUIRED: 10,
+                FALLBACK_ENABLED: true,
+                SHUFFLE_ATTEMPTS: 3,
             }
         };
 
@@ -244,7 +274,7 @@ class ConfigManager {
             }
         };
 
-        // === CONFIGURATION R�SEAU ===
+        // === CONFIGURATION RÉSEAU ===
         this.NETWORK = {
             API: {
                 BASE_URL: process.env.REACT_APP_API_URL || "http://localhost:5000",
@@ -279,7 +309,7 @@ class ConfigManager {
             }
         };
 
-        // === CONFIGURATION DE QUALIT� ===
+        // === CONFIGURATION DE QUALITÉ ===
         this.QUALITY = {
             TEXTURE_RESOLUTION: 1,
             ANTIALIAS: true,
@@ -288,10 +318,92 @@ class ConfigManager {
         };
     }
 
-    // === M�THODES UTILITAIRES ===
+    // === MÉTHODES UTILITAIRES ===
 
     /**
-     * Calcule la taille responsive d'un �l�ment
+     * Obtient les raretés de cartes selon la difficulté IA
+     */
+    getAIDifficultyName(difficulty) {
+        const config = this.AI_TRIPLE_TRIAD.DIFFICULTIES[difficulty];
+
+        if (!config) {
+            console.warn(`[ConfigManager] Difficulté IA inconnue: ${difficulty}, utilisation de NORMAL`);
+            return this.AI_TRIPLE_TRIAD.DIFFICULTIES.NORMAL.name;
+        }
+
+        return config.name; // Retourne 'easy', 'medium', ou 'hard'
+    }
+
+    /**
+     * Récupère des cartes IA depuis la base de données selon la difficulté
+     */
+    async getAICards(difficulty = 'normal', count = 5) {
+        try {
+            // ✅ Convertit la difficulté en nom API
+            const apiDifficulty = this.getAIDifficultyName(difficulty);
+            console.log(`[ConfigManager] Récupération cartes IA - Difficulté: ${difficulty} → API: ${apiDifficulty}`);
+
+            const url = `${this.NETWORK.API.BASE_URL}/api/cards/ai/random?difficulty=${apiDifficulty}&count=${count}`;
+            const response = await fetch(url, {
+                method: 'GET', // ✅ GET au lieu de POST
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
+            }
+
+            const result = await response.json();
+
+            // ✅ Gère le fallback si la BDD retourne success: false
+            if (result.success === false || result.fallback === true) {
+                console.warn('[ConfigManager] API indique fallback, utilisation des cartes locales');
+                return this.getAICardsFallback(count, difficulty);
+            }
+
+            if (!result || result.length === 0) {
+                console.warn('[ConfigManager] Aucune carte reçue de la BDD, utilisation du fallback');
+                return this.getAICardsFallback(count, difficulty);
+            }
+
+            console.log(`[ConfigManager] ${result.length} cartes IA récupérées:`, result.map(c => `${c.nom} (R${c.rarity || '?'})`));
+            return result;
+
+        } catch (error) {
+            console.error('[ConfigManager] Erreur lors de la récupération des cartes IA:', error);
+            return this.getAICardsFallback(count, difficulty);
+        }
+    }
+
+    /**
+     * Cartes de fallback si la BDD est inaccessible
+     */
+    getAICardsFallback(count = 5) {
+        console.log('[ConfigManager] Utilisation des cartes de fallback');
+
+        const fallbackCards = [
+            { nom: "Boguomile", image: "Bogomile.png", powerUp: 1, powerLeft: 5, powerDown: 4, powerRight: 1, rarete: 2 },
+            { nom: "Fungus", image: "Fungus.png", powerUp: 5, powerLeft: 3, powerDown: 1, powerRight: 1, rarete: 2 },
+            { nom: "Elmidea", image: "Elmidea.png", powerUp: 1, powerLeft: 5, powerDown: 3, powerRight: 3, rarete: 3 },
+            { nom: "Nocturnus", image: "Nocturnus.png", powerUp: 6, powerLeft: 2, powerDown: 1, powerRight: 1, rarete: 3 },
+            { nom: "Incube", image: "Incube.png", powerUp: 2, powerLeft: 5, powerDown: 1, powerRight: 3, rarete: 2 },
+            { nom: "Aphide", image: "Aphide.png", powerUp: 2, powerLeft: 4, powerDown: 4, powerRight: 1, rarete: 1 },
+            { nom: "Elastos", image: "Elastos.png", powerUp: 1, powerLeft: 1, powerDown: 4, powerRight: 5, rarete: 1 },
+            { nom: "Diodon", image: "Diodon.png", powerUp: 3, powerLeft: 1, powerDown: 2, powerRight: 5, rarete: 2 },
+            { nom: "Carnidea", image: "Carnidea.png", powerUp: 2, powerLeft: 1, powerDown: 6, powerRight: 1, rarete: 3 },
+            { nom: "Larva", image: "Larva.png", powerUp: 4, powerLeft: 3, powerDown: 4, powerRight: 2, rarete: 2 },
+            { nom: "Gallus", image: "Gallus.png", powerUp: 2, powerLeft: 6, powerDown: 2, powerRight: 1, rarete: 4 }
+        ];
+
+        // Mélange et prend le nombre demandé
+        const shuffled = [...fallbackCards].sort(() => Math.random() - 0.5);
+        return shuffled.slice(0, count);
+    }
+
+    /**
+     * Calcule la taille responsive d'un élément
      */
     getResponsiveSize(baseSize, screenDimension, ratio) {
         return Math.min(baseSize, screenDimension * ratio);
@@ -303,17 +415,17 @@ class ConfigManager {
     getOptimalFontSize(text, maxWidth, baseFontSize = 60, minFontSize = 25) {
         const charWidth = baseFontSize * 0.6;
         const estimatedWidth = text.length * charWidth;
-        
+
         if (estimatedWidth <= maxWidth) {
             return baseFontSize;
         }
-        
+
         const ratio = maxWidth / estimatedWidth;
         return Math.max(Math.floor(baseFontSize * ratio), minFontSize);
     }
 
     /**
-     * Calcule la position centr�e d'une grille
+     * Calcule la position centrée d'une grille
      */
     getCenteredGridPosition(screenWidth, gridCols, cellSize, spacing = 0) {
         const gridWidth = gridCols * cellSize + (gridCols - 1) * spacing;
@@ -321,7 +433,7 @@ class ConfigManager {
     }
 
     /**
-     * Calcule l'�chelle pour adapter une image � une taille max
+     * Calcule l'échelle pour adapter une image à une taille max
      */
     getImageScale(originalWidth, originalHeight, maxWidth, maxHeight) {
         const scaleX = maxWidth / originalWidth;
@@ -330,22 +442,22 @@ class ConfigManager {
     }
 
     /**
-     * Obtient une couleur en fonction du propri�taire (PvP vs IA)
+     * Obtient une couleur en fonction du propriétaire (PvP vs IA)
      */
     getOwnerColor(owner, playerId, isPvP = false) {
         if (isPvP) {
-            return owner === playerId ? 
-                this.TRIPLE_TRIAD.COLORS.PLAYER_BORDER : 
+            return owner === playerId ?
+                this.TRIPLE_TRIAD.COLORS.PLAYER_BORDER :
                 this.TRIPLE_TRIAD.COLORS.OPPONENT_BORDER;
         } else {
-            return owner === "player" ? 
-                this.TRIPLE_TRIAD.COLORS.PLAYER_BORDER : 
+            return owner === "player" ?
+                this.TRIPLE_TRIAD.COLORS.PLAYER_BORDER :
                 this.TRIPLE_TRIAD.COLORS.OPPONENT_BORDER;
         }
     }
 
     /**
-     * G�n�re une configuration de style pour les textes
+     * Génère une configuration de style pour les textes
      */
     getTextStyle(type, screenWidth, customOptions = {}) {
         const baseStyles = {
@@ -377,14 +489,37 @@ class ConfigManager {
     }
 
     /**
-     * V�rifie si on est en mode mobile
+     * Calcule les dimensions du plateau Triple Triad
+     */
+    getBoardDimensions(screenWidth, screenHeight) {
+        const cardW = Math.min(this.TRIPLE_TRIAD.CARDS.MAX_WIDTH, screenWidth / 8);
+        const cardH = cardW * this.TRIPLE_TRIAD.CARDS.ASPECT_RATIO;
+        const topMargin = cardH * this.TRIPLE_TRIAD.LAYOUT.TOP_MARGIN_RATIO;
+        const bottomMargin = cardH + this.TRIPLE_TRIAD.LAYOUT.BOTTOM_MARGIN;
+        const availableHeight = screenHeight - topMargin - bottomMargin;
+
+        const cellW = (screenWidth * this.TRIPLE_TRIAD.BOARD.WIDTH_RATIO) / this.TRIPLE_TRIAD.BOARD.SIZE;
+        const cellH = cellW * this.TRIPLE_TRIAD.CARDS.ASPECT_RATIO;
+        const boardW = cellW * this.TRIPLE_TRIAD.BOARD.SIZE;
+        const boardH = cellH * this.TRIPLE_TRIAD.BOARD.SIZE;
+        const boardX = screenWidth / 2 - boardW / 2;
+        const boardY = topMargin + (availableHeight - boardH) / 2;
+
+        return {
+            cardW, cardH, topMargin, bottomMargin, availableHeight,
+            cellW, cellH, boardW, boardH, boardX, boardY
+        };
+    }
+
+    /**
+     * Vérifie si on est en mode mobile
      */
     isMobile() {
         return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 
     /**
-     * Obtient la configuration compl�te pour une sc�ne
+     * Obtient la configuration complète pour une scène
      */
     getSceneConfig(sceneName, screenWidth, screenHeight) {
         const baseConfig = {

@@ -1,4 +1,4 @@
-import MusicManager from '../MusicManager.js';
+ï»¿import MusicManager from '../MusicManager.js';
 import PlayerService from '../services/PlayerService.js';
 import Phaser from "phaser";
 
@@ -49,7 +49,7 @@ export class MapManager {
 
     const mapKey = Object.keys(this.mapIds).find(key => this.mapIds[key] === playerData.mapId);
     if (!mapKey) {
-      console.error(`Aucune carte trouvée pour mapId: ${playerData.mapId}`);
+      console.error(`Aucune carte trouvÃ©e pour mapId: ${playerData.mapId}`);
       return;
     }
 
@@ -71,13 +71,13 @@ export class MapManager {
     this.map = this.scene.make.tilemap({ key: mapKey });
     this.map.key = mapKey;
     if (!this.map) {
-      console.error(`La carte "${mapKey}" n'a pas pu être chargée.`);
+      console.error(`La carte "${mapKey}" n'a pas pu Ãªtre chargÃ©e.`);
       return;
     }
 
     const tileset = this.map.addTilesetImage("Inside_B", "Inside_B");
     if (!tileset) {
-      console.error(`Le tileset "Inside_B" n'a pas pu être chargé.`);
+      console.error(`Le tileset "Inside_B" n'a pas pu Ãªtre chargÃ©.`);
       return;
     }
 
@@ -91,27 +91,27 @@ export class MapManager {
       }
       this.currentBackgroundImage = this.scene.add.image(0, 0, backgroundImageKey).setOrigin(0).setDepth(-1);
     } else {
-      console.warn(`Aucune image de fond trouvée pour mapId: ${mapId}`);
+      console.warn(`Aucune image de fond trouvÃ©e pour mapId: ${mapId}`);
     }
 
     // Configure les couches
     this.collisionLayer = this.map.createLayer("Collision", tileset, 0, 0);
     if (!this.collisionLayer) {
-      console.error("La couche de collision n'a pas pu être créée.");
+      console.error("La couche de collision n'a pas pu Ãªtre crÃ©Ã©e.");
       return;
     }
     this.collisionLayer.setCollisionByProperty({ collision: true });
 
     var tile = this.collisionLayer.getTileAt(7, 8);
     if (!tile) {
-      console.warn("Aucune tuile trouvée aux coordonnées (7, 8) dans la couche Collision.");
+      console.warn("Aucune tuile trouvÃ©e aux coordonnÃ©es (7, 8) dans la couche Collision.");
     }
 
-    // Met à jour les limites du monde
+    // Met Ã  jour les limites du monde
     this.scene.physics.world.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.scene.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
 
-    // Téléporte le joueur aux nouvelles coordonnées
+    // TÃ©lÃ©porte le joueur aux nouvelles coordonnÃ©es
     const player = this.scene.playerManager?.getPlayer();
     if (player) {
       player.setPosition(spawnX, spawnY);
@@ -144,53 +144,172 @@ export class MapManager {
     }
 
     this.playMusicForMap(mapKey);
-  }
-
-  async loadWorldEvents() {
-    const eventsLayer = this.map.getObjectLayer("events");
-    if (!eventsLayer) {
-      console.warn("Pas de couche 'events' dans la map !");
-      return;
     }
 
-    const mapKey = this.map.key;
-    let worldEvents = [];
-    try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/world-events?mapKey=${mapKey}`);
-      worldEvents = await res.json();
-    } catch (e) {
-      console.error("Erreur lors du chargement des worldEvents :", e);
-    }
-
-    this.activeEvents = [];
-    eventsLayer.objects.forEach(obj => {
-      const eventId = obj.properties?.find(p => p.name === "eventId")?.value;
-      const type = obj.type || obj.properties?.find(p => p.name === "type")?.value;
-      const x = obj.x, y = obj.y;
-
-      let dynamicEvent = null;
-      if (eventId) {
-        dynamicEvent = worldEvents.find(e => e.properties?.chestId === eventId || e.properties?.doorId === eventId);
-      } else {
-        dynamicEvent = worldEvents.find(e => e.x === x && e.y === y && e.type === type);
-      }
-      if (!dynamicEvent) return;
-
-      if (type === "chest") {
-        const chest = this.scene.physics.add.sprite(x + obj.width/2, y - obj.height/2, "!Chest", 0);
-        chest.setImmovable(true);
-        chest.eventData = dynamicEvent;
-        chest.setInteractive();
-        this.activeEvents.push(chest);
-
-        this.addCollisionIfNeeded(obj, chest);
-
-        if (dynamicEvent.state.opened) {
-          chest.setFrame(3);
+    async loadWorldEvents() {
+        const eventsLayer = this.map.getObjectLayer("events");
+        if (!eventsLayer) {
+            console.warn("Pas de couche 'events' dans la map !");
         }
-      }
-    });
-  }
+
+        const mapKey = this.map.key;
+        let worldEvents = [];
+        try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/api/world-events?mapKey=${mapKey}`);
+            worldEvents = await res.json();
+        } catch (e) {
+            console.error("Erreur lors du chargement des worldEvents :", e);
+        }
+
+        this.activeEvents = [];
+
+        // Traitement des Ã©vÃ©nements existants depuis la base de donnÃ©es
+        if (eventsLayer) {
+            eventsLayer.objects.forEach(obj => {
+                const eventId = obj.properties?.find(p => p.name === "eventId")?.value;
+                const type = obj.type || obj.properties?.find(p => p.name === "type")?.value;
+                const x = obj.x, y = obj.y;
+
+                let dynamicEvent = null;
+                if (eventId) {
+                    dynamicEvent = worldEvents.find(e => e.properties?.chestId === eventId || e.properties?.doorId === eventId);
+                } else {
+                    dynamicEvent = worldEvents.find(e => e.x === x && e.y === y && e.type === type);
+                }
+                if (!dynamicEvent) return;
+
+                if (type === "chest") {
+                    const chest = this.scene.physics.add.sprite(x + obj.width / 2, y - obj.height / 2, "!Chest", 0);
+                    chest.setImmovable(true);
+                    chest.eventData = dynamicEvent;
+                    chest.setInteractive();
+                    this.activeEvents.push(chest);
+
+                    this.addCollisionIfNeeded(obj, chest);
+
+                    if (dynamicEvent.state.opened) {
+                        chest.setFrame(3);
+                    }
+                } else if (type === "npc") {
+                    this.createNPC(dynamicEvent, x, y);
+                }
+            });
+        }
+
+        // âœ… CHANGEMENT - Placer le marchand sur map3 (OppÃ¨de) au lieu de map
+        if (mapKey === "map3") {
+            this.createBoosterVendor();
+        }
+    }
+
+
+    createBoosterVendor() {
+        // Position du PNJ vendeur sur la carte map3 (OppÃ¨de) - ajustez selon votre carte
+        const vendorX = 50 * 48 + 24;  // Ajustez la colonne selon votre carte
+        const vendorY = 7 * 48 + 24;   // Ajustez la ligne selon votre carte
+
+        // âœ… CHANGEMENT - Utiliser le sprite "marchand" au lieu de "player"
+        const vendor = this.scene.physics.add.sprite(vendorX, vendorY, "marchand", 0);
+        vendor.setImmovable(true);
+        vendor.setInteractive();
+        vendor.npcType = "booster_vendor";
+
+        // Animation d'idle pour le marchand avec frames spÃ©cifiques
+        this.scene.anims.create({
+            key: 'marchand_idle',
+            frames: this.scene.anims.generateFrameNumbers('marchand', { start: 0, end: 3 }),
+            frameRate: 2,
+            repeat: -1
+        });
+
+        vendor.play('marchand_idle');
+
+        // Ajouter collision avec le joueur
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, vendor);
+        }
+
+        // Ajouter Ã  la liste des Ã©vÃ©nements actifs
+        this.activeEvents.push(vendor);
+
+        // âœ… AMÃ‰LIORATION - Indicateur visuel plus appropriÃ© pour un marchand
+        const bubble = this.scene.add.text(vendorX, vendorY - 35, "ðŸ›’", {
+            font: "24px Arial",
+            fill: "#fff",
+            stroke: "#000",
+            strokeThickness: 2
+        }).setOrigin(0.5);
+
+        // Animation de la bulle plus dynamique
+        this.scene.tweens.add({
+            targets: bubble,
+            y: vendorY - 45,
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
+        // Effet de pulsation pour attirer l'attention
+        this.scene.tweens.add({
+            targets: bubble,
+            scale: { from: 1, to: 1.3 },
+            duration: 2000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Power2'
+        });
+
+        vendor.bubble = bubble;
+
+        console.log(`ðŸ›’ Marchand de boosters crÃ©Ã© Ã  la position (${vendorX}, ${vendorY}) sur ${this.map.key}`);
+    }
+
+
+    createNPC(eventData, x, y) {
+        const npc = this.scene.physics.add.sprite(x + 24, y + 24, "player", 0);
+        npc.setImmovable(true);
+        npc.eventData = eventData;
+        npc.setInteractive();
+        npc.npcType = "dialogue";
+        this.activeEvents.push(npc);
+
+        this.addCollisionIfNeeded({ properties: [{ name: "Collision", value: true }] }, npc);
+    }
+
+    handleNPCInteraction(npc) {
+        if (npc.npcType === "booster_vendor") {
+            // âœ… AMÃ‰LIORATION - Dialogue plus immersif
+            this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !");
+
+            // Son d'interaction (optionnel)
+            if (this.scene.sound) {
+                // Vous pouvez ajouter un son spÃ©cifique pour le marchand
+                // this.scene.sound.play("merchant_greeting", { volume: 0.3 });
+            }
+
+            // Ouvrir la boutique aprÃ¨s un court dÃ©lai
+            setTimeout(() => {
+                if (this.scene.shopManager) {
+                    this.scene.shopManager.openShop();
+                }
+            }, 1500);
+        } else if (npc.npcType === "dialogue" && npc.eventData) {
+            const dialogue = npc.eventData.properties?.dialogue || "Bonjour !";
+            this.scene.displayMessage(dialogue);
+
+            if (!npc.eventData.state.hasSpoken) {
+                // Marquer comme ayant parlÃ©
+                fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${npc.eventData._id}/state`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ hasSpoken: true })
+                });
+                npc.eventData.state.hasSpoken = true;
+            }
+        }
+    }
 
   addCollisionIfNeeded(obj, sprite) {
     const hasCollision = obj.properties?.find(p => p.name === "Collision" && p.value === true);
@@ -214,7 +333,7 @@ export class MapManager {
 
     const teleportPoints = this.teleportPoints[this.map.key];
     if (!teleportPoints || teleportPoints.length === 0) {
-      console.warn(`Aucun point de téléportation défini pour la carte : ${this.map.key}`);
+      console.warn(`Aucun point de tÃ©lÃ©portation dÃ©fini pour la carte : ${this.map.key}`);
       return;
     }
 
@@ -224,7 +343,7 @@ export class MapManager {
         .setInteractive();
 
       if (!teleportZone) {
-        console.error(`La zone de téléportation à (${point.x}, ${point.y}) n'a pas pu être créée.`);
+        console.error(`La zone de tÃ©lÃ©portation Ã  (${point.x}, ${point.y}) n'a pas pu Ãªtre crÃ©Ã©e.`);
         return;
       }
 
@@ -240,7 +359,7 @@ export class MapManager {
     const musicKey = this.mapMusic[mapKey];
 
     if (!musicKey) {
-      console.warn(`Aucune musique définie pour la carte : ${mapKey}`);
+      console.warn(`Aucune musique dÃ©finie pour la carte : ${mapKey}`);
       return;
     }
 
@@ -253,18 +372,18 @@ export class MapManager {
     this.currentMusicKey = musicKey;
   }
 
-  getNearbyEventObject(playerX, playerY) {
-    if (!this.activeEvents) return null;
-    const threshold = 48;
-    return this.activeEvents.find(obj =>
-      Phaser.Math.Distance.Between(playerX, playerY, obj.x, obj.y) < threshold
-    );
-  }
+    getNearbyEventObject(playerX, playerY) {
+        if (!this.activeEvents) return null;
+        const threshold = 48;
+        return this.activeEvents.find(obj =>
+            Phaser.Math.Distance.Between(playerX, playerY, obj.x, obj.y) < threshold
+        );
+    }
 
   handleChestInteraction(chest) {
     const { eventData } = chest;
     if (eventData.state.opened) {
-      this.scene.displayMessage("Ce coffre est déjà ouvert !");
+      this.scene.displayMessage("Ce coffre est dÃ©jÃ  ouvert !");
       return;
     }
 
@@ -312,7 +431,7 @@ export class MapManager {
           });
         }
       } else {
-        console.log(`${mapKey} - NON TROUVÉ DANS LE CACHE`);
+        console.log(`${mapKey} - NON TROUVÃ‰ DANS LE CACHE`);
       }
     });
   }

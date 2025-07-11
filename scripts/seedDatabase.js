@@ -39,10 +39,20 @@ async function seedDatabase() {
 
         // Données pour la collection players
         const players = [
-            { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 100, posX: 500.0, posY: 360.0, mapId: 2, updatedAt: new Date() },
-            { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 2424.0, posY: 360.0, mapId: 2, updatedAt: new Date() },
-            { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 2424.0, posY: 360.0, mapId: 2, updatedAt: new Date() },
-            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 120, posX: 2424.0, posY: 360.0, mapId: 2, updatedAt: new Date() }
+            { pseudo: "Admin", dailyTeam: "1", dailyScore: 10, totalScore: 1000, posX: 2424.0, posY: 360.0, mapId: 2, isActif: false, updatedAt: new Date() },
+            { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:false, updatedAt: new Date() },
+            { pseudo: "Jo", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Soso", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Caro", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Steven", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Ulrich", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Morgan", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Romain", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
+            { pseudo: "Charlotte", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
+            { pseudo: "Nico", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() }
+            { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 0, posX: 500.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
         ];
 
         // Données pour la collection items (objets + cartes)
@@ -634,7 +644,6 @@ async function seedDatabase() {
         const twoStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 2);
         const threeStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 3);
         const fourStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 4);
-        const fivesStarCardsFull = items.filter(i => i.type === "card" && i.rarity === 5);
 
         // Créer deux boosters avec toutes les cartes 1 et 2 étoiles (objets complets)
         const booster1 = {
@@ -642,7 +651,7 @@ async function seedDatabase() {
             image: "boosterPack.png",
             type: "booster",
             cardCount: 5,
-            prix: 10,
+            prix: 15,
             is_echangeable: true,
             rarityChances: {
                 oneStar: 0.8,
@@ -658,7 +667,7 @@ async function seedDatabase() {
             image: "boosterArgent.png",
             type: "booster",
             cardCount: 5,
-            prix: 50,
+            prix: 30,
             is_echangeable: true,
             rarityChances: {
                 twoStars: 0.8,
@@ -672,7 +681,7 @@ async function seedDatabase() {
             image: "boosterOr.png",
             type: "booster",
             cardCount: 5,
-            prix: 250,
+            prix: 50,
             is_echangeable: true,
             rarityChances: {
                 threeStars: 0.8,
@@ -686,7 +695,7 @@ async function seedDatabase() {
             image: "boosterP.png",
             type: "booster",
             cardCount: 3,
-            prix: 1000,
+            prix: 100,
             is_echangeable: true,
             rarityChances: {
                 oneStar: 0.1,
@@ -907,6 +916,14 @@ async function seedDatabase() {
             {
                 type: "npc",
                 mapKey: "map",
+                x: 216,
+                y: 744,
+                properties: { name: "Vieux Sage", dialogue: "Bienvenue à Oppède, jeune aventurier !" },
+                state: { hasSpoken: false }
+            },
+            {
+                type: "npc",
+                mapKey: "map3",
                 x: 216,
                 y: 744,
                 properties: { name: "Vieux Sage", dialogue: "Bienvenue à Oppède, jeune aventurier !" },

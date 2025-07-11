@@ -88,19 +88,44 @@ export class UIManager {
     const player = this.scene.playerManager?.getPlayer();
     if (!player) return;
 
-    // Vérifie s'il y a un event interactif proche
+    // ✅ CORRECTION - Vérifie s'il y a un event interactif proche (incluant NPCs)
     const obj = this.scene.mapManager?.getNearbyEventObject(player.x, player.y);
-    if (obj && obj.eventData && obj.eventData.type === "chest") {
-      this.scene.mapManager.handleChestInteraction(obj);
-      return;
+    if (obj) {
+        console.log("🎯 Objet détecté:", obj.npcType || obj.eventData?.type || "inconnu");
+        
+        // Gestion des NPCs (AJOUTÉ)
+        if (obj.npcType) {
+            this.scene.mapManager.handleNPCInteraction(obj);
+            return;
+        }
+        
+        // Gestion des coffres (existant)
+        if (obj.eventData && obj.eventData.type === "chest") {
+            this.scene.mapManager.handleChestInteraction(obj);
+            return;
+        }
     }
 
-    // Interaction joueur classique
+    // ✅ AMÉLIORATION - Interaction joueur classique seulement si aucun objet interactif
     let targetId = this.scene.remotePlayerManager?.getNearestRemotePlayer(player.x, player.y);
     if (targetId) {
-      this.showInteractionMenu(targetId);
+        this.showInteractionMenu(targetId);
     } else {
-      this.scene.displayMessage("Aucun joueur à proximité\n pour l'interaction");
+        this.scene.displayMessage("Aucun joueur à proximité\n pour l'interaction");
+    }
+  }
+
+  handleInteraction() {
+    const player = this.scene.playerManager?.getPlayer();
+    if (!player) return;
+
+    const eventObject = this.scene.mapManager?.getNearbyEventObject(player.x, player.y);
+    if (!eventObject) return;
+
+    if (eventObject.eventData && eventObject.eventData.type === "chest") {
+      this.scene.mapManager.handleChestInteraction(eventObject);
+    } else if (eventObject.npcType) {
+      this.scene.mapManager.handleNPCInteraction(eventObject);
     }
   }
 
@@ -196,62 +221,132 @@ export class UIManager {
     });
   }
 
-  handleStartButton() {
-    if (this.interactionMenu) {
-      this.interactionMenu.destroy();
-      this.interactionMenu = null;
+    handleStartButton() {
+        console.log(`Handle start button HYBRIDE v2`);
+        if (this.interactionMenu) {
+            this.interactionMenu.destroy();
+            this.interactionMenu = null;
+        }
+
+        if (this.startMenu) {
+            this.startMenu.destroy();
+        }
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (!player) return;
+
+        const playerX = player.x;
+        const playerY = player.y;
+        const gameWidth = this.scene.scale.width;
+        const gameHeight = this.scene.scale.height;
+
+        this.startMenu = this.scene.add.container(playerX, playerY - gameHeight * 0.15);
+
+        const background = this.scene.add.rectangle(0, 0, gameWidth * 0.95, gameHeight * 0.85, 0x000000, 0.85).setOrigin(0.5);
+        this.startMenu.add(background);
+
+        const menuOptions = [
+            {
+                label: "Inventaire",
+                icon: "🎒",
+                color: 0x4CAF50,
+                action: () => this.openInventory(),
+                description: "Gérer vos objets"
+            },
+            {
+                label: "Triple Triad",
+                icon: "🃏",
+                color: 0x2196F3,
+                action: () => this.openTripleTriad(),
+                description: "Jeu de cartes"
+            },
+            {
+                label: "Quiz",
+                icon: "🧠",
+                color: 0x9C27B0,
+                action: () => this.openQuizGame(),
+                description: "Défis multijoueur"
+            },
+            {
+                label: "Photos",
+                icon: "📸",
+                color: 0xFF9800,
+                action: () => this.openPhotoGallery(),
+                description: "Galerie d'images"
+            },
+            {
+                label: "Profil",
+                icon: "👤",
+                color: 0x607D8B,
+                action: () => this.openProfile(),
+                description: "Paramètres joueur"
+            },
+            {
+                label: "Fermer",
+                icon: "❌",
+                color: 0xF44336,
+                action: () => this.closeMenu(),
+                description: "Retour au jeu"
+            }
+        ];
+
+        const isLandscape = gameWidth > gameHeight;
+        const cols = isLandscape ? 3 : 2;
+        const rows = Math.ceil(menuOptions.length / cols);
+
+        const cardSize = Math.min(gameWidth * 0.35, gameHeight * 0.22, 250);
+        const spacing = cardSize * 0.15;
+
+        const totalWidth = cols * cardSize + (cols - 1) * spacing;
+        const totalHeight = rows * cardSize + (rows - 1) * spacing;
+
+        const startX = -totalWidth / 2 + cardSize / 2;
+        const startY = -totalHeight / 2 + cardSize / 2;
+
+        menuOptions.forEach((option, index) => {
+            const row = Math.floor(index / cols);
+            const col = index % cols;
+            const x = startX + col * (cardSize + spacing);
+            const y = startY + row * (cardSize + spacing);
+
+            const cardBorder = this.scene.add.rectangle(x, y, cardSize + 8, cardSize + 8, 0xffffff, 0.4)
+                .setOrigin(0.5);
+
+            const cardBg = this.scene.add.rectangle(x, y, cardSize, cardSize, option.color, 0.9)
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true });
+
+            const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
+                font: `${Math.round(cardSize * 0.4)}px Arial`,
+                align: "center"
+            }).setOrigin(0.5);
+
+            const labelText = this.scene.add.text(x, y + cardSize * 0.15, option.label, {
+                font: `bold ${Math.round(cardSize * 0.16)}px Arial`,
+                fill: "#ffffff",
+                align: "center"
+            }).setOrigin(0.5);
+
+            const descText = this.scene.add.text(x, y + cardSize * 0.3, option.description, {
+                font: `${Math.round(cardSize * 0.11)}px Arial`,
+                fill: "#e0e0e0",
+                align: "center"
+            }).setOrigin(0.5);
+
+            cardBg.on('pointerdown', () => {
+                console.log(`🎯 Clic sur: ${option.label}`);
+                option.action();
+            });
+
+            this.startMenu.add([cardBorder, cardBg, iconText, labelText, descText]);
+        });
+
+        this.startMenu.setScrollFactor(1);
+
     }
-
-    if (this.startMenu) {
-      this.startMenu.destroy();
-    }
-
-    const player = this.scene.playerManager?.getPlayer();
-    if (!player) return;
-
-    const playerX = player.x;
-    const playerY = player.y;
-    const gameWidth = this.scene.scale.width;
-    const gameHeight = this.scene.scale.height;
-
-    this.startMenu = this.scene.add.container(playerX, playerY - gameHeight * 0.15);
-
-    const background = this.scene.add.rectangle(0, 0, gameWidth * 0.8, gameHeight * 0.6, 0x000000, 0.8).setOrigin(0.5);
-    this.startMenu.add(background);
-
-    const options = [
-      { label: "Inventaire", action: () => this.openInventory() },
-      { label: "Profil", action: () => this.openProfile() },
-      { label: "Photo", action: () => this.openPhotoGallery() },
-      { label: "Triple Triad", action: () => this.openTripleTriad() },
-      { label: "Quiz", action: () => this.openQuizGame() },
-      { label: "Retour", action: () => this.closeMenu() }
-    ];
-
-    options.forEach((option, index) => {
-      const optionY = -gameHeight * 0.2 + index * (gameHeight * 0.14);
-
-      const optionBackground = this.scene.add.rectangle(0, optionY, gameWidth * 0.7, gameHeight * 0.1, 0x333333, 0.8)
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-
-      optionBackground.on('pointerdown', () => {
-        option.action();
-      });
-
-      const optionText = this.scene.add.text(0, optionY, option.label, {
-        font: `${gameWidth * 0.08}px Arial`,
-        fill: "#ffffff",
-        align: "center"
-      }).setOrigin(0.5);
-
-      this.startMenu.add([optionBackground, optionText]);
-    });
-
-    this.startMenu.setScrollFactor(1);
-  }
 
   closeMenu() {
+    console.log("❌ FERMETURE MENU");
     if (this.startMenu) {
       this.startMenu.destroy();
       this.startMenu = null;
@@ -259,6 +354,7 @@ export class UIManager {
   }
 
   openInventory() {
+    console.log("📦 OUVERTURE INVENTAIRE");
     this.closeMenu();
     const playerData = this.scene.registry.get("playerData");
     const playerId = playerData && playerData._id ? playerData._id : null;
@@ -330,12 +426,14 @@ export class UIManager {
   }
 
   openPhotoGallery() {
+    console.log("📸 OUVERTURE GALERIE PHOTOS");
     this.closeMenu();
     this.scene.scene.launch("PhotoGalleryScene");
     this.scene.scene.pause();
   }
 
   openTripleTriad() {
+    console.log("🃏 OUVERTURE TRIPLE TRIAD");
     this.closeMenu();
     const playerData = this.scene.registry.get("playerData");
     const playerId = playerData && playerData._id ? playerData._id : null;
@@ -361,6 +459,7 @@ export class UIManager {
   }
 
   openQuizGame() {
+    console.log("🧠 OUVERTURE QUIZ");
     this.closeMenu();
     const playerData = this.scene.registry.get("playerData");
     const playerId = playerData && playerData._id ? playerData._id : null;

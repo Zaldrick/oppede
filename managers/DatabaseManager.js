@@ -172,7 +172,7 @@ class DatabaseManager {
                             _id: 1,
                             player_id: 1,
                             item_id: 1,
-                            quantite: 1,
+                            quantite: '$quantité', 
                             nom: '$itemDetails.nom',
                             image: '$itemDetails.image',
                             is_echangeable: '$itemDetails.is_echangeable',
@@ -418,18 +418,22 @@ class DatabaseManager {
                 const db = await this.connectToDatabase();
                 const cardsCollection = db.collection('items');
                 
-                // Filtre selon la difficulté de l'IA
+                // ✅ CORRIGÉ : Filtre selon la difficulté de l'IA (correspond au ConfigManager)
                 let filter = { type: 'card' };
                 
                 switch (difficulty) {
-                    case 'easy':
-                        filter.rarity = { $lte: 3 }; // Cartes de rareté 1-3
+                    case 'facile':
+                        filter.rarity = { $in: [1, 2] }; // ✅ Cartes de rareté 1-2 (correspond à FACILE)
                         break;
-                    case 'medium':
-                        filter.rarity = { $lte: 4 }; // Cartes de rareté 1-4
+                    case 'normal':
+                        filter.rarity = { $in: [2, 3] }; // ✅ Cartes de rareté 2-3 (correspond à NORMAL)
                         break;
-                    case 'hard':
-                        // Toutes les cartes disponibles
+                    case 'difficile':
+                        filter.rarity = { $in: [3, 4] }; // ✅ Cartes de rareté 3-4 (correspond à DIFFICILE)
+                        break;
+                    default:
+                        console.warn(`[AI Cards] Difficulté inconnue: ${difficulty}, utilisation de 'medium' par défaut`);
+                        filter.rarity = { $in: [2, 3] }; // ✅ Par défaut = medium
                         break;
                 }
                 
@@ -463,6 +467,88 @@ class DatabaseManager {
                 });
             }
         });
+
+
+        // Route pour acheter un booster
+        app.post('/api/shop/buy-booster', async (req, res) => {
+            const { playerId, boosterId, price } = req.body;
+
+            if (!playerId || !boosterId || !price) {
+                return res.status(400).json({ error: "Paramètres manquants" });
+            }
+
+            try {
+                const db = await databaseManager.connectToDatabase();
+                const playersCol = db.collection('players');
+                const inventoryCol = db.collection('inventory');
+                const itemsCol = db.collection('items');
+
+                // Vérifier que le joueur existe et a assez d'argent
+                const player = await playersCol.findOne({ _id: new ObjectId(playerId) });
+                if (!player) {
+                    return res.status(404).json({ error: "Joueur non trouvé" });
+                }
+
+                if (player.totalScore < price) {
+                    return res.status(400).json({ error: "Pas assez d'argent" });
+                }
+
+                // Vérifier que le booster existe
+                const booster = await itemsCol.findOne({
+                    _id: new ObjectId(boosterId),
+                    type: "booster"
+                });
+                if (!booster) {
+                    return res.status(404).json({ error: "Booster non trouvé" });
+                }
+
+                // Débiter l'argent du joueur
+                await playersCol.updateOne(
+                    { _id: new ObjectId(playerId) },
+                    { $inc: { totalScore: -price } }
+                );
+
+                // Ajouter le booster à l'inventaire du joueur
+                await inventoryCol.updateOne(
+                    { player_id: new ObjectId(playerId), item_id: new ObjectId(boosterId) },
+                    { $inc: { quantite: 1 } },
+                    { upsert: true }
+                );
+
+                res.json({
+                    success: true,
+                    message: "Booster acheté avec succès",
+                    newBalance: player.totalScore - price
+                });
+
+            } catch (error) {
+                console.error('Erreur lors de l\'achat du booster:', error);
+                res.status(500).json({ error: "Erreur serveur" });
+            }
+        });
+
+        // Route pour récupérer les boosters disponibles à la vente
+        app.get('/api/items', async (req, res) => {
+            const { type } = req.query;
+
+            try {
+                const db = await databaseManager.connectToDatabase();
+                const itemsCol = db.collection('items');
+
+                let query = {};
+                if (type) {
+                    query.type = type;
+                }
+
+                const items = await itemsCol.find(query).toArray();
+                res.json(items);
+
+            } catch (error) {
+                console.error('Erreur lors de la récupération des items:', error);
+                res.status(500).json({ error: "Erreur serveur" });
+            }
+        });
+
 
         // === FIN NOUVELLE ROUTE ===
     }
