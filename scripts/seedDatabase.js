@@ -51,8 +51,8 @@ async function seedDatabase() {
             { pseudo: "Morgan", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Romain", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Charlotte", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
-            { pseudo: "Nico", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() }
-            { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 0, posX: 500.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
+            { pseudo: "Nico", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
+            { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 0, posX: 500.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() }
         ];
 
         // Données pour la collection items (objets + cartes)

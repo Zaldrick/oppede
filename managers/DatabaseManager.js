@@ -44,7 +44,7 @@ class DatabaseManager {
                     return res.status(500).json({ error: 'Database connection failed', players: [] });
                 }
                 const players = db.collection('players');
-                const playerList = await players.find({}, { projection: { pseudo: 1 } }).toArray();
+                const playerList = await players.find({}, { projection: { pseudo: 1, isActif: 1 } }).toArray();
 
                 // Log the pseudo values to the console
                 playerList.forEach(player => console.log(`Pseudo: ${player.pseudo}`));

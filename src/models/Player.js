@@ -8,6 +8,7 @@ const playerSchema = new mongoose.Schema({
     posX: { type: Number, default: 0 },
     posY: { type: Number, default: 0 },
     mapId: { type: Number, default: 0 }, // ID de la carte   
+    isActif { type: Boolean, default: true },
     character: { type: String, default: 'default' },
 });
 

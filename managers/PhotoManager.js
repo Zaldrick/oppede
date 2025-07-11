@@ -21,6 +21,16 @@ class PhotoManager {
             }
         }));
 
+
+        app.get('/api/photos/download/:filename', (req, res) => {
+            const filePath = path.join(__dirname, '../public/photos', req.params.filename);
+            if (fs.existsSync(filePath)) {
+                res.download(filePath, req.params.filename); // <-- force le téléchargement
+            } else {
+                res.status(404).json({ error: "Fichier non trouvé" });
+            }
+        });
+
         // Route pour ajouter une photo
         app.post('/api/photos/upload', this.upload.single('photo'), async (req, res) => {
             if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -44,7 +54,79 @@ class PhotoManager {
         });
 
         // ✅ NOUVEAU : Route pour voter sur une photo avec attribution de points
+
         app.post('/api/photos/:id/vote', async (req, res) => {
+            const { id } = req.params;
+            const db = await this.db.connectToDatabase();
+            const photosCollection = db.collection('photos');
+
+            try {
+                // Récupérer la photo pour connaître l'uploader
+                const photo = await photosCollection.findOne({ _id: new ObjectId(id) });
+                if (!photo) {
+                    return res.status(404).json({ error: "Photo non trouvée" });
+                }
+
+                // Incrémenter le nombre de votes
+                const updateResult = await photosCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $inc: { votes: 1 } }
+                );
+
+                if (updateResult.matchedCount === 0) {
+                    return res.status(404).json({ error: "Photo non trouvée" });
+                }
+
+                // Attribuer 1 point au propriétaire de la photo
+                if (photo.uploader && photo.uploader.trim() !== "" && photo.uploader.toLowerCase() !== "inconnu") {
+                    console.log(`[PhotoManager] Attribution d'1 point pour like sur photo de ${photo.uploader}`);
+
+                    try {
+                        const playersCollection = db.collection('players');
+                        const uploaderPlayer = await playersCollection.findOne({
+                            pseudo: { $regex: new RegExp(`^${photo.uploader.trim()}$`, 'i') }
+                        });
+
+                        if (uploaderPlayer) {
+                            // Ajoute 1 point au joueur uploader
+                            const updatePlayer = await playersCollection.updateOne(
+                                { _id: uploaderPlayer._id },
+                                { $inc: { totalScore: 1 } }
+                            );
+
+                            if (updatePlayer.matchedCount > 0) {
+                                const newTotalScore = (uploaderPlayer.totalScore || 0) + 1;
+                                return res.json({
+                                    success: true,
+                                    newVotes: photo.votes + 1,
+                                    pointsAwarded: {
+                                        uploader: photo.uploader,
+                                        pointsEarned: 1,
+                                        newTotalScore
+                                    }
+                                });
+                            }
+                        } else {
+                            console.warn(`[PhotoManager] Joueur "${photo.uploader}" non trouvé en base`);
+                        }
+                    } catch (pointsError) {
+                        console.error('[PhotoManager] Erreur lors de l\'attribution des points:', pointsError);
+                    }
+                } else {
+                    console.log(`[PhotoManager] Like sur photo sans uploader valide: "${photo.uploader}"`);
+                }
+
+                // Réponse générique si pas de points attribués ou joueur non trouvé
+                res.json({ success: true, newVotes: photo.votes + 1 });
+
+            } catch (error) {
+                console.error('[PhotoManager] Erreur lors du vote:', error);
+                res.status(500).json({ error: "Erreur lors du vote" });
+            }
+        });
+
+
+        /*app.post('/api/photos/:id/vote', async (req, res) => {
             const { id } = req.params;
             const db = await this.db.connectToDatabase();
             const photosCollection = db.collection('photos');
@@ -78,18 +160,26 @@ class PhotoManager {
                         });
 
                         if (uploaderPlayer) {
-                            const fetch = require('node-fetch');
-                            const response = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    playerId: uploaderPlayer._id.toString(),
-                                    points: 1,
-                                    source: 'photo_like'
-                                })
-                            });
+                            // Ajoute 1 point au joueur uploader
+                            const updatePlayer = await playersCollection.updateOne(
+                                { _id: uploaderPlayer._id },
+                                { $inc: { points: 1 } }
+                            );
+
+                            if (updatePlayer.matchedCount > 0) {
+                                const newTotalScore = (uploaderPlayer.points || 0) + 1;
+                                res.json({
+                                    success: true,
+                                    newVotes: photo.votes + 1,
+                                    pointsAwarded: {
+                                        uploader: photo.uploader,
+                                        pointsEarned: 1,
+                                        newTotalScore
+                                    }
+                                });
+                            } else {
+                                res.json({ success: true, newVotes: photo.votes + 1 });
+                            }
 
                             if (response.ok) {
                                 const result = await response.json();
@@ -127,6 +217,7 @@ class PhotoManager {
             }
         });
 
+        */
         // Route pour récupérer les photos
         app.get('/api/photos', async (req, res) => {
             try {

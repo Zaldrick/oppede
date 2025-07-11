@@ -196,6 +196,7 @@ async function fillPlayersList() {
     const tagsDiv = document.getElementById('photo-tags-list');
     tagsDiv.innerHTML = '';
     players.forEach(p => {
+        if (p.isActif) {
         const id = `tag-player-${p._id || p.pseudo || p.username || p.name}`;
         const label = document.createElement('label');
         label.style.display = 'flex';
@@ -211,6 +212,7 @@ async function fillPlayersList() {
         label.appendChild(checkbox);
         label.appendChild(document.createTextNode(' ' + (p.pseudo || p.username || p.name || p._id)));
         tagsDiv.appendChild(label);
+        }
     });
 }
 
@@ -604,7 +606,7 @@ heartIcon.on("pointerdown", () => {
 
         actionBtn.on("pointerdown", (event) => {
             event && event.preventDefault && event.preventDefault();
-            const url = `${API_URL}/public/photos/${photo.filename}`;
+            const url = `${API_URL}/api/photos/download/${photo.filename}`;
             const link = document.createElement('a');
             link.href = url;
             link.download = photo.filename || "photo.jpg";

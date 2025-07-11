@@ -98,8 +98,8 @@
     "difficulty": "moyen"
   },
   {
-    "question": "Combien de joueurs composent une équipe de rugby à XV ?",
-    "answers": [ "13", "14", "15", "16" ],
+    "question": "Combien de joueurs peuvent composer une équipe de rugby ?",
+    "answers": [ "8", "11", "15", "16" ],
     "correct": 2,
     "category": "Sport",
     "difficulty": "moyen"

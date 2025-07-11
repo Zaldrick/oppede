@@ -102,6 +102,17 @@ export class GameScene extends Phaser.Scene {
             this.inventory = [...newInventory];
             console.log('[GameScene] Cache inventaire mis à jour:', this.inventory.length, 'items');
         });
+        this.scorePollingInterval = setInterval(async () => {
+            const playerPseudo = this.registry.get("playerPseudo");
+            if (playerPseudo) {
+                const playerData = await PlayerService.fetchPlayerData(playerPseudo);
+                this.registry.set("playerData", playerData);
+                // Ici tu peux aussi rafraîchir l'affichage du score si besoin
+            }
+        }, 5000); // toutes les 5 secondes
+        this.events.on('shutdown', () => {
+            clearInterval(this.scorePollingInterval);
+        });
     }
 
     initializeManagers() {
@@ -314,6 +325,7 @@ export class GameScene extends Phaser.Scene {
 
         // Réinitialise les autres états
         this.myId = null;
+
     }
 
     returnToLobby() {
