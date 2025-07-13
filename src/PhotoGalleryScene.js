@@ -409,6 +409,7 @@ this.photoGroup.add(voteIcon);
 
     voteIcon.on("pointerdown", () => {
         const currentUser = (this.registry.get("playerPseudo") || "Moi").trim().toLowerCase();
+        console.log("Uploader:", photo.uploader, "CurrentUser:", this.registry.get("playerPseudo"));
         const uploader = (photo.uploader || "").trim().toLowerCase();
         if (uploader === currentUser) {
             this.displayMessage("Impossible de liker votre propre photo !");
@@ -494,7 +495,13 @@ _showModalWithKey(photo, key, width, height) {
 
     let isLiking = false; // Ajoute ce flag au début de _showModalWithKey ou dans la portée de la modale
     // Animation et gestion du like
-heartIcon.on("pointerdown", () => {
+    heartIcon.on("pointerdown", () => {
+        const currentUser = (this.registry.get("playerPseudo") || "Moi").trim().toLowerCase();
+        const uploader = (photo.uploader || "").trim().toLowerCase();
+        if (uploader === currentUser) {
+            this.displayMessage("Impossible de liker votre propre photo !");
+            return;
+        }
     if (isLiking) return;
     isLiking = true;
     this.tweens.add({
@@ -648,7 +655,19 @@ actionBtn.on("pointerdown", (event) => {
         closeBtn.destroy();
     });
 }
+    displayMessage(text) {
+        const { width, height } = this.sys.game.canvas;
+        const msg = this.add.text(width / 2, height * 0.92, text, {
+            font: `${Math.round(height * 0.025)}px Arial`,
+            fill: "#ff4444",
+            backgroundColor: "#222",
+            padding: { x: 16, y: 8 }
+        }).setOrigin(0.5).setDepth(9999);
 
+        this.time.delayedCall(2200, () => {
+            msg.destroy();
+        });
+    }
 showConfirmModal(message, onConfirm, onCancel) {
     const { width, height } = this.sys.game.canvas;
     const modalW = width * 0.5;

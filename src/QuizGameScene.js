@@ -1109,7 +1109,7 @@ export class QuizGameScene extends Phaser.Scene {
 
         // Arrêter la musique
         MusicManager.stop();
-        MusicManager.play(this.scene.get('GameScene'), 'gameMusic', { loop: true, volume: 0.4 });
+        MusicManager.play(this.scene.get('GameScene'), 'music1', { loop: true, volume: 0.4 });
         // Retourner directement à GameScene au lieu du lobby de quiz
         this.scene.stop();
         this.scene.resume("GameScene");
