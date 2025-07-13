@@ -5,47 +5,37 @@ const { ObjectId } = require('mongodb');
 // Helper pour tirer une carte selon les chances de rareté
 function getRandomCard(booster, items) {
     const rand = Math.random();
+    let cumulative = 0;
+    let rarity = 1; // fallback
 
-    let rarity;
-    let cumulativeChance = 0;
-    // Parcourir les chances de rareté et déterminer la rareté
-    if (booster.rarityChances.oneStar && rand < booster.rarityChances.oneStar) {
-        rarity = 1;
-        console.log('→ Rareté 1 étoile sélectionnée');
-    } else if (booster.rarityChances.twoStars) {
-        rarity = 2;
-        console.log('→ Rareté 2 étoiles sélectionnée');
-    } else if (booster.rarityChances.threeStars) {
-        rarity = 3;
-        console.log('→ Rareté 3 étoiles sélectionnée');
-    } else if (booster.rarityChances.fourStars) {
-        rarity = 4;
-        console.log('→ Rareté 4 étoiles sélectionnée');
-    } else {
-        rarity = 1; // Fallback
-        console.log('→ Rareté 1 étoile par défaut');
+    // Tableau des raretés et chances
+    const chances = [
+        { rarity: 1, chance: booster.rarityChances.oneStar || 0 },
+        { rarity: 2, chance: booster.rarityChances.twoStars || 0 },
+        { rarity: 3, chance: booster.rarityChances.threeStars || 0 },
+        { rarity: 4, chance: booster.rarityChances.fourStars || 0 }
+    ];
+
+    for (const entry of chances) {
+        cumulative += entry.chance;
+        if (rand < cumulative) {
+            rarity = entry.rarity;
+            break;
+        }
     }
-
-
     console.log('🎯 Rareté finale:', rarity);
 
-    // Filtrer les cartes possibles de la bonne rareté (items = booster.possibleCards)
-    const possible = items.filter(i => {
-        console.log(`Carte ${i.nom}: rarity=${i.rarity}, match=${i.rarity === rarity}`);
-        return i.rarity === rarity;
-    });
+    // Filtrer les cartes possibles de la bonne rareté
+    const possible = items.filter(i => i.rarity === rarity);
 
     console.log('🎯 Cartes possibles pour rareté', rarity, ':', possible.length);
 
     if (possible.length === 0) {
-        console.log('⚠️ Aucune carte de rareté', rarity, 'trouvée, essai avec rareté 1');
         // Fallback vers rareté 1 si aucune carte de la rareté demandée
         const fallback = items.filter(i => i.rarity === 1);
         if (fallback.length > 0) {
-            console.log('✅ Fallback: trouvé', fallback.length, 'cartes de rareté 1');
             return fallback[Math.floor(Math.random() * fallback.length)];
         }
-        console.log('❌ Aucune carte de fallback trouvée');
         return null;
     }
     return possible[Math.floor(Math.random() * possible.length)];
