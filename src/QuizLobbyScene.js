@@ -169,7 +169,7 @@ export class QuizLobbyScene extends Phaser.Scene {
                 ease: 'Power2',
                 onComplete: () => {
                     this.scene.stop();
-                    MusicManager.play(this.scene.get('GameScene'), 'gameMusic', { loop: true, volume: 0.4 });
+                    MusicManager.play(this.scene.get('GameScene'), 'music1', { loop: true, volume: 0.4 });
                     this.scene.resume("GameScene");
                 }
             });

@@ -408,6 +408,12 @@ this.photoGroup.add(voteIcon);
     this.photoGroup.add(voteText);
 
     voteIcon.on("pointerdown", () => {
+        const currentUser = (this.registry.get("playerPseudo") || "Moi").trim().toLowerCase();
+        const uploader = (photo.uploader || "").trim().toLowerCase();
+        if (uploader === currentUser) {
+            this.displayMessage("Impossible de liker votre propre photo !");
+            return;
+        }
         photo.votes++;
         voteText.setText(`${photo.votes}`);
         this.displayPhotos();
