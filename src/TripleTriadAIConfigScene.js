@@ -24,10 +24,10 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
         this.playerId = data.playerId;
         this.selectedDifficulty = data.difficulty || 'medium';
         this.selectedRules = data.rules || {
-            same: true,
-            plus: true,
-            murale: true,
-            mortSubite: false
+            same: false,
+            plus: false,
+            murale: false,
+            mortSubite: true
         };
         // Gère les cartes pré-sélectionnées
         this.preSelectedCards = data.preSelectedCards || null;
@@ -101,7 +101,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
         // === SECTION RÈGLES ===
         const rulesY = height * 0.45; // ✅ RÉDUIT de 0.55 à 0.42
 
-        this.container.add(this.add.text(width / 2, rulesY, "Règles du jeu", {
+        this.container.add(this.add.text(width / 2, rulesY, "Règles du Jeux", {
             font: `${Math.round(width * 0.046)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
@@ -111,7 +111,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             { key: 'same', label: 'Identique', desc: 'Capture si valeurs égales' },
             { key: 'plus', label: 'Plus', desc: 'Capture si même somme' },
             { key: 'murale', label: 'Murale', desc: 'Les murs comptent comme un A' },
-            { key: 'mortSubite', label: 'Mort Subite', desc: 'Rejeu en cas d\'égalité' }
+            { key: 'mortSubite', label: 'Mort Subite', desc: 'ReJeux en cas d\'égalité' }
         ];
 
         rules.forEach((rule, index) => {
@@ -189,7 +189,7 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
     startGame() {
         this.scene.stop();
 
-        // Si on a des cartes pré-sélectionnées, lance directement le jeu
+        // Si on a des cartes pré-sélectionnées, lance directement le Jeux
         if (this.preSelectedCards) {
             this.scene.launch("TripleTriadGameScene", {
                 mode: "ai",

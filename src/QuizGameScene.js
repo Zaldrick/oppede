@@ -30,9 +30,15 @@ export class QuizGameScene extends Phaser.Scene {
         this.totalRounds = 10;
     }
 
+    preload() {
+        // Exemple : charge les fichiers audio
+        this.load.audio('question', 'assets/sounds/question.mp3');
+        this.load.audio('wait', 'assets/sounds/wait.mp3');
+        this.load.audio('answer', 'assets/sounds/answer.mp3');
+    }
+
     create() {
-        console.log('[Quiz Game] Données reçues:', this.gameData);
-        console.log('[Quiz Game] Mode de jeu:', this.gameData?.gameMode);
+ 
         
         // Créer un fond global pour tout le quiz
         this.createGlobalBackground();
@@ -200,21 +206,18 @@ export class QuizGameScene extends Phaser.Scene {
             });
         });
 
-        // Musique de quiz
-        MusicManager.play(this, 'music1', { loop: true, volume: 0.3 });
     }
 
     setupSocketEvents() {
         // Démarrage du quiz
         this.socket.on('quiz:gameStarted', (data) => {
-            console.log('[Quiz] Jeu démarré avec', data.gameInfo);
+
             this.gameState = 'starting';
             this.showGameStarting(data.gameInfo);
         });
 
         // Nouvelle question
         this.socket.on('quiz:questionStart', (data) => {
-            console.log('[Quiz] Nouvelle question:', data.question.question);
             this.currentQuestion = data.question;
             this.questionNumber = data.questionNumber;
             this.totalQuestions = data.totalQuestions;
@@ -227,7 +230,7 @@ export class QuizGameScene extends Phaser.Scene {
 
         // Réponse reçue par le serveur
         this.socket.on('quiz:answerReceived', (data) => {
-            console.log('[Quiz] Réponse enregistrée');
+            
             this.showWaitingForOthers(data.answersReceived, data.totalPlayers);
         });
 
@@ -249,9 +252,9 @@ export class QuizGameScene extends Phaser.Scene {
             this.showRoundResults(data);
         });
 
-        // Fin du jeu
+        // Fin du Jeux
         this.socket.on('quiz:gameEnd', (data) => {
-            console.log('[Quiz] Fin du jeu:', data);
+            console.log('[Quiz] Fin du Jeux:', data);
             this.gameState = 'finished';
             this.gameEnded = true;
             this.showFinalResults(data);
@@ -283,7 +286,7 @@ export class QuizGameScene extends Phaser.Scene {
             align: "center"
         }).setOrigin(0.5);
 
-        // Informations du jeu
+        // Informations du Jeux
         const infos = [
             `📚 Catégories: ${gameInfo.categories.join(', ')}`,
             `🎯 Difficulté: ${gameInfo.difficulty}`,
@@ -457,6 +460,7 @@ export class QuizGameScene extends Phaser.Scene {
         ]);
 
         // Démarrer le timer
+        MusicManager.play(this, 'question', { loop: false, volume: 0.3 });
         this.startQuestionTimer();
     }
 
@@ -601,6 +605,7 @@ export class QuizGameScene extends Phaser.Scene {
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
+        MusicManager.play(this, 'wait', { loop: false, volume: 0.3 });
     }
 
     updateWaitingDisplay(answersReceived, totalPlayers) {
@@ -611,7 +616,7 @@ export class QuizGameScene extends Phaser.Scene {
 
     showRoundResults(data) {
         this.clearScreen();
-        
+        MusicManager.play(this, 'answer', { loop: false, volume: 0.3 });
         const { width, height } = this.sys.game.canvas;
         const baseSize = Math.min(width, height);
         const titleSize = Math.min(baseSize * 0.06, 36);
@@ -874,15 +879,6 @@ export class QuizGameScene extends Phaser.Scene {
 
         this.currentContainer = this.add.container(0, 0);
 
-        // ✅ DEBUG: Vérifier les données reçues
-        console.log('=== DEBUT DEBUG PODIUM ===');
-        console.log('[Quiz] DONNÉES COMPLÈTES reçues:', JSON.stringify(data, null, 2));
-        console.log('[Quiz] data.podium existe?', !!data.podium);
-        if (data.podium) {
-            console.log('[Quiz] Contenu data.podium:', data.podium);
-        }
-        console.log('=== FIN DEBUG PODIUM ===');
-
         // Fond spécial pour les résultats finaux
         const finalBg = this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e, 0.9)
             .setOrigin(0.5);
@@ -938,10 +934,9 @@ export class QuizGameScene extends Phaser.Scene {
         let playersToDisplay = [];
 
         if (data.podium && Array.isArray(data.podium) && data.podium.length > 0) {
-            console.log('[Quiz] 🎯 Utilisation du podium:', data.podium);
+ 
             playersToDisplay = data.podium;
-        } else if (data.finalLeaderboard && Array.isArray(data.finalLeaderboard) && data.finalLeaderboard.length > 0) {
-            console.log('[Quiz] 🎯 Utilisation du finalLeaderboard (fallback):', data.finalLeaderboard);
+
             playersToDisplay = data.finalLeaderboard.slice(0, 3).map((player, index) => ({
                 ...player,
                 medal: index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"
@@ -976,11 +971,6 @@ export class QuizGameScene extends Phaser.Scene {
                     .setOrigin(0.5)
                     .setDepth(1000); // ✅ DEPTH ÉLEVÉ pour être sûr qu'il s'affiche
 
-                console.log(`[Quiz] 🎨 Texte créé pour ${player.name}:`, podiumText.text);
-                console.log(`[Quiz] 🎨 Position du texte:`, { x: podiumText.x, y: podiumText.y, visible: podiumText.visible, alpha: podiumText.alpha });
-
-                // ✅ PAS DE CONTAINER - AJOUT DIRECT À LA SCÈNE
-                // this.currentContainer.add(podiumText); ← SUPPRIMÉ
             });
         } else {
             console.error('[Quiz] ❌ ÉCHEC TOTAL: Aucun joueur à afficher');
@@ -1119,7 +1109,7 @@ export class QuizGameScene extends Phaser.Scene {
 
         // Arrêter la musique
         MusicManager.stop();
-        
+        MusicManager.play(this.scene.get('GameScene'), 'gameMusic', { loop: true, volume: 0.4 });
         // Retourner directement à GameScene au lieu du lobby de quiz
         this.scene.stop();
         this.scene.resume("GameScene");

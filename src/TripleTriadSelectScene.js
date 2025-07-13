@@ -427,7 +427,7 @@ export class TripleTriadSelectScene extends Phaser.Scene {
 
             const selectedCards = this.cards.filter(c => this.selected.includes(c._id.toString()));
 
-            // Si on vient du menu IA, on lance directement le jeu
+            // Si on vient du menu IA, on lance directement le Jeux
             if (this.mode === "ai" && this.customRules) {
                 // Partie contre l'IA - avec règles pré-configurées
                 this.scene.stop();
@@ -441,7 +441,7 @@ export class TripleTriadSelectScene extends Phaser.Scene {
                 return;
             }
 
-            // Si on vient du menu PvP, on lance directement le jeu
+            // Si on vient du menu PvP, on lance directement le Jeux
             if (this.mode === "pvp") {
                 const matchId = this.registry.get('ttMatchId');
                 this.scene.stop();
@@ -505,7 +505,7 @@ export class TripleTriadSelectScene extends Phaser.Scene {
         }).setOrigin(0.5).setScrollFactor(0);
         this.modeSelectionMenu.add(title);
         
-        const subtitle = this.add.text(0, -height * 0.15, "Choisissez votre mode de jeu", {
+        const subtitle = this.add.text(0, -height * 0.15, "Choisissez votre mode de Jeux", {
             font: `${Math.round(width * 0.035)}px Arial`,
             fill: "#ccc"
         }).setOrigin(0.5).setScrollFactor(0);

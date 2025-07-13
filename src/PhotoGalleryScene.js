@@ -604,16 +604,16 @@ heartIcon.on("pointerdown", () => {
             padding: { x: 12, y: 6 }
         }).setOrigin(0.5, 0).setInteractive().setDepth(1002);
 
-        actionBtn.on("pointerdown", (event) => {
-            event && event.preventDefault && event.preventDefault();
-            const url = `${API_URL}/api/photos/download/${photo.filename}`;
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = photo.filename || "photo.jpg";
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => document.body.removeChild(link), 100);
-        });
+actionBtn.on("pointerdown", (event) => {
+    event && event.preventDefault && event.preventDefault();
+    const url = `${API_URL}/api/photos/download/${photo.filename}`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = photo.filename || "photo.jpg";
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => document.body.removeChild(link), 100);
+});
     }
 
     // Bouton fermer

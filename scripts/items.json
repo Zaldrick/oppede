@@ -133,8 +133,8 @@
       "description": ""
     },
     {
-      "nom": "Le Maître du Jeu",
-      "image": "Le Maître du Jeu.png",
+      "nom": "Le Maître du Jeux",
+      "image": "Le Maître du Jeux.png",
       "type": "card",
       "powerUp": 5,
       "powerLeft": 2,

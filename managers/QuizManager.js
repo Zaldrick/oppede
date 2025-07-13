@@ -1,3 +1,4 @@
+const { ObjectId } = require('mongodb'); // ← AJOUTE ICI
 class QuizManager {
     constructor(io, databaseManager) {
         this.io = io;
@@ -47,7 +48,7 @@ class QuizManager {
     async endQuizGame(gameId) {
         const game = this.quizGames[gameId];
         if (!game) {
-            console.log(`[Quiz] endQuizGame: Jeu ${gameId} introuvable`);
+            console.log(`[Quiz] endQuizGame: Jeux ${gameId} introuvable`);
             return;
         }
 
@@ -87,53 +88,41 @@ class QuizManager {
             }
 
             console.log(`[Quiz] ✅ Fetch disponible, attribution en cours...`);
+         for (const player of game.players) {
+    const finalScore = player.score || 0;
+    console.log(`[Quiz][LOG] Joueur: ${player.name} (pseudo: ${player.name}) - Score quiz: ${finalScore}`);
 
-            for (const player of game.players) {
-                const finalScore = player.score || 0;
+    if (finalScore > 0) {
+        try {
+            const db = await this.db.connectToDatabase();
+            const playersCol = db.collection('players');
 
-                if (finalScore > 0) {
-                    console.log(`[Quiz] 📤 Attribution de ${finalScore} points à ${player.name} (ID: ${player.id})`);
+            // Utilisation du pseudo pour la recherche et la mise à jour
+            const playerDoc = await playersCol.findOne({ pseudo: player.name });
+            const oldScore = playerDoc?.totalScore || 0;
+            const newScore = oldScore + finalScore;
 
-                    const apiUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/players/add-points`;
+            await playersCol.updateOne(
+                { pseudo: player.name },
+                { $set: { totalScore: newScore } }
+            );
 
-                    try {
-                        const response = await this.fetch(apiUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                playerId: player.id,
-                                points: finalScore,
-                                source: 'quiz_completion'
-                            })
-                        });
+            console.log(`[Quiz][LOG] Score mis à jour pour ${player.name} (pseudo: ${player.name}): ${oldScore} → ${newScore}`);
 
-                        console.log(`[Quiz] 📥 Réponse API status: ${response.status} pour ${player.name}`);
-
-                        if (response.ok) {
-                            const result = await response.json();
-                            console.log(`[Quiz] ✅ Points attribués à ${player.name}: ${result.newTotalScore} points total`);
-
-                            pointsDistribution.push({
-                                playerId: player.id,
-                                playerName: player.name,
-                                pointsEarned: finalScore,
-                                newTotalScore: result.newTotalScore,
-                                rank: finalLeaderboard.find(p => p.id === player.id)?.rank || 0
-                            });
-                        } else {
-                            const errorText = await response.text().catch(() => 'Erreur inconnue');
-                            console.error(`[Quiz] ❌ Erreur API pour ${player.name}: ${response.status} - ${errorText}`);
-                        }
-                    } catch (fetchError) {
-                        console.error(`[Quiz] ❌ Erreur réseau pour ${player.name}:`, fetchError.message);
-                    }
-                } else {
-                    console.log(`[Quiz] ⏭️  Aucun point à attribuer pour ${player.name} (score: ${finalScore})`);
-                }
-            }
-
+            pointsDistribution.push({
+                playerId: player.id,
+                playerName: player.name,
+                pointsEarned: finalScore,
+                newTotalScore: newScore,
+                rank: finalLeaderboard.find(p => p.id === player.id)?.rank || 0
+            });
+        } catch (err) {
+            console.error(`[Quiz][LOG] Erreur MongoDB pour ${player.name}:`, err);
+        }
+    } else {
+        console.log(`[Quiz][LOG] Aucun point à attribuer pour ${player.name} (score: ${finalScore})`);
+    }
+}
             console.log(`[Quiz] 🎉 ATTRIBUTION TERMINÉE - ${pointsDistribution.length}/${game.players.length} joueurs récompensés`);
 
             // ✅ Émettre notification des points attribués
@@ -148,8 +137,6 @@ class QuizManager {
             console.error('[Quiz] ❌ ERREUR lors de l\'attribution des points:', error);
         }
 
-        console.log(`[Quiz] 📊 Classement final pour ${gameId}:`, finalLeaderboard);
-        console.log(`[Quiz] 🏆 Podium pour ${gameId}:`, podium);
 
         const endData = {
             finalLeaderboard: finalLeaderboard,
@@ -185,7 +172,6 @@ class QuizManager {
 
         setTimeout(() => {
             delete this.quizGames[gameId];
-            console.log(`[Quiz] Quiz ${gameId} supprimé de la mémoire`);
         }, 30000);
     }
 
@@ -401,7 +387,7 @@ class QuizManager {
     handleSubmitAnswer(socket, { gameId, playerId, answer, timeRemaining }) {
         const game = this.quizGames[gameId];
         if (!game) {
-            console.log(`[Quiz] Jeu ${gameId} introuvable pour la réponse`);
+            console.log(`[Quiz] Jeux ${gameId} introuvable pour la réponse`);
             return;
         }
 
@@ -427,7 +413,7 @@ class QuizManager {
 
         // ✅ SÉCURITÉ: Vérifier que la partie est encore en cours
         if (game.status !== 'playing') {
-            console.log(`[Quiz] Réponse ignorée - jeu ${gameId} non actif (status: ${game.status})`);
+            console.log(`[Quiz] Réponse ignorée - Jeux ${gameId} non actif (status: ${game.status})`);
             return;
         }
 
@@ -525,7 +511,7 @@ class QuizManager {
     sendRoundResults(gameId) {
         const game = this.quizGames[gameId];
         if (!game) {
-            console.error(`[Quiz] sendRoundResults: Jeu ${gameId} introuvable`);
+            console.error(`[Quiz] sendRoundResults: Jeux ${gameId} introuvable`);
             return;
         }
 
@@ -536,7 +522,7 @@ class QuizManager {
             console.error(`[Quiz] Questions disponibles:`, game.questions.length);
             console.error(`[Quiz] Index actuel:`, game.currentQuestion);
 
-            // ✅ FALLBACK: Passer à la question suivante ou terminer le jeu
+            // ✅ FALLBACK: Passer à la question suivante ou terminer le Jeux
             game.currentQuestion++;
             if (game.currentQuestion >= game.questions.length) {
                 this.endQuizGame(gameId);
@@ -622,7 +608,7 @@ class QuizManager {
                 if (leavingPlayer.id === game.hostId || game.players.length === 0) {
                     console.log(`[Quiz] Fermeture du quiz ${gameId} (organisateur parti ou plus de joueurs)`);
 
-                    // ✅ NOUVEAU: Nettoyer le timeout avant de supprimer le jeu
+                    // ✅ NOUVEAU: Nettoyer le timeout avant de supprimer le Jeux
                     if (game.questionTimeout) {
                         clearTimeout(game.questionTimeout);
                         game.questionTimeout = null;
@@ -631,7 +617,7 @@ class QuizManager {
                     this.io.to(gameId).emit('quiz:gameCancelled');
                     delete this.quizGames[gameId];
                 } else {
-                    // ✅ Continuer le jeu avec les joueurs restants
+                    // ✅ Continuer le Jeux avec les joueurs restants
                     console.log(`[Quiz] Continuation du quiz ${gameId} avec ${game.players.length} joueurs`);
                     this.io.to(gameId).emit('quiz:gameUpdated', game);
 

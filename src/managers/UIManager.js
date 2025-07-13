@@ -240,7 +240,7 @@ export class UIManager {
         const gameWidth = this.scene.scale.width;
         const gameHeight = this.scene.scale.height;
 
-        this.startMenu = this.scene.add.container(playerX, playerY - gameHeight * 0.15);
+        this.startMenu = this.scene.add.container(playerX, playerY + gameHeight * 0.05);
 
         const background = this.scene.add.rectangle(0, 0, gameWidth * 0.95, gameHeight * 0.85, 0x000000, 0.85).setOrigin(0.5);
         this.startMenu.add(background);
@@ -258,7 +258,7 @@ export class UIManager {
                 icon: "🃏",
                 color: 0x2196F3,
                 action: () => this.openTripleTriad(),
-                description: "Jeu de cartes"
+                description: "Jeux de cartes"
             },
             {
                 label: "Quiz",
@@ -286,7 +286,7 @@ export class UIManager {
                 icon: "❌",
                 color: 0xF44336,
                 action: () => this.closeMenu(),
-                description: "Retour au jeu"
+                description: "Retour au Jeux"
             }
         ];
 

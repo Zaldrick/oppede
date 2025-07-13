@@ -34,7 +34,7 @@ export class InventoryScene extends Phaser.Scene {
         // Écouter les événements de l'ouverture de booster
         this.scene.get('BoosterOpeningScene')?.events.on('booster:cardsReceived', this.handleCardsReceived, this);
 
-        // Écouter les événements globaux du jeu
+        // Écouter les événements globaux du Jeux
         this.game.events.on('inventory:update', this.handleInventoryUpdate, this);
         this.game.events.on('cards:added', this.handleCardsAdded, this);
 

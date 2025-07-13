@@ -119,8 +119,8 @@ class Server {
             this.managers.quizManager = new QuizManager(io, this.managers.databaseManager);
             console.log('✅ QuizManager initialisé');
 
-            // TripleTriadManager - jeu de cartes
-            this.managers.tripleTriadManager = new TripleTriadManager(io);
+            // TripleTriadManager - Jeux de cartes
+            this.managers.tripleTriadManager = new TripleTriadManager(io,this.managers.databaseManager);
             console.log('✅ TripleTriadManager initialisé');
 
             // PhotoManager - galerie photos
@@ -283,7 +283,7 @@ class Server {
             console.log('   • DatabaseManager (MongoDB)');
             console.log('   • PlayerManager (Joueurs + Chat)');
             console.log('   • QuizManager (Quiz multijoueur)');
-            console.log('   • TripleTriadManager (Jeu de cartes)');
+            console.log('   • TripleTriadManager (Jeux de cartes)');
             console.log('   • PhotoManager (Galerie photos)');
             console.log('   • SocketManager (WebSocket)');
             console.log('🎉 ====================================');

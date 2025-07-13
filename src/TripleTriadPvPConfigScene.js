@@ -24,10 +24,10 @@ export class TripleTriadPvPConfigScene extends Phaser.Scene {
         this.opponentId = data.opponentId;
         this.opponentName = data.opponentName || "Adversaire";
         this.selectedRules = data.rules || {
-            same: true,
-            plus: true,
-            murale: true,
-            mortSubite: false
+            same: false,
+            plus: false,
+            murale: false,
+            mortSubite: true
         };
         // Gère les cartes pré-sélectionnées
         this.preSelectedCards = data.preSelectedCards || null;

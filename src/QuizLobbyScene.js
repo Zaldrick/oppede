@@ -21,6 +21,11 @@ export class QuizLobbyScene extends Phaser.Scene {
         this.isHost = false;
     }
 
+    preload() {
+        // Exemple : charge les fichiers audio
+        this.load.audio('lobby', 'assets/sounds/lobby.mp3');
+
+    }
     create() {
         // Jouer la musique
         MusicManager.play(this, 'music1', { loop: true, volume: 0.4 });
@@ -164,10 +169,15 @@ export class QuizLobbyScene extends Phaser.Scene {
                 ease: 'Power2',
                 onComplete: () => {
                     this.scene.stop();
+                    MusicManager.play(this.scene.get('GameScene'), 'gameMusic', { loop: true, volume: 0.4 });
                     this.scene.resume("GameScene");
                 }
             });
         });
+
+        // Musique de quiz
+        console.log('[DEBUG] Appel MusicManager.play(lobby)');
+        MusicManager.play(this, 'lobby', { loop: false, volume: 0.3 });
     }
 
     showCategorySelection() {
@@ -205,7 +215,7 @@ export class QuizLobbyScene extends Phaser.Scene {
             { name: "Art & Littérature", icon: "🎨", color: 0x9BBB59, description: "Peinture, littérature, culture" },
             { name: "Science et Nature", icon: "🔬", color: 0x8064A2, description: "Sciences, biologie, nature" },
             { name: "Sport", icon: "⚽", color: 0x4BACC6, description: "Sports, compétitions" },
-            { name: "Jeux vidéo", icon: "🎮", color: 0xF1975A, description: "Gaming, consoles, personnages" }
+            { name: "Jeux Vidéo", icon: "🎮", color: 0xF1975A, description: "Gaming, consoles, personnages" }
         ];
 
         this.selectedCategories = [...categories.map(c => c.name)]; // Toutes sélectionnées par défaut
@@ -779,7 +789,7 @@ export class QuizLobbyScene extends Phaser.Scene {
         displayGames.forEach((game, index) => {
             const y = startY + index * (gameHeight + 8);
             
-            // Container pour chaque jeu
+            // Container pour chaque Jeux
             const gameContainer = this.add.container(0, y);
             
             // Fond avec dégradé
@@ -859,7 +869,7 @@ export class QuizLobbyScene extends Phaser.Scene {
             });
         });
 
-        // Indicateur de scroll si plus de jeux disponibles
+        // Indicateur de scroll si plus de Jeuxx disponibles
         if (this.availableGames.length > maxGames) {
             const moreIndicator = this.add.text(width / 2, height * 0.88, 
                 `+${this.availableGames.length - maxGames} autres quiz...`, {

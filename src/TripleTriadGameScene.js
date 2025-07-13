@@ -54,10 +54,10 @@ export class TripleTriadGameScene extends Phaser.Scene {
         this.playerScore = 5;
         this.opponentScore = 5;
         this.rules = data.rules || {
-            same: true,
-            plus: true,
-            murale: true,
-            mortSubite: false
+            same: false,
+            plus: false,
+            murale: false,
+            mortSubite: true
         };
 
         // Récupère la difficulté IA depuis les données ou utilise 'normal' par défaut
@@ -960,11 +960,9 @@ export class TripleTriadGameScene extends Phaser.Scene {
                                 this.opponentScore++;
                                 this.playerScore--;
                             }
-                            this.applyCombo(nr, nc, card.owner, animate, () => {
-                                this.animateCapture(nr, nc, card.owner, () => {
-                                    flipsDone++;
-                                    if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
-                                });
+                            this.animateCapture(nr, nc, card.owner, () => {
+                                flipsDone++;
+                                if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
                             });
                         }
                     }

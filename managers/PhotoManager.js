@@ -124,7 +124,24 @@ class PhotoManager {
                 res.status(500).json({ error: "Erreur lors du vote" });
             }
         });
+        // Route pour ajouter des points à un joueur (par son ID)
+        app.post('/api/players/add-points', async (req, res) => {
+            const { playerId, points } = req.body;
+            if (!playerId || typeof points !== "number") {
+                return res.status(400).json({ error: "Données invalides" });
+            }
 
+            const db = await this.db.connectToDatabase();
+            const playersCollection = db.collection('players');
+            const player = await playersCollection.findOne({ _id: require('mongodb').ObjectId(playerId) });
+            if (!player) return res.status(404).json({ error: "Joueur non trouvé" });
+
+            await playersCollection.updateOne(
+                { _id: player._id },
+                { $inc: { totalScore: points } }
+            );
+            res.json({ success: true, newTotalScore: (player.totalScore || 0) + points });
+        });
 
         /*app.post('/api/photos/:id/vote', async (req, res) => {
             const { id } = req.params;

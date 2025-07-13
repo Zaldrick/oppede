@@ -34,7 +34,7 @@ try {
     console.log('   - Gestion base de données MongoDB');
     console.log('   - Gestion des joueurs et chat');
     console.log('   - Système de quiz multijoueur');
-    console.log('   - Jeu Triple Triad');
+    console.log('   - Jeux Triple Triad');
     console.log('   - Galerie photos');
     console.log('   - Socket.IO orchestration');
 

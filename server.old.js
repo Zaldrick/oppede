@@ -754,7 +754,7 @@ io.on('connection', (socket) => {
                     difficulty: game.difficulty,
                     totalQuestions: game.questions.length
                 },
-                gameData: game  // ← Garder les données complètes du jeu
+                gameData: game  // ← Garder les données complètes du Jeux
             });
 
             // Retirer de la liste des quiz disponibles

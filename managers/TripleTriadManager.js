@@ -1,6 +1,8 @@
-﻿class TripleTriadManager {
-    constructor(io) {
+﻿const { ObjectId } = require('mongodb'); // En haut du fichier si pas déjà fait
+class TripleTriadManager {
+    constructor(io,databaseManager) {
         this.io = io;
+        this.db = databaseManager; // Stocke l'instance
         this.matches = {};
         this.challenges = {};
         this.players = {};
@@ -178,165 +180,56 @@
             rules: match.rules
         });
     }
+    // Ajoute en haut du fichier si besoin :
+// const { MongoClient } = require('mongodb'); // Si tu utilises une connexion directe
 
-    // ✅ NOUVELLE MÉTHODE : Gestion de fin de partie avec attribution de points pour les deux joueurs
-    async handleGameEnd(matchId) {
-        const match = this.matches[matchId];
-        if (!match) return;
+async handleGameEnd(matchId) {
+    const match = this.matches[matchId];
+    if (!match) return;
 
-        console.log(`[TripleTriad] Fin de partie pour le match ${matchId}`);
+    console.log(`[TripleTriad] Fin de partie pour le match ${matchId}`);
 
-        const finalScores = this.calculateScores(match.state.board, match.playerIds);
-        const [player1Id, player2Id] = match.playerIds;
-        const player1Score = finalScores[player1Id];
-        const player2Score = finalScores[player2Id];
+    const finalScores = this.calculateScores(match.state.board, match.playerIds);
+    
+    const db = await this.db.connectToDatabase();
+    const playersCol = db.collection('players');
+    // Attribution des points à chaque joueur selon son score
+    const pointsDistribution = [];
 
-        console.log(`[TripleTriad] Scores finaux - ${player1Id}: ${player1Score}, ${player2Id}: ${player2Score}`);
-
-        let winnerId = null;
-        let loserId = null;
-        let winnerScore = 0;
-        let loserScore = 0;
-
-        if (player1Score > player2Score) {
-            winnerId = player1Id;
-            winnerScore = player1Score;
-            loserId = player2Id;
-            loserScore = player2Score;
-        } else if (player2Score > player1Score) {
-            winnerId = player2Id;
-            winnerScore = player2Score;
-            loserId = player1Id;
-            loserScore = player1Score;
+    for (const playerId of match.playerIds) {
+        // Récupère le joueur par _id
+        const objectId = typeof playerId === 'string' && playerId.length === 24 ? new ObjectId(playerId) : playerId;
+        const playerDoc = await playersCol.findOne({ _id: objectId });
+        if (!playerDoc) {
+            console.error(`[TripleTriad] Joueur non trouvé pour l'ID: ${playerId}`);
+            continue;
         }
+        const pseudo = playerDoc.pseudo;
+        const oldScore = playerDoc.totalScore || 0;
 
-        // ✅ ATTRIBUTION DES POINTS POUR LES DEUX JOUEURS
-        const pointsDistribution = [];
-        try {
-            // ✅ Vérifier que fetch est disponible
-            if (!this.fetch) {
-                console.error(`[TripleTriad] ❌ Fetch non disponible - attribution de points impossible`);
-                console.log(`[TripleTriad] ⚠️  Pour corriger: npm install node-fetch`);
-                this.emitGameEndWithoutPoints(matchId, finalScores, winnerId, winnerScore, loserId, loserScore);
-                return;
-            }
+        // Utilise le pseudo pour récupérer le score dans finalScores
+        const playerScore = finalScores[playerId] ?? 0;
 
-            console.log(`[TripleTriad] ✅ Fetch disponible, attribution en cours...`);
+        const newScore = oldScore + playerScore;
 
-            // Attribution des points au gagnant (score * 2)
-            if (winnerId) {
-                const winnerPoints = winnerScore * 2;
-                console.log(`[TripleTriad] Attribution de ${winnerPoints} points au gagnant ${winnerId} (${winnerScore} * 2)`);
+        await playersCol.updateOne(
+            { _id: objectId },
+            { $set: { totalScore: newScore } }
+        );
 
-                const winnerResponse = await this.fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        playerId: winnerId,
-                        points: winnerPoints,
-                        source: 'triple_triad_victory'
-                    })
-                });
+        console.log(`[TripleTriad] Score mis à jour pour ${pseudo}: ${oldScore} → ${newScore}`);
 
-                if (winnerResponse.ok) {
-                    const winnerResult = await winnerResponse.json();
-                    console.log(`[TripleTriad] Points gagnant attribués: ${winnerResult.newTotalScore} points total`);
-                    pointsDistribution.push({
-                        playerId: winnerId,
-                        status: 'winner',
-                        pointsEarned: winnerPoints,
-                        newTotalScore: winnerResult.newTotalScore
-                    });
-                } else {
-                    console.error(`[TripleTriad] Erreur lors de l'attribution des points au gagnant: ${winnerResponse.status}`);
-                }
-
-                // Attribution des points au perdant (score * 2)
-                const loserPoints = loserScore * 2;
-                console.log(`[TripleTriad] Attribution de ${loserPoints} points au perdant ${loserId} (${loserScore} * 2)`);
-
-                const loserResponse = await this.fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        playerId: loserId,
-                        points: loserPoints,
-                        source: 'triple_triad_participation'
-                    })
-                });
-
-                if (loserResponse.ok) {
-                    const loserResult = await loserResponse.json();
-                    console.log(`[TripleTriad] Points perdant attribués: ${loserResult.newTotalScore} points total`);
-                    pointsDistribution.push({
-                        playerId: loserId,
-                        status: 'loser',
-                        pointsEarned: loserPoints,
-                        newTotalScore: loserResult.newTotalScore
-                    });
-                } else {
-                    console.error(`[TripleTriad] Erreur lors de l'attribution des points au perdant: ${loserResponse.status}`);
-                }
-            } else {
-                // ✅ CAS D'ÉGALITÉ : Les deux joueurs reçoivent leur score * 2
-                console.log(`[TripleTriad] Match nul - attribution des points d'égalité`);
-
-                for (const playerId of [player1Id, player2Id]) {
-                    const playerScore = finalScores[playerId];
-                    const equalityPoints = playerScore * 2;
-
-                    console.log(`[TripleTriad] Attribution de ${equalityPoints} points d'égalité à ${playerId} (${playerScore} * 2)`);
-
-                    const response = await this.fetch(`${process.env.BACKEND_URL || 'http://localhost:3000'}/api/players/add-points`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            playerId: playerId,
-                            points: equalityPoints,
-                            source: 'triple_triad_draw'
-                        })
-                    });
-
-                    if (response.ok) {
-                        const result = await response.json();
-                        console.log(`[TripleTriad] Points d'égalité attribués à ${playerId}: ${result.newTotalScore} points total`);
-                        pointsDistribution.push({
-                            playerId: playerId,
-                            status: 'draw',
-                            pointsEarned: equalityPoints,
-                            newTotalScore: result.newTotalScore
-                        });
-                    } else {
-                        console.error(`[TripleTriad] Erreur lors de l'attribution des points d'égalité à ${playerId}: ${response.status}`);
-                    }
-                }
-            }
-
-            // Notifier les joueurs de l'attribution des points
-            this.io.to(matchId).emit('tt:pointsAwarded', {
-                pointsDistribution
-            });
-
-        } catch (error) {
-            console.error('[TripleTriad] Erreur lors de l\'attribution des points:', error);
-        }
-
-        // Émettre les résultats finaux
-        this.io.to(matchId).emit('tt:gameEnd', {
-            finalScores,
-            winnerId,
-            winnerScore,
-            loserId,
-            loserScore,
-            pointsDistribution
+        pointsDistribution.push({
+            playerId,
+            pseudo,
+            pointsEarned: playerScore,
+            newTotalScore: newScore
         });
     }
+
+    this.io.to(matchId).emit('tt:pointsAwarded', { pointsDistribution });
+    this.io.to(matchId).emit('tt:gameEnd', { finalScores, pointsDistribution });
+}
     emitGameEndWithoutPoints(matchId, finalScores, winnerId, winnerScore, loserId, loserScore) {
         console.log(`[TripleTriad] ⚠️  Fin de match sans attribution de points pour ${matchId}`);
 

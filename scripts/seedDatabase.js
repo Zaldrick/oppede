@@ -918,7 +918,7 @@ async function seedDatabase() {
                 mapKey: "map",
                 x: 216,
                 y: 744,
-                properties: { name: "Vieux Sage", dialogue: "Bienvenue à Oppède, jeune aventurier !" },
+                properties: { name: "Vieux Sage", dialogue: "Bienvenue à Oppède, Jeuxne aventurier !" },
                 state: { hasSpoken: false }
             },
             {
@@ -926,7 +926,7 @@ async function seedDatabase() {
                 mapKey: "map3",
                 x: 216,
                 y: 744,
-                properties: { name: "Vieux Sage", dialogue: "Bienvenue à Oppède, jeune aventurier !" },
+                properties: { name: "Vieux Sage", dialogue: "Bienvenue à Oppède, Jeuxne aventurier !" },
                 state: { hasSpoken: false }
             }
         ];
@@ -947,7 +947,7 @@ async function seedDatabase() {
         const quizArt = loadJsonData("quizArt.json");
         const quizScience = loadJsonData("quizScience.json");
         const quizSport = loadJsonData("quizSport.json");
-        const quizJeuVideo = loadJsonData("quizJeuVideo.json");
+        const quizJeuxVideo = loadJsonData("quizJeuxVideo.json");
 
         // Fusionner toutes les questions dans un seul tableau
         const quizQuestions = [
@@ -956,7 +956,7 @@ async function seedDatabase() {
             ...quizArt,
             ...quizScience,
             ...quizSport,
-            ...quizJeuVideo
+            ...quizJeuxVideo
         ];
 
         console.log("📋 Questions chargées par catégorie :");
@@ -965,7 +965,7 @@ async function seedDatabase() {
         console.log(`   - Art & Littérature: ${quizArt.length} questions`);
         console.log(`   - Science et Nature: ${quizScience.length} questions`);
         console.log(`   - Sport: ${quizSport.length} questions`);
-        console.log(`   - Jeu Vidéo: ${quizJeuVideo.length} questions`);
+        console.log(`   - Jeux Vidéo: ${quizJeuxVideo.length} questions`);
         console.log(`   - TOTAL: ${quizQuestions.length} questions`);
         const quizQuestionsCollection = db.collection("quizQuestions");
         await quizQuestionsCollection.deleteMany({});

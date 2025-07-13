@@ -70,7 +70,7 @@
     "difficulty": "facile"
   },
   {
-    "question": "En quelle année ont eu lieu les premiers Jeux Olympiques modernes ?",
+    "question": "En quelle année ont eu lieu les premiers Jeuxx Olympiques modernes ?",
     "answers": [ "1892", "1894", "1896", "1898" ],
     "correct": 2,
     "category": "Sport",
@@ -175,7 +175,7 @@
     "difficulty": "difficile"
   },
   {
-    "question": "Dans quelle ville se sont déroulés les premiers Jeux Olympiques d'hiver ?",
+    "question": "Dans quelle ville se sont déroulés les premiers Jeuxx Olympiques d'hiver ?",
     "answers": [ "Saint-Moritz", "Chamonix", "Garmisch-Partenkirchen", "Lake Placid" ],
     "correct": 1,
     "category": "Sport",

@@ -236,7 +236,7 @@
     "difficulty": "facile"
   },
   {
-    "question": "En quelle année ont eu lieu les premiers Jeux Olympiques modernes ?",
+    "question": "En quelle année ont eu lieu les premiers Jeuxx Olympiques modernes ?",
     "answers": [ "1892", "1894", "1896", "1898" ],
     "correct": 2,
     "category": "Sport",
@@ -316,126 +316,126 @@
     "question": "Quel est le nom du héros principal de la série 'The Legend of Zelda' ?",
     "answers": [ "Zelda", "Link", "Ganondorf", "Epona" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
-    "question": "Dans quel jeu trouve-t-on les personnages Mario et Luigi ?",
+    "question": "Dans quel Jeux trouve-t-on les personnages Mario et Luigi ?",
     "answers": [ "Sonic", "Super Mario Bros", "Street Fighter", "Pac-Man" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
-    "question": "Quelle console de jeu Nintendo est sortie en 2017 ?",
+    "question": "Quelle console de Jeux Nintendo est sortie en 2017 ?",
     "answers": [ "Nintendo DS", "Nintendo Wii", "Nintendo Switch", "Nintendo 3DS" ],
     "correct": 2,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
     "question": "Qui est le créateur de la série 'Metal Gear' ?",
     "answers": [ "Shigeru Miyamoto", "Hideo Kojima", "Hironobu Sakaguchi", "Tetsuya Nomura" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Dans 'Final Fantasy VII', comment s'appelle l'épée de Cloud ?",
     "answers": [ "Masamune", "Buster Sword", "Ultima Weapon", "Excalibur" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Quel studio a développé 'The Witcher 3: Wild Hunt' ?",
     "answers": [ "Bioware", "CD Projekt RED", "Bethesda", "Ubisoft" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Dans 'Portal', comment s'appelle l'IA antagoniste ?",
     "answers": [ "HAL 9000", "GLaDOS", "SHODAN", "Cortana" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Quel est le nom du monde principal dans 'Minecraft' ?",
     "answers": [ "Overworld", "Nether", "End", "Aether" ],
     "correct": 0,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
     "question": "Dans 'League of Legends', combien de champions y a-t-il sur la Faille de l'invocateur par équipe ?",
     "answers": [ "4", "5", "6", "10" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
     "question": "Dans 'Half-Life', comment s'appelle le complexe de recherche ?",
     "answers": [ "Aperture Science", "Black Mesa", "Umbrella Corp", "Weyland-Yutani" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Dans 'Dark Souls', qui est le premier boss que l'on affronte ?",
     "answers": [ "Asylum Demon", "Taurus Demon", "Bell Gargoyle", "Gwyn" ],
     "correct": 0,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Quelle société a créé la PlayStation ?",
     "answers": [ "Nintendo", "Microsoft", "Sony", "Sega" ],
     "correct": 2,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
     "question": "Dans 'World of Warcraft', quelle est la monnaie principale ?",
     "answers": [ "Or", "Gil", "Zenny", "Septims" ],
     "correct": 0,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
     "question": "Quel moteur graphique a été créé par Epic Games ?",
     "answers": [ "Unity", "CryEngine", "Unreal Engine", "Source Engine" ],
     "correct": 2,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
     "question": "Dans 'Counter-Strike', combien de joueurs maximum par équipe ?",
     "answers": [ "4", "5", "6", "8" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
-    "question": "Quel jeu de bataille royale a popularisé le genre en 2017 ?",
+    "question": "Quel Jeux de bataille royale a popularisé le genre en 2017 ?",
     "answers": [ "PUBG", "Fortnite", "Apex Legends", "Call of Duty Warzone" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   },
   {
     "question": "Dans 'Overwatch', quel est le nom du gorilla scientifique ?",
     "answers": [ "Donkey Kong", "Winston", "Hammond", "Caesar" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "moyen"
   },
   {
-    "question": "Quelle franchise de jeu vidéo a pour slogan 'Gotta catch 'em all' ?",
+    "question": "Quelle franchise de Jeux vidéo a pour slogan 'Gotta catch 'em all' ?",
     "answers": [ "Digimon", "Pokémon", "Monster Hunter", "Dragon Quest" ],
     "correct": 1,
-    "category": "Jeu Vidéo",
+    "category": "Jeux Vidéo",
     "difficulty": "facile"
   }
 ]
