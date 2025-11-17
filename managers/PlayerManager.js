@@ -23,21 +23,21 @@ class PlayerManager {
     async handleNewPlayer(socket, data) {
         const { pseudo, mapId = 0 } = data;
 
-        // Vérifier si le pseudo est déjà connecté
+        // Vï¿½rifier si le pseudo est dï¿½jï¿½ connectï¿½
         const existingPlayerSocketId = Object.keys(this.players).find(
             (id) => this.players[id].pseudo === pseudo
         );
 
-        // Récupérer le playerData depuis MongoDB
+        // Rï¿½cupï¿½rer le playerData depuis MongoDB
         const db = await this.db.connectToDatabase();
         const playersCollection = db.collection('players');
         const playerData = await playersCollection.findOne({ pseudo });
 
         if (existingPlayerSocketId) {
-            // Déconnecter l'ancienne connexion
+            // Dï¿½connecter l'ancienne connexion
             delete this.players[existingPlayerSocketId];
             this.io.to(existingPlayerSocketId).emit('disconnectMessage', {
-                message: 'Connexion détectée sur un autre appareil.',
+                message: 'Connexion dï¿½tectï¿½e sur un autre appareil.',
             });
             this.io.sockets.sockets.get(existingPlayerSocketId)?.disconnect();
         }
@@ -62,10 +62,10 @@ class PlayerManager {
     handlePlayerMove(socket, data) {
         if (this.players[socket.id]) {
             if (data.mapId === undefined) {
-                console.warn(`MapId non défini pour le joueur ${socket.id}. Données reçues :`, data);
+                console.warn(`MapId non dï¿½fini pour le joueur ${socket.id}. Donnï¿½es reï¿½ues :`, data);
                 return;
             }
-            const previousMapId = this.players[socket.id].mapId;
+            const previousMapId = this.players[socket   .id].mapId;
             this.players[socket.id].x = data.x;
             this.players[socket.id].y = data.y;
             this.players[socket.id].mapId = data.mapId;
@@ -75,12 +75,12 @@ class PlayerManager {
                 this.io.emit('playerLeftMap', { id: socket.id, mapId: previousMapId });
             }
         } else {
-            console.warn(`Tentative de mise à jour pour un joueur non enregistré : ${socket.id}`);
+            console.warn(`Tentative de mise ï¿½ jour pour un joueur non enregistrï¿½ : ${socket.id}`);
         }
     }
 
     handleInteraction(socket, data) {
-        console.log(`Interaction reçue :`, data);
+        console.log(`Interaction reï¿½ue :`, data);
         console.log(`Interaction de ${data.from} vers ${data.to} : ${data.action}`);
         
         // Gestion des interactions par playerId
@@ -121,16 +121,16 @@ class PlayerManager {
                 });
             }
         } else {
-            console.warn(`Le joueur cible ${data.to} n'est pas connecté.`);
+            console.warn(`Le joueur cible ${data.to} n'est pas connectï¿½.`);
         }
     }
 
     handleChatMessage(socket, data, callback) {
-        console.log(`Tentative de réception de 'chatMessage' de ${socket.id}`);
+        console.log(`Tentative de rï¿½ception de 'chatMessage' de ${socket.id}`);
 
-        // Validation des données reçues
+        // Validation des donnï¿½es reï¿½ues
         if (!data || !data.message || typeof data.message !== 'string' || !data.pseudo || data.mapId === undefined) {
-            console.warn(`Message invalide reçu de ${socket.id}:`, data);
+            console.warn(`Message invalide reï¿½u de ${socket.id}:`, data);
             if (callback) callback({ status: 'error', message: 'Message invalide' });
             return;
         }
@@ -139,11 +139,11 @@ class PlayerManager {
         const message = { pseudo: data.pseudo, message: data.message, mapId: data.mapId };
         this.chatMessages.push(message);
 
-        // Diffuser le message à tous les clients
+        // Diffuser le message ï¿½ tous les clients
         this.io.emit('chatMessage', message);
 
         if (callback) {
-            callback({ status: 'ok', message: 'Message reçu par le serveur' });
+            callback({ status: 'ok', message: 'Message reï¿½u par le serveur' });
         }
     }
 
@@ -163,15 +163,15 @@ class PlayerManager {
     }
 
     handleDisconnect(socket) {
-        console.log(`Joueur déconnecté : ${socket.id}`);
+        console.log(`Joueur dï¿½connectï¿½ : ${socket.id}`);
         const disconnectedPlayer = this.players[socket.id];
         if (socket.playerId) delete this.playerIdToSocketId[socket.playerId];
         delete this.players[socket.id];
 
-        // Informer les autres joueurs de la déconnexion
+        // Informer les autres joueurs de la dï¿½connexion
         this.io.emit('playerDisconnected', { id: socket.id, mapId: disconnectedPlayer?.mapId });
 
-        console.log("État actuel des joueurs après déconnexion :", this.players);
+        console.log("ï¿½tat actuel des joueurs aprï¿½s dï¿½connexion :", this.players);
     }
 
     getPlayers() {
@@ -183,7 +183,7 @@ class PlayerManager {
     }
 
     startPlayersUpdateBroadcast() {
-        // Diffuser l'état complet des joueurs 20 fois par seconde (toutes les 50ms)
+        // Diffuser l'ï¿½tat complet des joueurs 20 fois par seconde (toutes les 50ms)
         setInterval(() => {
             const playersWithMapId = Object.keys(this.players).reduce((result, id) => {
                 result[id] = {

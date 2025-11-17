@@ -550,6 +550,114 @@ class DatabaseManager {
         });
 
 
+        // Route pour échanger les positions de deux Pokémon
+        app.post('/api/pokemon/swap-positions', async (req, res) => {
+            try {
+                const { pokemon1Id, pokemon2Id } = req.body;
+                
+                if (!pokemon1Id || !pokemon2Id) {
+                    return res.status(400).json({ error: 'pokemon1Id et pokemon2Id requis' });
+                }
+                
+                const db = await this.connectToDatabase();
+                const pokemonCollection = db.collection('pokemonPlayer');
+                
+                // Récupérer les deux pokémon
+                const pokemon1 = await pokemonCollection.findOne({ _id: new ObjectId(pokemon1Id) });
+                const pokemon2 = await pokemonCollection.findOne({ _id: new ObjectId(pokemon2Id) });
+                
+                if (!pokemon1 || !pokemon2) {
+                    return res.status(404).json({ error: 'Pokémon non trouvé' });
+                }
+                
+                // Échanger les positions
+                const temp = pokemon1.position;
+                await pokemonCollection.updateOne(
+                    { _id: new ObjectId(pokemon1Id) },
+                    { $set: { position: pokemon2.position } }
+                );
+                await pokemonCollection.updateOne(
+                    { _id: new ObjectId(pokemon2Id) },
+                    { $set: { position: temp } }
+                );
+                
+                console.log(`[Pokemon] Positions échangées: ${pokemon1.nickname} (${temp}) <-> ${pokemon2.nickname} (${pokemon2.position})`);
+                
+                res.json({
+                    success: true,
+                    message: 'Positions échangées'
+                });
+            } catch (error) {
+                console.error('[Pokemon] Erreur swap positions:', error);
+                res.status(500).json({ error: 'Erreur serveur' });
+            }
+        });
+
+        // === ROUTE: Récupérer détails d'un move ===
+        app.get('/api/pokemon/move/:moveNameOrId', async (req, res) => {
+            try {
+                const { moveNameOrId } = req.params;
+                console.log('[Move] Recherche détails pour:', moveNameOrId);
+
+                const db = await this.connectToDatabase();
+                const movesCollection = db.collection('pokemonMoves');
+
+                // Chercher d'abord en BDD (par nom ou ID)
+                let moveData = await movesCollection.findOne({
+                    $or: [
+                        { name: moveNameOrId },
+                        { id: parseInt(moveNameOrId) || -1 }
+                    ]
+                });
+
+                if (moveData) {
+                    console.log('[Move] Trouvé en BDD:', moveData.name);
+                    return res.json(moveData);
+                }
+
+                // Si pas trouvé, chercher sur PokéAPI
+                console.log('[Move] Non trouvé en BDD, requête PokéAPI...');
+                const pokeApiUrl = `https://pokeapi.co/api/v2/move/${moveNameOrId.toLowerCase()}`;
+                const response = await fetch(pokeApiUrl);
+
+                if (!response.ok) {
+                    console.warn('[Move] Move non trouvé sur PokéAPI:', moveNameOrId);
+                    return res.status(404).json({ error: 'Move introuvable' });
+                }
+
+                const apiData = await response.json();
+                
+                // Extraire l'effet en français ou anglais
+                const effectEntry = apiData.effect_entries.find(e => e.language.name === 'en');
+                const flavorEntry = apiData.flavor_text_entries.find(e => e.language.name === 'en');
+
+                // Construire l'objet move normalisé
+                moveData = {
+                    id: apiData.id,
+                    name: apiData.name,
+                    type: apiData.type.name,
+                    category: apiData.damage_class.name, // physical, special, status
+                    power: apiData.power,
+                    accuracy: apiData.accuracy,
+                    pp: apiData.pp,
+                    effect: effectEntry?.effect || flavorEntry?.flavor_text || 'No description available',
+                    priority: apiData.priority,
+                    target: apiData.target.name,
+                    createdAt: new Date()
+                };
+
+                // Sauvegarder en BDD pour la prochaine fois
+                await movesCollection.insertOne(moveData);
+                console.log('[Move] Sauvegardé en BDD:', moveData.name);
+
+                res.json(moveData);
+
+            } catch (error) {
+                console.error('[Move] Erreur récupération détails:', error);
+                res.status(500).json({ error: 'Erreur serveur' });
+            }
+        });
+
         // === FIN NOUVELLE ROUTE ===
     }
 

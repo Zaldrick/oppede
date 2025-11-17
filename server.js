@@ -20,6 +20,8 @@ const QuizManager = require('./managers/QuizManager');
 const TripleTriadManager = require('./managers/TripleTriadManager');
 const PhotoManager = require('./managers/PhotoManager');
 const SocketManager = require('./managers/SocketManager');
+const PokemonDatabaseManager = require('./managers/PokemonDatabaseManager');
+const PokemonBattleManager = require('./managers/PokemonBattleManager');
 
 const PORT = process.env.BACKEND_PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -127,6 +129,15 @@ class Server {
             this.managers.photoManager = new PhotoManager(this.managers.databaseManager);
             console.log('✅ PhotoManager initialisé');
 
+            // PokemonDatabaseManager - gestion Pokémon
+            this.managers.pokemonDatabaseManager = new PokemonDatabaseManager(this.managers.databaseManager);
+            await this.managers.pokemonDatabaseManager.initialize();
+            console.log('✅ PokemonDatabaseManager initialisé');
+
+            // PokemonBattleManager - système de combat
+            this.managers.pokemonBattleManager = new PokemonBattleManager(this.managers.databaseManager);
+            console.log('✅ PokemonBattleManager initialisé');
+
         } catch (error) {
             console.error('❌ Erreur lors de l\'initialisation des managers:', error);
             throw error;
@@ -156,6 +167,12 @@ class Server {
 
         // ✅ AJOUT - Routes de la boutique
         this.setupShopRoutes();
+
+        // Routes Pokémon
+        this.managers.pokemonDatabaseManager.setupRoutes(this.app);
+
+        // Routes Combat Pokémon
+        this.managers.pokemonBattleManager.setupRoutes(this.app);
 
         // Routes gérées par les managers
         this.managers.databaseManager.setupRoutes(this.app);
@@ -285,6 +302,7 @@ class Server {
             console.log('   • QuizManager (Quiz multijoueur)');
             console.log('   • TripleTriadManager (Jeux de cartes)');
             console.log('   • PhotoManager (Galerie photos)');
+            console.log('   • PokemonDatabaseManager (Pokémon)');
             console.log('   • SocketManager (WebSocket)');
             console.log('🎉 ====================================');
             console.log('');

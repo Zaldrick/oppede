@@ -275,11 +275,11 @@ export class UIManager {
                 description: "Galerie d'images"
             },
             {
-                label: "Profil",
-                icon: "👤",
-                color: 0x607D8B,
-                action: () => this.openProfile(),
-                description: "Paramètres joueur"
+                label: "Équipe",
+                icon: "�",
+                color: 0xFF6B6B,
+                action: () => this.openPokemonTeam(),
+                description: "Votre équipe Pokémon"
             },
             {
                 label: "Fermer",
@@ -507,6 +507,25 @@ export class UIManager {
 
   getJoystick() {
     return this.joystick;
+  }
+
+  openPokemonTeam() {
+    console.log("🔴 OUVERTURE ÉQUIPE POKÉMON");
+    this.closeMenu();
+    const playerData = this.scene.registry.get("playerData");
+    const playerId = playerData && playerData._id ? playerData._id : null;
+
+    if (!playerId) {
+      this.scene.displayMessage("Impossible de trouver l'identifiant du joueur.");
+      return;
+    }
+
+    // Lance la scène Pokémon Team en mode pause de GameScene
+    this.scene.scene.launch("PokemonTeamScene", {
+      playerId: playerId,
+      returnScene: "GameScene"
+    });
+    this.scene.scene.pause();
   }
 
   destroy() {
