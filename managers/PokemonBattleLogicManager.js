@@ -49,6 +49,7 @@ function getTypeEffectiveness(attackType, defenseTypes) {
 class PokemonBattleLogicManager {
     constructor() {
         this.battleState = null;
+        this.participants = new Set(); // 🆕 Tracker les Pokémon qui ont participé
     }
 
     /**
@@ -60,6 +61,9 @@ class PokemonBattleLogicManager {
      */
     initializeBattle(playerTeam, opponentTeam, battleType = 'wild') {
         console.log('[BattleLogic] Initialisation combat:', battleType);
+        
+        // Réinitialiser les participants
+        this.participants = new Set();
 
         // Filtrer les Pokémon KO
         const validPlayerTeam = playerTeam.filter(p => p.currentHP > 0);
@@ -87,6 +91,9 @@ class PokemonBattleLogicManager {
 
         const playerActive = validPlayerTeam[playerActiveIndex];
         const opponentActive = validOpponentTeam[opponentActiveIndex];
+        
+        // Ajouter le Pokémon actif initial aux participants
+        this.participants.add(playerActive._id.toString());
 
         this.battleState = {
             battle_type: battleType,
@@ -143,7 +150,7 @@ class PokemonBattleLogicManager {
     /**
      * Calcule une statistique avec nature et IVs/EVs
      * @param {Object} pokemon - Pokémon
-     * @param {string} statName - 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed'
+     * @param {string} statName - 'hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed'
      * @returns {number}
      */
     calculateStat(pokemon, statName) {
@@ -152,11 +159,65 @@ class PokemonBattleLogicManager {
         const ev = pokemon.evs?.[statName] || 0;
         const level = pokemon.level || 5;
 
-        // Formule Pokémon Gen III+
-        const stat = Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + 5;
+        if (statName === 'hp') {
+            // Formule HP spéciale : HP = floor(((2 × Base + IV + floor(EV/4)) × Level / 100) + Level + 10)
+            return Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + level + 10;
+        } else {
+            // Formule stats normales : Stat = floor(((2 × Base + IV + floor(EV/4)) × Level / 100) + 5)
+            const stat = Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + 5;
+            
+            // Appliquer bonus/malus de nature (+10% / -10%)
+            const nature = pokemon.nature || 'hardy';
+            const natureModifier = this.getNatureModifier(nature, statName);
+            
+            return Math.floor(stat * natureModifier);
+        }
+    }
 
-        // Bonus/malus de nature (simplifié, à implémenter plus tard)
-        return stat;
+    /**
+     * Retourne le modificateur de nature pour une stat donnée
+     * @param {string} nature - Nature du Pokémon
+     * @param {string} statName - Nom de la stat (attack, defense, sp_attack, sp_defense, speed)
+     * @returns {number} - 1.1 (bonus), 0.9 (malus), ou 1.0 (neutre)
+     */
+    getNatureModifier(nature, statName) {
+        const natureTable = {
+            // Natures neutres (5)
+            hardy: {}, bashful: {}, docile: {}, quirky: {}, serious: {},
+            
+            // Attack+ (4)
+            lonely: { attack: 1.1, defense: 0.9 },
+            brave: { attack: 1.1, speed: 0.9 },
+            adamant: { attack: 1.1, sp_attack: 0.9 },
+            naughty: { attack: 1.1, sp_defense: 0.9 },
+            
+            // Defense+ (4)
+            bold: { defense: 1.1, attack: 0.9 },
+            relaxed: { defense: 1.1, speed: 0.9 },
+            impish: { defense: 1.1, sp_attack: 0.9 },
+            lax: { defense: 1.1, sp_defense: 0.9 },
+            
+            // Speed+ (4)
+            timid: { speed: 1.1, attack: 0.9 },
+            hasty: { speed: 1.1, defense: 0.9 },
+            jolly: { speed: 1.1, sp_attack: 0.9 },
+            naive: { speed: 1.1, sp_defense: 0.9 },
+            
+            // Sp.Attack+ (4)
+            modest: { sp_attack: 1.1, attack: 0.9 },
+            mild: { sp_attack: 1.1, defense: 0.9 },
+            quiet: { sp_attack: 1.1, speed: 0.9 },
+            rash: { sp_attack: 1.1, sp_defense: 0.9 },
+            
+            // Sp.Defense+ (4)
+            calm: { sp_defense: 1.1, attack: 0.9 },
+            gentle: { sp_defense: 1.1, defense: 0.9 },
+            sassy: { sp_defense: 1.1, speed: 0.9 },
+            careful: { sp_defense: 1.1, sp_attack: 0.9 }
+        };
+
+        const natureMods = natureTable[nature.toLowerCase()] || {};
+        return natureMods[statName] || 1.0;
     }
 
     /**
@@ -168,6 +229,28 @@ class PokemonBattleLogicManager {
      * @returns {Object} - Résultat du tour (dégâts, effets, messages)
      */
     processTurn(attacker, defender, move, attackerSide) {
+        // 🆕 VÉRIFIER SI L'ATTAQUANT EST K.O. AVANT D'AGIR
+        if (attacker.currentHP <= 0) {
+            return {
+                attacker: attacker.nickname || attacker.speciesData?.name,
+                defender: defender.nickname || defender.speciesData?.name,
+                move: move.name,
+                damage: 0,
+                effectiveness: 1.0,
+                critical: false,
+                missed: true,
+                defenderHP: defender.currentHP,
+                defenderKO: false,
+                message: `${attacker.nickname || attacker.speciesData?.name} est K.O. et ne peut pas attaquer!`,
+                statusEffects: null
+            };
+        }
+        
+        // 🆕 Tracker les participants (seulement côté joueur)
+        if (attackerSide === 'player' && attacker._id) {
+            this.participants.add(attacker._id.toString());
+        }
+        
         const result = {
             attacker: attacker.nickname || attacker.speciesData?.name,
             defender: defender.nickname || defender.speciesData?.name,
@@ -178,13 +261,18 @@ class PokemonBattleLogicManager {
             missed: false,
             defenderHP: defender.currentHP,
             defenderKO: false,
-            message: ''
+            message: '',
+            statusEffects: null // 🆕 Effets de statut appliqués
         };
 
-        // Vérifier statut (paralysie, sommeil, etc.)
-        if (this.checkStatusPreventAction(attacker, attackerSide)) {
+        // 🆕 Appliquer effets de statut au début du tour
+        const statusEffect = this.applyStatusEffects(attacker);
+        result.statusEffects = statusEffect;
+
+        // Si le statut empêche d'agir, skip le tour
+        if (!statusEffect.canAct) {
             result.missed = true;
-            result.message = `${result.attacker} ne peut pas attaquer!`;
+            result.message = statusEffect.message;
             return result;
         }
 
@@ -418,6 +506,214 @@ class PokemonBattleLogicManager {
         }
 
         this.addToBattleLog(`${newPokemon.nickname || newPokemon.speciesData?.name} entre en combat!`);
+    }
+
+    /**
+     * Calcule l'XP gagné après victoire (formule Gen 1-5)
+     * @param {Object} defeatedPokemon - Pokémon vaincu
+     * @param {Array} participants - Liste des Pokémon ayant participé au combat
+     * @param {string} currentTrainerId - ID du dresseur actuel
+     * @returns {Array} - [{pokemonId, xpGained, isTraded, heldItem}, ...]
+     */
+    calculateExperienceGain(defeatedPokemon, participants, currentTrainerId) {
+        const baseXP = defeatedPokemon.speciesData?.base_experience || 100;
+        const level = defeatedPokemon.level;
+        
+        // 🆕 Filtrer les Pokémon K.O. - ils ne gagnent pas d'XP
+        const aliveParticipants = participants.filter(p => p.currentHP > 0);
+        const participantCount = aliveParticipants.length;
+        
+        console.log(`[BattleLogic] Calcul XP pour ${aliveParticipants.length}/${participants.length} participants vivants`);
+
+        const xpResults = [];
+
+        for (const pokemon of aliveParticipants) {
+            // Facteur "traded" (a)
+            const isTraded = pokemon.originalTrainer && pokemon.originalTrainer !== currentTrainerId;
+            const tradedMultiplier = isTraded ? 1.5 : 1.0;
+
+            // Facteur Lucky Egg (e)
+            const hasLuckyEgg = pokemon.heldItem === 'lucky-egg';
+            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 1.0;
+
+            // Calcul de base
+            let xpGained = Math.floor((tradedMultiplier * baseXP * level) / (7 * participantCount));
+
+            // Appliquer Lucky Egg
+            xpGained = Math.floor(xpGained * luckyEggMultiplier);
+
+            xpResults.push({
+                pokemonId: pokemon._id,
+                pokemonName: pokemon.nickname || pokemon.species_name,
+                xpGained: xpGained,
+                isTraded: isTraded,
+                hasLuckyEgg: hasLuckyEgg,
+                currentLevel: pokemon.level,
+                currentXP: pokemon.experience
+            });
+
+            console.log(`  - ${pokemon.nickname || pokemon.species_name}: +${xpGained} XP (traded: ${isTraded}, lucky egg: ${hasLuckyEgg})`);
+        }
+
+        return xpResults;
+    }
+
+    /**
+     * Applique les effets de statut au début du tour
+     * @param {Object} pokemon - Pokémon affecté
+     * @returns {Object} - { canAct: boolean, damage: number, message: string }
+     */
+    applyStatusEffects(pokemon) {
+        const result = { canAct: true, damage: 0, message: '' };
+
+        if (!pokemon.statusCondition || !pokemon.statusCondition.type) {
+            return result;
+        }
+
+        const status = pokemon.statusCondition.type;
+
+        switch (status) {
+            case 'poison':
+                // Poison: 1/8 HP de dégâts par tour
+                result.damage = Math.max(1, Math.floor(pokemon.maxHP / 8));
+                pokemon.currentHP = Math.max(0, pokemon.currentHP - result.damage);
+                result.message = `${pokemon.nickname || pokemon.species_name} souffre du poison! (-${result.damage} PV)`;
+                this.addToBattleLog(result.message);
+                break;
+
+            case 'burn':
+                // Brûlure: 1/16 HP de dégâts par tour + attaque réduite
+                result.damage = Math.max(1, Math.floor(pokemon.maxHP / 16));
+                pokemon.currentHP = Math.max(0, pokemon.currentHP - result.damage);
+                result.message = `${pokemon.nickname || pokemon.species_name} souffre de sa brûlure! (-${result.damage} PV)`;
+                this.addToBattleLog(result.message);
+                break;
+
+            case 'paralysis':
+                // Paralysie: 25% de chance de ne pas agir
+                if (Math.random() < 0.25) {
+                    result.canAct = false;
+                    result.message = `${pokemon.nickname || pokemon.species_name} est paralysé! Il ne peut pas attaquer!`;
+                    this.addToBattleLog(result.message);
+                }
+                break;
+
+            case 'sleep':
+                // Sommeil: ne peut pas agir, compteur diminue
+                if (pokemon.statusCondition.turns > 0) {
+                    pokemon.statusCondition.turns--;
+                    result.canAct = false;
+                    result.message = `${pokemon.nickname || pokemon.species_name} dort profondément...`;
+                    this.addToBattleLog(result.message);
+
+                    if (pokemon.statusCondition.turns === 0) {
+                        pokemon.statusCondition.type = null;
+                        this.addToBattleLog(`${pokemon.nickname || pokemon.species_name} se réveille!`);
+                    }
+                } else {
+                    // Guérison automatique
+                    pokemon.statusCondition.type = null;
+                }
+                break;
+
+            case 'freeze':
+                // Gel: ne peut pas agir, 20% de chance de dégel
+                if (Math.random() < 0.20) {
+                    pokemon.statusCondition.type = null;
+                    result.message = `${pokemon.nickname || pokemon.species_name} a dégelé!`;
+                    this.addToBattleLog(result.message);
+                } else {
+                    result.canAct = false;
+                    result.message = `${pokemon.nickname || pokemon.species_name} est gelé! Il ne peut pas attaquer!`;
+                    this.addToBattleLog(result.message);
+                }
+                break;
+        }
+
+        return result;
+    }
+
+    /**
+     * Applique un statut à un Pokémon (via move de statut)
+     * @param {Object} pokemon - Pokémon cible
+     * @param {string} statusType - Type de statut (poison, burn, paralysis, sleep, freeze)
+     * @returns {boolean} - Succès de l'application
+     */
+    applyStatusCondition(pokemon, statusType) {
+        // Ne peut pas avoir plusieurs statuts en même temps
+        if (pokemon.statusCondition && pokemon.statusCondition.type) {
+            this.addToBattleLog(`${pokemon.nickname || pokemon.species_name} est déjà affecté par un statut!`);
+            return false;
+        }
+
+        // TODO: Vérifier immunités de type (ex: Poison sur type Poison)
+
+        pokemon.statusCondition = {
+            type: statusType,
+            turns: statusType === 'sleep' ? (1 + Math.floor(Math.random() * 3)) : 0 // Sleep: 1-3 tours
+        };
+
+        const messages = {
+            poison: 'est empoisonné!',
+            burn: 'est brûlé!',
+            paralysis: 'est paralysé!',
+            sleep: 's\'endort profondément!',
+            freeze: 'est gelé!'
+        };
+
+        this.addToBattleLog(`${pokemon.nickname || pokemon.species_name} ${messages[statusType]}`);
+        return true;
+    }
+
+    /**
+     * Calcule le taux de capture (formule Gen 1-5)
+     * @param {Object} pokemon - Pokémon sauvage à capturer
+     * @param {number} ballRate - Multiplicateur de la ball (1.0 = Poké Ball, 1.5 = Great Ball, 2.0 = Ultra Ball)
+     * @returns {Object} - { captured: boolean, shakes: number }
+     */
+    calculateCapture(pokemon, ballRate = 1.0) {
+        console.log('[Capture] Calcul pour', pokemon.species_name, 'avec ball rate', ballRate);
+
+        // Formule Gen 1-5:
+        // a = ((3 × MaxHP - 2 × CurrentHP) × CatchRate × BallRate × StatusBonus) / (3 × MaxHP)
+        // Puis 4 checks: si rand(0-255) < a, success shake, sinon break
+
+        const maxHP = pokemon.maxHP;
+        const currentHP = pokemon.currentHP;
+        const catchRate = pokemon.speciesData?.capture_rate || 45; // Défaut moyen si pas de data
+
+        // Bonus de statut
+        let statusBonus = 1.0;
+        if (pokemon.statusCondition?.type) {
+            const status = pokemon.statusCondition.type;
+            if (status === 'sleep' || status === 'freeze') {
+                statusBonus = 2.0;
+            } else if (status === 'poison' || status === 'burn' || status === 'paralysis') {
+                statusBonus = 1.5;
+            }
+        }
+
+        // Calcul du taux modifié
+        const a = Math.floor(((3 * maxHP - 2 * currentHP) * catchRate * ballRate * statusBonus) / (3 * maxHP));
+
+        console.log(`  HP: ${currentHP}/${maxHP}, CatchRate: ${catchRate}, StatusBonus: ${statusBonus}, a: ${a}`);
+
+        // 4 secousses (checks)
+        let shakes = 0;
+        for (let i = 0; i < 4; i++) {
+            const rand = Math.floor(Math.random() * 256);
+            if (rand < a) {
+                shakes++;
+            } else {
+                break; // Échappe
+            }
+        }
+
+        const captured = shakes === 4;
+
+        console.log(`  → ${shakes} secousse(s), ${captured ? 'CAPTURÉ' : 'ÉCHAPPÉ'}`);
+
+        return { captured, shakes, catchRate, statusBonus };
     }
 }
 

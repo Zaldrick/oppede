@@ -11,7 +11,7 @@
 
 export default class PokemonBattleManager {
     constructor() {
-        this.baseUrl = process.env.REACT_APP_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        this.baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
         this.currentBattle = null;
     }
 

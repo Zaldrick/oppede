@@ -22,6 +22,8 @@ const PhotoManager = require('./managers/PhotoManager');
 const SocketManager = require('./managers/SocketManager');
 const PokemonDatabaseManager = require('./managers/PokemonDatabaseManager');
 const PokemonBattleManager = require('./managers/PokemonBattleManager');
+const TranslationManager = require('./managers/TranslationManager');
+
 
 const PORT = process.env.BACKEND_PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -138,6 +140,11 @@ class Server {
             this.managers.pokemonBattleManager = new PokemonBattleManager(this.managers.databaseManager);
             console.log('✅ PokemonBattleManager initialisé');
 
+            // TranslationManager - traductions FR Pokémon/Moves
+            this.managers.translationManager = new TranslationManager(this.managers.databaseManager);
+            await this.managers.translationManager.initialize();
+            console.log('✅ TranslationManager initialisé');
+
         } catch (error) {
             console.error('❌ Erreur lors de l\'initialisation des managers:', error);
             throw error;
@@ -173,6 +180,11 @@ class Server {
 
         // Routes Combat Pokémon
         this.managers.pokemonBattleManager.setupRoutes(this.app);
+
+        // Routes Traductions
+        this.managers.translationManager.setupRoutes(this.app);
+
+
 
         // Routes gérées par les managers
         this.managers.databaseManager.setupRoutes(this.app);

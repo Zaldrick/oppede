@@ -28,6 +28,8 @@ export class PokemonTeamScene extends Phaser.Scene {
         console.log('[PokemonTeam] Initialisation avec data:', data);
         this.currentPlayer = data?.playerId;
         this.returnScene = data?.returnScene || 'GameScene';
+        this.inBattle = data?.inBattle || false; // 🆕 Flag combat
+        this.battleState = data?.battleState || null; // 🆕 State combat
     }
 
     preload() {
@@ -82,6 +84,9 @@ export class PokemonTeamScene extends Phaser.Scene {
 
         // Bouton Combat Sauvage (en haut à droite)
         this.createBattleButton();
+
+        // 🐛 Boutons DEBUG (en haut à droite, sous le bouton Combat)
+        this.createDebugButtons();
 
         // Instructions EN BAS (responsive)
         this.add.text(
@@ -542,10 +547,15 @@ export class PokemonTeamScene extends Phaser.Scene {
         }
 
         this.scene.start('PokemonDetailScene', {
-            pokemonId: pokemon._id,
+            pokemon: pokemon, // 🆕 Passer directement le Pokémon
             returnScene: 'PokemonTeamScene',
-            playerId: this.currentPlayer
+            playerId: this.currentPlayer,
+            inBattle: this.inBattle, // 🆕 Passer flag combat
+            battleState: this.battleState // 🆕 Passer state combat
         });
+        
+        // 🆕 Forcer DetailScene au premier plan
+        this.scene.bringToTop('PokemonDetailScene');
     }
 
     /**
@@ -596,12 +606,25 @@ export class PokemonTeamScene extends Phaser.Scene {
      * Retourne à la scène précédente
      */
     returnToScene() {
-        console.log(`[PokemonTeam] Retour à ${this.returnScene}`);
-        // Si la scène précédente est en pause, on la reprend et on arrête celle-ci
-        if (this.scene.isPaused(this.returnScene)) {
+        console.log(`[PokemonTeam] Retour à ${this.returnScene}, inBattle: ${this.inBattle}`);
+        
+        // Cas combat: résumer BattleScene et la mettre au top
+        if (this.inBattle && this.returnScene === 'PokemonBattleScene') {
             this.scene.resume(this.returnScene);
+            this.scene.bringToTop(this.returnScene);
+            this.scene.stop('PokemonTeamScene');
         }
-        this.scene.stop();
+        // Cas normal: démarrer la scène de retour
+        else if (this.scene.isPaused(this.returnScene)) {
+            this.scene.resume(this.returnScene);
+            this.scene.bringToTop(this.returnScene);
+            this.scene.stop('PokemonTeamScene');
+        } 
+        else {
+            this.scene.start(this.returnScene, { 
+                playerId: this.currentPlayer 
+            });
+        }
     }
 
     /**
@@ -629,6 +652,154 @@ export class PokemonTeamScene extends Phaser.Scene {
             fairy: 0xEE99AC
         };
         return typeColors[type.toLowerCase()] || 0x888888;
+    }
+
+    /**
+     * 🐛 Crée les boutons DEBUG (mode développeur)
+     */
+    createDebugButtons() {
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        
+        const buttonWidth = width * 0.25;
+        const buttonHeight = height * 0.045;
+        const x = width * 0.85;
+        
+        // Bouton 1: Supprimer tous les Pokémon
+        const y1 = height * 0.78; // Sous le bouton Combat Sauvage
+        
+        const deleteButton = this.add.rectangle(x, y1, buttonWidth, buttonHeight, 0x95A5A6);
+        deleteButton.setInteractive({ useHandCursor: true });
+
+        const deleteText = this.add.text(x, y1, '🗑️ Supprimer Tous', {
+            fontSize: `${Math.min(width, height) * 0.028}px`,
+            fill: '#FFFFFF',
+            fontWeight: 'bold'
+        }).setOrigin(0.5);
+
+        deleteButton.on('pointerdown', () => this.debugDeleteAll());
+        deleteButton.on('pointerover', () => {
+            deleteButton.setFillStyle(0x7F8C8D);
+            this.tweens.add({ targets: deleteButton, scaleX: 1.05, scaleY: 1.05, duration: 100 });
+        });
+        deleteButton.on('pointerout', () => {
+            deleteButton.setFillStyle(0x95A5A6);
+            this.tweens.add({ targets: deleteButton, scaleX: 1.0, scaleY: 1.0, duration: 100 });
+        });
+
+        // Bouton 2: Ajouter Pokémon par ID
+        const y2 = height * 0.86;
+        
+        const addButton = this.add.rectangle(x, y2, buttonWidth, buttonHeight, 0x3498DB);
+        addButton.setInteractive({ useHandCursor: true });
+
+        const addText = this.add.text(x, y2, '➕ Ajouter Pokémon', {
+            fontSize: `${Math.min(width, height) * 0.028}px`,
+            fill: '#FFFFFF',
+            fontWeight: 'bold'
+        }).setOrigin(0.5);
+
+        addButton.on('pointerdown', () => this.debugAddPokemon());
+        addButton.on('pointerover', () => {
+            addButton.setFillStyle(0x2980B9);
+            this.tweens.add({ targets: addButton, scaleX: 1.05, scaleY: 1.05, duration: 100 });
+        });
+        addButton.on('pointerout', () => {
+            addButton.setFillStyle(0x3498DB);
+            this.tweens.add({ targets: addButton, scaleX: 1.0, scaleY: 1.0, duration: 100 });
+        });
+    }
+
+    /**
+     * 🐛 DEBUG: Supprime tous les Pokémon du joueur
+     */
+    async debugDeleteAll() {
+        const confirmDelete = window.confirm('⚠️ Supprimer TOUS vos Pokémon ?\n\nCette action est irréversible !');
+        
+        if (!confirmDelete) return;
+
+        try {
+            console.log('[DEBUG] Suppression de tous les Pokémon...');
+            
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${apiUrl}/api/pokemon/debug/clear/${this.currentPlayer}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                alert(`✅ ${data.deletedCount} Pokémon supprimé(s) !`);
+                // Recharger la scène
+                this.scene.restart({ playerId: this.currentPlayer });
+            } else {
+                alert(`❌ Erreur: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('[DEBUG] Erreur suppression:', error);
+            alert('❌ Erreur lors de la suppression');
+        }
+    }
+
+    /**
+     * 🐛 DEBUG: Ajoute un Pokémon par ID depuis PokeAPI
+     */
+    async debugAddPokemon() {
+        const pokemonId = window.prompt('🔍 Entrez l\'ID du Pokémon à créer (1-1025) :\n\nExemples:\n- 1 = Bulbasaur\n- 4 = Charmander\n- 7 = Squirtle\n- 25 = Pikachu\n- 129 = Magikarp\n- 151 = Mew');
+        
+        if (!pokemonId) return;
+
+        const id = parseInt(pokemonId);
+        if (isNaN(id) || id < 1 || id > 1025) {
+            alert('❌ ID invalide ! Doit être entre 1 et 1025.');
+            return;
+        }
+
+        try {
+            console.log(`[DEBUG] Création Pokémon ID ${id}...`);
+            
+            // Afficher un message de chargement
+            const loadingText = this.add.text(
+                this.cameras.main.centerX,
+                this.cameras.main.centerY,
+                '⏳ Création en cours...\n(appel à PokeAPI)',
+                {
+                    fontSize: '32px',
+                    fill: '#FFD700',
+                    fontWeight: 'bold',
+                    align: 'center',
+                    backgroundColor: '#000000',
+                    padding: { x: 20, y: 10 }
+                }
+            ).setOrigin(0.5).setDepth(1000);
+
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${apiUrl}/api/pokemon/debug/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playerId: this.currentPlayer,
+                    speciesId: id
+                })
+            });
+
+            const data = await response.json();
+            loadingText.destroy();
+
+            if (data.success) {
+                const pokemon = data.pokemon;
+                const moves = pokemon.moveset.map(m => m.name).join(', ');
+                alert(`✅ ${pokemon.nickname} (ID ${id}) créé !\n\nNiveau: ${pokemon.level}\nHP: ${pokemon.maxHP}\nMoves: ${moves || 'aucun'}`);
+                
+                // Recharger la scène
+                this.scene.restart({ playerId: this.currentPlayer });
+            } else {
+                alert(`❌ Erreur: ${data.error}`);
+            }
+        } catch (error) {
+            console.error('[DEBUG] Erreur création:', error);
+            alert('❌ Erreur lors de la création du Pokémon');
+        }
     }
 
     update() {
