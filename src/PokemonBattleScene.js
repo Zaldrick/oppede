@@ -16,6 +16,13 @@ import PokemonBattleManager from './managers/PokemonBattleManager';
 import SpriteLoader from './utils/spriteLoader';
 import { getTypeEffectiveness, getEffectivenessMessage } from './utils/typeEffectiveness';
 
+// Battle Managers (refactoring modulaire)
+import BattleUIManager from './battle/BattleUIManager';
+import BattleMenuManager from './battle/BattleMenuManager';
+import BattleAnimationManager from './battle/BattleAnimationManager';
+import BattleSpriteManager from './battle/BattleSpriteManager';
+import BattleTurnManager from './battle/BattleTurnManager';
+
 export class PokemonBattleScene extends Phaser.Scene {
     constructor() {
         super('PokemonBattleScene');
@@ -34,8 +41,15 @@ export class PokemonBattleScene extends Phaser.Scene {
         // Animation state
         this.turnInProgress = false;
         
-        // 🆕 Cache traductions FR (moves)
+        // Cache traductions FR (moves)
         this.translationsCache = {};
+        
+        // ✅ Battle Managers (refactoring modulaire)
+        this.uiManager = null;
+        this.menuManager = null;
+        this.animManager = null;
+        this.spriteManager = null;
+        this.turnManager = null;
     }
 
     init(data) {
@@ -66,6 +80,20 @@ export class PokemonBattleScene extends Phaser.Scene {
         if (!this.battleManager) {
             this.battleManager = new PokemonBattleManager();
         }
+
+        // ✅ Initialiser les managers modulaires (refactoring)
+        this.uiManager = new BattleUIManager(this);
+        this.menuManager = new BattleMenuManager(this);
+        this.animManager = new BattleAnimationManager(this);
+        this.spriteManager = new BattleSpriteManager(this);
+        this.turnManager = new BattleTurnManager(this);
+        console.log('[BattleScene] Managers initialisés:', {
+            uiManager: !!this.uiManager,
+            menuManager: !!this.menuManager,
+            animManager: !!this.animManager,
+            spriteManager: !!this.spriteManager,
+            turnManager: !!this.turnManager
+        });
 
         try {
             // Démarrer le combat (pendant le spiral)
@@ -116,7 +144,8 @@ export class PokemonBattleScene extends Phaser.Scene {
                 });
             }
 
-            await this.wait(200);            // Créer l'UI avec animations progressives
+            await this.wait(200);
+            // Créer l'UI avec animations progressives
             await this.createBattleUI(width, height);
 
         } catch (error) {
@@ -269,23 +298,29 @@ export class PokemonBattleScene extends Phaser.Scene {
      * Crée l'interface de combat style Pokémon authentique
      */
     async createBattleUI(width, height) {
-        console.log('[BattleScene] Création UI');
+        console.log('[BattleScene] Création UI (via managers)');
 
         // Zone adversaire (haut gauche) - sera glissée depuis la gauche
-        await this.createOpponentUI(width, height);
+        await this.uiManager.createOpponentUI(width, height);
+        
+        // 🆕 Créer sprite adversaire
+        await this.spriteManager.createOpponentSprite(width, height);
 
         // Zone joueur (bas droite) - sera glissée depuis la droite
-        await this.createPlayerUI(width, height);
+        await this.uiManager.createPlayerUI(width, height);
+        
+        // 🆕 Créer sprite joueur
+        await this.spriteManager.createPlayerSprite(width, height);
 
         // Menu principal (bas) - apparition en fondu
-        this.createMainMenu(width, height);
+        this.uiManager.createMainMenu(width, height);
         
         // Cacher le menu au début
         this.mainMenuBg.setAlpha(0);
         this.mainMenuButtons.forEach(btn => btn.setAlpha(0));
 
         // Animation de glissement + apparitions progressives
-        await this.playUIEntryAnimations(width, height);
+        await this.animManager.playUIEntryAnimations(width, height);
     }
 
     /**
@@ -301,7 +336,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         const container = this.add.graphics();
         container.setName('opponentContainer');
         container.setAlpha(0); // Caché au début
-        container.setDepth(8); // Devant le sprite (depth: 10) pour que la box cache les gros sprites
+        //container.setDepth(8); // Devant le sprite (depth: 10) pour que la box cache les gros sprites
         
         // Ombre portée (décalée)
         container.fillStyle(0x000000, 0.15);
@@ -404,7 +439,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             hpBarHeight - 4,
             4
         );
-        hpBarFill.setAlpha(0); // Caché au début
+        hpBarFill.setAlpha(0).setDepth(3); // Caché au début
         
         this.opponentHPBar = hpBarFill;
         this.opponentHPBarProps = { x: hpBarX, y: hpBarY, width: hpBarWidth, height: hpBarHeight, maxHP: opponent.maxHP };
@@ -425,7 +460,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                     opponentSpriteY,
                     spriteUrl,
                     opponent.name.substring(0, 2),
-                    3.5
+                    2.5
                 );
                 
                 if (sprite) {
@@ -453,15 +488,16 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     async createPlayerUI(width, height) {
         const boxX = width * 0.50;
-        const boxY = height * 0.42;
+        const boxY = height * 0.44;
         const boxWidth = width * 0.47;
         const boxHeight = height * 0.12;
 
         // Container avec ombre portée et dégradé
         const container = this.add.graphics();
+        container.setDepth(2);
         container.setName('playerContainer');
         container.setAlpha(0); // Caché au début
-        container.setDepth(8); // Devant le sprite joueur (depth: 10) pour que la box cache les gros sprites
+        //container.setDepth(8); // Devant le sprite joueur (depth: 10) pour que la box cache les gros sprites
         
         // Ombre portée
         container.fillStyle(0x000000, 0.15);
@@ -512,7 +548,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fill: '#2C3E50',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0); // Caché au début
+        }).setOrigin(0.5).setAlpha(0).setDepth(3); // Caché au début
         
         // Texte niveau - police agrandie (avec fallback si level manquant)
         const displayLevel = player.level || 1;
@@ -521,7 +557,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fill: '#FFFFFF',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0); // Caché au début
+        }).setOrigin(0.5).setAlpha(0).setDepth(3); // Caché au début
 
         // Nom du Pokémon avec ombre
         const nameText = this.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.25, player.name.toUpperCase(), {
@@ -531,7 +567,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fontFamily: 'Arial',
             stroke: '#FFFFFF',
             strokeThickness: 1
-        }).setOrigin(0, 0.5).setAlpha(0); // Caché au début
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3); // Caché au début
 
         // Label "PS:" avec icône cœur - agrandi
         const psLabel = this.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.60, '♥', {
@@ -539,7 +575,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fill: '#E74C3C',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0, 0.5).setAlpha(0); // Caché au début
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3); // Caché au début
 
         // Barre HP (avec fond 3D et brillance)
         const hpBarX = boxX + boxWidth * 0.14;
@@ -579,7 +615,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             hpBarHeight - 4,
             4
         );
-        hpBarFill.setAlpha(0); // Caché au début
+        hpBarFill.setAlpha(0).setDepth(3); // Caché au début
         
         this.playerHPBar = hpBarFill;
         this.playerHPBarProps = { x: hpBarX, y: hpBarY, width: hpBarWidth, height: hpBarHeight, maxHP: player.maxHP };
@@ -590,7 +626,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fill: '#2C3E50',
             fontFamily: 'Arial',
             fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setAlpha(0); // Caché au début
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3); // Caché au début
 
         // ========== BARRE D'XP (sous la barre HP) ==========
         const xpBarX = boxX + boxWidth * 0.06;
@@ -604,7 +640,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fill: '#7F8C8D',
             fontFamily: 'Arial',
             fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setAlpha(0);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3); // Caché au début
 
         // Fond de la barre XP (gris clair)
         container.fillStyle(0xBDC3C7, 1);
@@ -641,7 +677,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             xpBarHeight - 2,
             3
         );
-        xpBarFill.setAlpha(0);
+        xpBarFill.setAlpha(0).setDepth(3); // Caché au début
 
         this.playerXPBar = xpBarFill;
         this.playerXPBarProps = {
@@ -669,13 +705,13 @@ export class PokemonBattleScene extends Phaser.Scene {
                     playerSpriteY,
                     spriteUrl,
                     player.name.substring(0, 2),
-                    3.8
+                    3
                 );
                 
                 if (sprite) {
                     this.playerSprite = sprite;
                     sprite.setAlpha(0);
-                    sprite.setDepth(5); // Derrière la box UI (depth: 8)
+                    sprite.setDepth(1); 
                     
                     // Ombre SOUS le sprite (créée après pour avoir la bonne position)
                     const shadow = this.add.graphics();
@@ -764,9 +800,9 @@ export class PokemonBattleScene extends Phaser.Scene {
         const buttonSpacing = menuWidth * 0.04;
 
         const buttons = [
-            { label: 'COMBATTRE', x: 0, y: 0, color: 0xE74C3C, action: () => this.showMoveSelector() },
-            { label: 'SAC', x: 1, y: 0, color: 0x3498DB, action: () => this.showBagMenuPlaceholder() },
-            { label: 'POKÉMON', x: 0, y: 1, color: 0x2ECC71, action: () => this.showPokemonMenu() },
+            { label: 'COMBATTRE', x: 0, y: 0, color: 0xE74C3C, action: () => this.menuManager.showMoveSelector() },
+            { label: 'SAC', x: 1, y: 0, color: 0x3498DB, action: () => this.menuManager.showBagMenu() },
+            { label: 'POKÉMON', x: 0, y: 1, color: 0x2ECC71, action: () => this.menuManager.showPokemonMenu() },
             { label: 'FUIR', x: 1, y: 1, color: 0x95A5A6, action: () => this.flee() }
         ];
 
@@ -878,7 +914,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
         
         // Recréer avec le moveset actuel
-        await this.createMoveSelector();
+        await this.uiManager.createMoveSelector();
         
         // Afficher les moves
         this.moveButtons.forEach(btn => btn.setVisible(true));
@@ -1001,7 +1037,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                 alpha: 0.7,
                 duration: 50,
                 yoyo: true,
-                onComplete: () => this.hideMoveSelector()
+                onComplete: () => this.menuManager.hideMoveSelector()
             });
         });
 
@@ -1150,7 +1186,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                     alpha: 0.7,
                     duration: 50,
                     yoyo: true,
-                    onComplete: () => this.selectMove(move.name)
+                    onComplete: () => this.turnManager.selectMove(move.name)
                 });
             }
         });
@@ -1311,7 +1347,14 @@ export class PokemonBattleScene extends Phaser.Scene {
         const newPokemon = this.battleState.playerTeam[newIndex];
         const oldPokemon = this.battleState.playerActive;
         
-        console.log('[BattleScene] Switch Pokemon:', { newIndex, newPokemon, oldPokemon });
+        console.log('[BattleScene] Switch Pokemon:', { 
+            newIndex, 
+            newPokemon: newPokemon?.name, 
+            newPokemonId: newPokemon?._id,
+            oldPokemon: oldPokemon?.name,
+            playerTeamLength: this.battleState.playerTeam.length,
+            playerTeam: this.battleState.playerTeam.map((p, i) => ({ index: i, name: p.name, id: p._id }))
+        });
         
         // Vérifier que les Pokémon existent
         if (!newPokemon) {
@@ -1479,7 +1522,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
         
         const boxX = width * 0.50;
-        const boxY = height * 0.42;
+        const boxY = height * 0.45;
         const boxWidth = width * 0.47;
         const boxHeight = height * 0.12;
         
@@ -1489,7 +1532,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         
         container = this.add.graphics({ x: 0, y: 0 });
         container.setName('playerContainer');
-        container.setDepth(8); // Devant le sprite joueur (depth: 10 pour textes restent visibles)
+        container.setDepth(5); // Devant le sprite joueur (depth: 10 pour textes restent visibles)
         
         // ✅ Recréer fond de la box
         // Ombre de la box
@@ -1592,7 +1635,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             hpBarHeight - 4,
             4
         );
-        hpBarFill.setDepth(10); // ✅ Visible au-dessus du container
+        hpBarFill.setDepth(3); // ✅ Visible au-dessus du container
         this.playerHPBar = hpBarFill;
         
         this.playerHPText = this.add.text(boxX + boxWidth * 0.74, boxY + boxHeight * 0.60, `${pokemon.currentHP}/${pokemon.maxHP}`, {
@@ -1716,7 +1759,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
 
         // Animation attaque
-        await this.animateAttack(this.opponentSprite, this.playerSprite, { 
+        await this.animManager.animateAttack(this.opponentSprite, this.playerSprite, { 
             move: opponentMove.name, 
             damage: damage,
             effectiveness: effectiveness
@@ -1732,7 +1775,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
         
         // Animer barre HP
-        await this.animateHPDrain(
+        await this.animManager.animateHPDrain(
             this.playerHPBar, 
             this.playerHPText, 
             this.battleState.playerActive.currentHP, 
@@ -1750,7 +1793,7 @@ export class PokemonBattleScene extends Phaser.Scene {
 
         // Vérifier KO
         if (this.battleState.playerActive.currentHP <= 0) {
-            await this.animateKO(this.playerSprite, 'playerContainer', false);
+            await this.animManager.animateKO(this.playerSprite, 'playerContainer', false);
             this.showDialog(`${this.battleState.playerActive.name} est K.O. !`);
             await this.wait(1500);
             
@@ -1949,7 +1992,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                             
                             // Animer barre XP si c'est le Pokémon actif
                             if (pokemon._id === this.battleState.playerActive._id) {
-                                await this.animateXPGain({
+                                await this.animManager.animateXPGain({
                                     currentXP: gain.oldXP || pokemon.experience - gain.xpGained,
                                     xpGained: gain.xpGained,
                                     currentLevel: pokemon.level
@@ -2044,9 +2087,9 @@ export class PokemonBattleScene extends Phaser.Scene {
     async animateTurn(result) {
         // Animation du joueur
         if (result.playerAction && !result.playerAction.missed) {
-            await this.animateAttack(this.playerSprite, this.opponentSprite, result.playerAction);
+            await this.animManager.animateAttack(this.playerSprite, this.opponentSprite, result.playerAction);
             if (result.playerAction.damage > 0) {
-                await this.animateHPDrain(this.opponentHPBar, this.opponentHPText, result.opponentHP, this.battleState.opponentActive.maxHP);
+                await this.animManager.animateHPDrain(this.opponentHPBar, this.opponentHPText, result.opponentHP, this.battleState.opponentActive.maxHP);
                 
                 // Message de dégâts
                 const effectiveness = result.playerAction.effectiveness;
@@ -2068,7 +2111,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                 
                 // Vérifier KO adversaire
                 if (result.opponentHP <= 0) {
-                    await this.animateKO(this.opponentSprite, 'opponentContainer', true);
+                    await this.animManager.animateKO(this.opponentSprite, 'opponentContainer', true);
                 }
             }
         }
@@ -2079,9 +2122,9 @@ export class PokemonBattleScene extends Phaser.Scene {
             this.showDialog(`${opponent.name} utilise ${result.opponentAction.move || 'une attaque'} !`);
             await this.wait(800);
 
-            await this.animateAttack(this.opponentSprite, this.playerSprite, result.opponentAction);
+            await this.animManager.animateAttack(this.opponentSprite, this.playerSprite, result.opponentAction);
             if (result.opponentAction.damage > 0) {
-                await this.animateHPDrain(this.playerHPBar, this.playerHPText, result.playerHP, this.battleState.playerActive.maxHP);
+                await this.animManager.animateHPDrain(this.playerHPBar, this.playerHPText, result.playerHP, this.battleState.playerActive.maxHP);
                 
                 // Message de dégâts
                 const effectiveness = result.opponentAction.effectiveness;
@@ -2100,7 +2143,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                 
                 // Vérifier KO joueur
                 if (result.playerHP <= 0) {
-                    await this.animateKO(this.playerSprite, 'playerContainer', false);
+                    await this.animManager.animateKO(this.playerSprite, 'playerContainer', false);
                 }
             }
         }
@@ -2486,7 +2529,7 @@ export class PokemonBattleScene extends Phaser.Scene {
 
             // Animer la barre XP si c'est le Pokémon actif
             if (isActivePokemon && this.playerXPBar) {
-                await this.animateXPGain(xp);
+                await this.animManager.animateXPGain(xp);
             } else {
                 await this.wait(1500);
             }

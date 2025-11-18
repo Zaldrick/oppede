@@ -65,11 +65,17 @@ class PokemonBattleLogicManager {
         // Réinitialiser les participants
         this.participants = new Set();
 
-        // Filtrer les Pokémon KO
-        const validPlayerTeam = playerTeam.filter(p => p.currentHP > 0);
-        const validOpponentTeam = opponentTeam.filter(p => p.currentHP > 0);
+        // ✅ NE PAS filtrer les Pokémon K.O. - garder l'équipe complète pour que les index correspondent
+        // Le client envoie tous les Pokémon (positions 1-6), on doit garder le même array
+        if (playerTeam.length === 0 || opponentTeam.length === 0) {
+            throw new Error('Équipe invalide: aucun Pokémon');
+        }
 
-        if (validPlayerTeam.length === 0 || validOpponentTeam.length === 0) {
+        // Vérifier qu'il y a au moins un Pokémon valide
+        const hasValidPlayer = playerTeam.some(p => p.currentHP > 0);
+        const hasValidOpponent = opponentTeam.some(p => p.currentHP > 0);
+        
+        if (!hasValidPlayer || !hasValidOpponent) {
             throw new Error('Équipe invalide: tous les Pokémon sont KO');
         }
 
@@ -86,19 +92,19 @@ class PokemonBattleLogicManager {
             return 0; // Fallback
         };
 
-        const playerActiveIndex = findFirstValidPokemon(validPlayerTeam);
-        const opponentActiveIndex = findFirstValidPokemon(validOpponentTeam);
+        const playerActiveIndex = findFirstValidPokemon(playerTeam);
+        const opponentActiveIndex = findFirstValidPokemon(opponentTeam);
 
-        const playerActive = validPlayerTeam[playerActiveIndex];
-        const opponentActive = validOpponentTeam[opponentActiveIndex];
+        const playerActive = playerTeam[playerActiveIndex];
+        const opponentActive = opponentTeam[opponentActiveIndex];
         
         // Ajouter le Pokémon actif initial aux participants
         this.participants.add(playerActive._id.toString());
 
         this.battleState = {
             battle_type: battleType,
-            player_team: validPlayerTeam,
-            opponent_team: validOpponentTeam,
+            player_team: playerTeam,
+            opponent_team: opponentTeam,
             
             player_active_index: playerActiveIndex,
             opponent_active_index: opponentActiveIndex,

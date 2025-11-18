@@ -615,8 +615,13 @@ export class PokemonDetailScene extends Phaser.Scene {
                 p => p._id.toString() === this.pokemon._id.toString()
             );
             
+            console.log('[PokemonDetail] Switch - Pokemon ID:', this.pokemon._id, 'Index trouvé:', teamIndex);
+            console.log('[PokemonDetail] PlayerTeam:', this.battleState.playerTeam.map((p, i) => ({ index: i, name: p.name, id: p._id })));
+            
             if (teamIndex !== -1 && battleScene.switchPokemon) {
                 battleScene.switchPokemon(teamIndex);
+            } else {
+                console.error('[PokemonDetail] Pokémon non trouvé dans playerTeam');
             }
         });
         
