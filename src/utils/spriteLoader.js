@@ -170,38 +170,58 @@ export class SpriteLoader {
      * @param {number} depth - Z-index (pour layer ordering)
      * @returns {Object} - { element: HTMLImageElement, container: HTMLDivElement }
      */
-    static displayAnimatedGif(scene, x, y, gifUrl, width, height, depth = 1) {
-        // Créer container DOM
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.pointerEvents = 'none';
-        container.style.zIndex = depth.toString();
-        container.style.imageRendering = 'pixelated';
-        
-        // Créer image GIF
-        const img = document.createElement('img');
-        img.src = gifUrl;
-        img.style.width = `${width}px`;
-        img.style.height = `${height}px`;
-        img.style.imageRendering = 'pixelated';
-        img.crossOrigin = 'anonymous';
-        
-        container.appendChild(img);
-        
-        // Ajouter au DOM (par-dessus le canvas Phaser)
-        const gameCanvas = scene.game.canvas;
-        gameCanvas.parentElement.appendChild(container);
-        
-        // Convertir coordonnées Phaser → DOM
-        this.updateGifPosition(scene, container, x, y, width, height);
-        
-        // Stocker référence pour nettoyage
-        if (!scene.gifContainers) scene.gifContainers = [];
-        scene.gifContainers.push(container);
-        
-        console.log(`[SpriteLoader] ✅ GIF animé créé:`, gifUrl);
-        
-        return { element: img, container };
+    static async displayAnimatedGif(scene, x, y, gifUrl, targetWidth, depth = 1) {
+        return new Promise((resolve) => {
+            // Créer image GIF temporaire pour obtenir dimensions réelles
+            const tempImg = new Image();
+            tempImg.crossOrigin = 'anonymous';
+            
+            tempImg.onload = () => {
+                // Calculer dimensions finales (maintenir ratio)
+                const aspectRatio = tempImg.height / tempImg.width;
+                const finalWidth = targetWidth;
+                const finalHeight = targetWidth * aspectRatio;
+                
+                // Créer container DOM
+                const container = document.createElement('div');
+                container.style.position = 'absolute';
+                container.style.pointerEvents = 'none';
+                container.style.zIndex = depth.toString();
+                container.style.imageRendering = 'pixelated';
+                
+                // Créer image GIF définitive
+                const img = document.createElement('img');
+                img.src = gifUrl;
+                img.style.width = `${finalWidth}px`;
+                img.style.height = `${finalHeight}px`;
+                img.style.imageRendering = 'pixelated';
+                img.crossOrigin = 'anonymous';
+                
+                container.appendChild(img);
+                
+                // Ajouter au DOM (par-dessus le canvas Phaser)
+                const gameCanvas = scene.game.canvas;
+                gameCanvas.parentElement.appendChild(container);
+                
+                // Convertir coordonnées Phaser → DOM
+                this.updateGifPosition(scene, container, x, y, finalWidth, finalHeight);
+                
+                // Stocker référence pour nettoyage
+                if (!scene.gifContainers) scene.gifContainers = [];
+                scene.gifContainers.push(container);
+                
+                console.log(`[SpriteLoader] ✅ GIF animé créé: ${finalWidth}x${finalHeight}px`, gifUrl);
+                
+                resolve({ element: img, container, width: finalWidth, height: finalHeight, naturalWidth: tempImg.width, naturalHeight: tempImg.height });
+            };
+            
+            tempImg.onerror = () => {
+                console.error(`[SpriteLoader] Erreur chargement GIF:`, gifUrl);
+                resolve({ element: null, container: null, width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
+            };
+            
+            tempImg.src = gifUrl;
+        });
     }
 
     /**
@@ -264,16 +284,21 @@ export class SpriteLoader {
         
         if (shouldUseGif && this.isAnimatedGif(spriteUrl)) {
             // GIF animé
-            const estimatedWidth = 96 * scale;  // Taille de base Gen V
-            const estimatedHeight = 96 * scale;
+            // 🆕 Calculer taille responsive: base sur largeur écran
+            const screenWidth = scene.scale.width;
+            const targetWidth = screenWidth * 0.12 * scale; // 12% de l'écran * multiplicateur
             
-            const gif = this.displayAnimatedGif(scene, x, y, spriteUrl, estimatedWidth, estimatedHeight, depth);
+            const gif = await this.displayAnimatedGif(scene, x, y, spriteUrl, targetWidth, depth);
             
             return {
                 type: 'gif',
                 sprite: null,
                 gifContainer: gif.container,
                 gifElement: gif.element,
+                displayWidth: gif.width,
+                displayHeight: gif.height,
+                naturalWidth: gif.naturalWidth,
+                naturalHeight: gif.naturalHeight,
                 x, y, scale, depth
             };
         } else {
@@ -289,6 +314,8 @@ export class SpriteLoader {
                 sprite: sprite,
                 gifContainer: null,
                 gifElement: null,
+                displayWidth: sprite?.displayWidth || 0,
+                displayHeight: sprite?.displayHeight || 0,
                 x, y, scale, depth
             };
         }

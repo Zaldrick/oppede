@@ -101,9 +101,16 @@ export default class BattleSpriteManager {
                 // Ombre (identique pour les deux)
                 const shadow = this.scene.add.graphics();
                 shadow.fillStyle(0x000000, 0.6);
-                const shadowSize = result.type === 'phaser' && result.sprite 
-                    ? { width: result.sprite.displayWidth * 0.8, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
-                    : { width: 80, height: 15, offsetY: 50 }; // Estimation pour GIF
+                
+                // 🆕 Utiliser les dimensions réelles (Phaser ou GIF)
+                const spriteWidth = result.displayWidth || 96;
+                const spriteHeight = result.displayHeight || 96;
+                const shadowSize = {
+                    width: spriteWidth * 0.8,
+                    height: spriteHeight * 0.15,
+                    offsetY: spriteHeight * 0.45
+                };
+                
                 shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
                 shadow.setDepth(0);
                 this.scene.opponentShadow = shadow;
@@ -150,9 +157,16 @@ export default class BattleSpriteManager {
                 // Ombre (identique pour les deux)
                 const shadow = this.scene.add.graphics();
                 shadow.fillStyle(0x000000, 0.6);
-                const shadowSize = result.type === 'phaser' && result.sprite 
-                    ? { width: result.sprite.displayWidth * 0.85, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
-                    : { width: 90, height: 15, offsetY: 50 }; // Estimation pour GIF
+                
+                // 🆕 Utiliser les dimensions réelles (Phaser ou GIF)
+                const spriteWidth = result.displayWidth || 96;
+                const spriteHeight = result.displayHeight || 96;
+                const shadowSize = {
+                    width: spriteWidth * 0.85,
+                    height: spriteHeight * 0.15,
+                    offsetY: spriteHeight * 0.45
+                };
+                
                 shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
                 shadow.setDepth(0);
                 this.scene.playerShadow = shadow;

@@ -84,7 +84,7 @@ class DatabaseManager {
                     return res.status(404).json({ error: 'Player not found' });
                 }
 
-                console.log(`Player data for ${pseudo} fetched from MongoDB:`, player);
+                //console.log(`Player data for ${pseudo} fetched from MongoDB:`, player);
                 res.json(player);
             } catch (error) {
                 console.error('Error fetching player data:', error);

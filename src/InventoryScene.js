@@ -15,6 +15,21 @@ export class InventoryScene extends Phaser.Scene {
         this.inBattle = data.inBattle || false; // 🆕 En combat
         this.battleState = data.battleState || null; // 🆕 État du combat
 
+        // 🆕 REFONTE: Système de catégories et pagination
+        this.currentCategory = 'general';
+        this.currentPage = 0;
+        this.itemsPerPage = 20; // Grille 5x4
+        
+        // Définition des catégories
+        this.categories = {
+            general: { name: 'Général', icon: '📦', color: 0x8B8B8B },
+            pokeballs: { name: 'Pokéballs', icon: '⚾', color: 0xE74C3C },
+            healing: { name: 'Soins', icon: '💊', color: 0x2ECC71 },
+            tm_hm: { name: 'CT/CS', icon: '💿', color: 0x3498DB },
+            cards: { name: 'Cartes', icon: '🃏', color: 0x9B59B6 },
+            key_items: { name: 'Clés', icon: '🔑', color: 0xF39C12 }
+        };
+
         // Récupère la configuration pour cette scène
         this.config = ConfigManager.getSceneConfig('Inventory', this.scale.width, this.scale.height);
     }
@@ -100,13 +115,109 @@ export class InventoryScene extends Phaser.Scene {
         console.log('[InventoryScene] Cache global mis à jour:', this.inventory.length, 'items');
     }
 
+    /**
+     * 🆕 REFONTE: Catégorise un item selon son type
+     */
+    categorizeItem(item) {
+        if (!item) return 'general';
+        
+        const itemName = (item.nom || '').toLowerCase();
+        const itemType = (item.type || '').toLowerCase();
+        
+        // Cartes Triple Triad
+        if (itemType === 'card' || itemName.includes('carte')) {
+            return 'cards';
+        }
+        
+        // Pokéballs
+        if (itemName.includes('ball') || itemName.includes('balle')) {
+            return 'pokeballs';
+        }
+        
+        // Soins
+        if (itemName.includes('potion') || itemName.includes('rappel') || 
+            itemName.includes('guérison') || itemName.includes('antidote') ||
+            itemName.includes('soin')) {
+            return 'healing';
+        }
+        
+        // CT/CS
+        if (itemName.includes('ct') || itemName.includes('cs') || 
+            itemName.includes('capsule technique')) {
+            return 'tm_hm';
+        }
+        
+        // Objets clés (à définir selon tes items)
+        if (itemType === 'key' || item.isKeyItem) {
+            return 'key_items';
+        }
+        
+        // Par défaut: Général
+        return 'general';
+    }
+
+    /**
+     * 🆕 REFONTE: Récupère les items de la catégorie courante
+     */
+    getFilteredItems() {
+        const allItems = Array.isArray(this.inventory) ? this.inventory : [];
+        
+        // Filtrer par catégorie
+        const categoryItems = allItems.filter(item => {
+            const category = this.categorizeItem(item);
+            return category === this.currentCategory;
+        });
+        
+        return categoryItems;
+    }
+
+    /**
+     * 🆕 REFONTE: Récupère les catégories disponibles (filtrage combat)
+     */
+    getAvailableCategories() {
+        if (this.inBattle) {
+            // En combat: uniquement Pokéballs et Soins
+            return ['pokeballs', 'healing'];
+        }
+        
+        // Hors combat: toutes les catégories
+        return Object.keys(this.categories);
+    }
+
+    /**
+     * 🆕 REFONTE: Change de catégorie
+     */
+    changeCategory(newCategory) {
+        if (this.currentCategory === newCategory) return;
+        
+        this.currentCategory = newCategory;
+        this.currentPage = 0; // Reset page
+        this.drawInventory();
+    }
+
+    /**
+     * 🆕 REFONTE: Change de page
+     */
+    changePage(direction) {
+        const filteredItems = this.getFilteredItems();
+        const totalPages = Math.ceil(filteredItems.length / this.itemsPerPage);
+        
+        if (direction === 'next' && this.currentPage < totalPages - 1) {
+            this.currentPage++;
+            this.drawInventory();
+        } else if (direction === 'prev' && this.currentPage > 0) {
+            this.currentPage--;
+            this.drawInventory();
+        }
+    }
+
     drawInventory() {
         // Efface tout
         this.children.removeAll();
 
         const { width, height } = this.config;
 
-        // Background avec tailles du ConfigManager
+        // Background
         this.add.rectangle(
             width / 2,
             height / 2,
@@ -116,47 +227,57 @@ export class InventoryScene extends Phaser.Scene {
             ConfigManager.UI.COLORS.BACKGROUND_ALPHA
         );
 
-        // Title avec style du ConfigManager
+        // Title
         const titleStyle = ConfigManager.getTextStyle('title', width);
-        this.add.text(width / 2, height * 0.13, "Inventaire", titleStyle).setOrigin(0.5);
+        this.add.text(width / 2, height * 0.08, "Inventaire", titleStyle).setOrigin(0.5);
 
-        // ✅ CORRECTION : Vérifier que l'inventaire est un tableau avant de filtrer
-        const filteredInventory = Array.isArray(this.inventory)
-            ? this.inventory.filter(item => item && item.type !== "card")
-            : [];
+        // 🆕 ONGLETS DE CATÉGORIES
+        this.drawCategoryTabs();
 
-        // ✅ NOUVEAU : Afficher un message si l'inventaire est vide
+        // 🆕 Récupérer les items de la catégorie courante avec pagination
+        const filteredInventory = this.getFilteredItems();
+        const startIndex = this.currentPage * this.itemsPerPage;
+        const endIndex = startIndex + this.itemsPerPage;
+        const pageItems = filteredInventory.slice(startIndex, endIndex);
+
+        // Message si vide
         if (filteredInventory.length === 0) {
             const emptyMessageStyle = ConfigManager.getTextStyle('message', width);
             this.add.text(
                 width / 2,
                 height * 0.5,
-                "Votre inventaire est vide",
+                `Aucun objet dans la catégorie ${this.categories[this.currentCategory].name}`,
                 emptyMessageStyle
             ).setOrigin(0.5);
         }
 
-        // Grid settings depuis ConfigManager
+        // Grid settings
         const { cellSize, gridCols, gridRows } = this.config;
         const startX = ConfigManager.getCenteredGridPosition(width, gridCols, cellSize);
-        const startY = height * 0.22;
+        const startY = height * 0.28; // Plus bas pour laisser place aux onglets
 
         // Container for item details
         const detailsContainer = this.add.container(width / 2, height * 0.75);
 
-        // Placeholder for large item image - utilise les vraies positions !
+        // Placeholder for large item image
         const fixedLargeImageWidth = width * ConfigManager.LAYOUT.IMAGES.LARGE_IMAGE_RATIO;
         const largeItemImage = this.add.image(width * 0.32, height * 0.64, null)
             .setOrigin(0.5)
             .setVisible(false);
 
-        // Populate grid
+        // 🆕 PAGINATION: Flèches si nécessaire
+        const totalPages = Math.ceil(filteredInventory.length / this.itemsPerPage);
+        if (totalPages > 1) {
+            this.drawPaginationControls(totalPages);
+        }
+
+        // Populate grid avec items de la page courante
         for (let row = 0; row < gridRows; row++) {
             for (let col = 0; col < gridCols; col++) {
                 const x = startX + col * cellSize;
                 const y = startY + row * cellSize;
 
-                // Cell background avec tailles du ConfigManager
+                // Cell background
                 const cellBackground = this.add.rectangle(
                     x, y,
                     cellSize * ConfigManager.LAYOUT.GRID.CELL_CONTENT_LARGE_RATIO,
@@ -166,7 +287,7 @@ export class InventoryScene extends Phaser.Scene {
                 ).setOrigin(0.5);
 
                 const index = row * gridCols + col;
-                const item = filteredInventory[index];
+                const item = pageItems[index]; // 🆕 Items de la page courante
 
                 if (item) {
                     const iconKey = `item_${item.image}`;
@@ -216,6 +337,142 @@ export class InventoryScene extends Phaser.Scene {
                 this.scene.resume(this.returnScene);
             }
         });
+    }
+
+    /**
+     * 🆕 REFONTE: Dessine les onglets de catégories
+     */
+    drawCategoryTabs() {
+        const { width, height } = this.config;
+        const availableCategories = this.getAvailableCategories();
+        const tabWidth = width * 0.12;
+        const tabHeight = height * 0.06;
+        const startX = width * 0.15;
+        const tabY = height * 0.18;
+
+        availableCategories.forEach((categoryKey, index) => {
+            const category = this.categories[categoryKey];
+            const tabX = startX + (index * tabWidth * 1.05);
+            
+            const isActive = categoryKey === this.currentCategory;
+            const bgColor = isActive ? category.color : 0x444444;
+            const alpha = isActive ? 1 : 0.7;
+
+            // Background onglet
+            const tabBg = this.add.rectangle(tabX, tabY, tabWidth, tabHeight, bgColor, alpha)
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true });
+
+            // Bordure active
+            if (isActive) {
+                const border = this.add.rectangle(tabX, tabY, tabWidth, tabHeight)
+                    .setStrokeStyle(3, 0xFFFFFF)
+                    .setOrigin(0.5);
+            }
+
+            // Icône uniquement (grande et visible)
+            const tabText = this.add.text(tabX, tabY, category.icon, {
+                fontSize: `${width * 0.045}px`,
+                align: 'center'
+            }).setOrigin(0.5);
+
+            // Interaction
+            tabBg.on('pointerdown', () => {
+                if (!isActive) {
+                    this.changeCategory(categoryKey);
+                }
+            });
+
+            // Hover effect
+            tabBg.on('pointerover', () => {
+                if (!isActive) {
+                    tabBg.setAlpha(0.9);
+                }
+            });
+
+            tabBg.on('pointerout', () => {
+                if (!isActive) {
+                    tabBg.setAlpha(0.7);
+                }
+            });
+        });
+
+        // 🆕 Indicateur combat si actif
+        if (this.inBattle) {
+            const warningText = this.add.text(width * 0.85, height * 0.18, '⚔️ Combat', {
+                fontSize: `${width * 0.025}px`,
+                fill: '#E74C3C',
+                fontWeight: 'bold',
+                stroke: '#000000',
+                strokeThickness: 2
+            }).setOrigin(0.5);
+        }
+    }
+
+    /**
+     * 🆕 REFONTE: Dessine les contrôles de pagination
+     */
+    drawPaginationControls(totalPages) {
+        const { width, height } = this.config;
+        const arrowSize = width * 0.04;
+        const arrowX = width * 0.85;
+        const upY = height * 0.38;
+        const downY = height * 0.58;
+
+        // Flèche HAUT
+        if (this.currentPage > 0) {
+            const upArrow = this.add.triangle(
+                arrowX, upY,
+                0, arrowSize,
+                arrowSize / 2, 0,
+                arrowSize, arrowSize,
+                0x3498DB
+            ).setInteractive({ useHandCursor: true });
+
+            upArrow.on('pointerdown', () => this.changePage('prev'));
+            upArrow.on('pointerover', () => upArrow.setFillStyle(0x5DADE2));
+            upArrow.on('pointerout', () => upArrow.setFillStyle(0x3498DB));
+        } else {
+            // Désactivée
+            this.add.triangle(
+                arrowX, upY,
+                0, arrowSize,
+                arrowSize / 2, 0,
+                arrowSize, arrowSize,
+                0x666666, 0.3
+            );
+        }
+
+        // Indicateur page
+        this.add.text(arrowX, height * 0.48, `${this.currentPage + 1}/${totalPages}`, {
+            fontSize: `${width * 0.022}px`,
+            fill: '#FFFFFF',
+            fontWeight: 'bold'
+        }).setOrigin(0.5);
+
+        // Flèche BAS
+        if (this.currentPage < totalPages - 1) {
+            const downArrow = this.add.triangle(
+                arrowX, downY,
+                0, 0,
+                arrowSize / 2, arrowSize,
+                arrowSize, 0,
+                0x3498DB
+            ).setInteractive({ useHandCursor: true });
+
+            downArrow.on('pointerdown', () => this.changePage('next'));
+            downArrow.on('pointerover', () => downArrow.setFillStyle(0x5DADE2));
+            downArrow.on('pointerout', () => downArrow.setFillStyle(0x3498DB));
+        } else {
+            // Désactivée
+            this.add.triangle(
+                arrowX, downY,
+                0, 0,
+                arrowSize / 2, arrowSize,
+                arrowSize, 0,
+                0x666666, 0.3
+            );
+        }
     }
 
     handleItemSelection(item, cellBackground, detailsContainer, largeItemImage, fixedLargeImageWidth) {

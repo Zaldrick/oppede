@@ -121,21 +121,37 @@ export default class BattleAnimationManager {
         
         await this.scene.wait(100);
         
-        // Sprite adversaire
-        if (this.scene.opponentSprite) {
-            const originalX = this.scene.opponentSprite.x;
-            this.scene.opponentSprite.x = -width * 0.3;
-            this.scene.opponentSprite.setAlpha(1);
-            
-            await new Promise(resolve => {
-                this.scene.tweens.add({
-                    targets: this.scene.opponentSprite,
-                    x: originalX,
-                    duration: 600,
-                    ease: 'Back.easeOut',
-                    onComplete: resolve
+        // Sprite adversaire (Phaser ou GIF)
+        if (this.scene.opponentSpriteData) {
+            if (this.scene.opponentSpriteData.type === 'phaser' && this.scene.opponentSprite) {
+                const originalX = this.scene.opponentSprite.x;
+                this.scene.opponentSprite.x = -width * 0.3;
+                this.scene.opponentSprite.setAlpha(1);
+                
+                await new Promise(resolve => {
+                    this.scene.tweens.add({
+                        targets: this.scene.opponentSprite,
+                        x: originalX,
+                        duration: 600,
+                        ease: 'Back.easeOut',
+                        onComplete: resolve
+                    });
                 });
-            });
+            } else if (this.scene.opponentSpriteData.type === 'gif' && this.scene.opponentGifContainer) {
+                // Animation GIF via CSS
+                const container = this.scene.opponentGifContainer;
+                const originalX = parseFloat(container.style.left);
+                container.style.left = `${-width * 0.3}px`;
+                container.style.opacity = '1';
+                container.style.transition = 'left 600ms cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                
+                await new Promise(resolve => {
+                    setTimeout(() => {
+                        container.style.left = `${originalX}px`;
+                        setTimeout(resolve, 600);
+                    }, 50);
+                });
+            }
         }
         
         await this.scene.wait(200);
@@ -155,21 +171,37 @@ export default class BattleAnimationManager {
         
         await this.scene.wait(100);
         
-        // Sprite joueur
-        if (this.scene.playerSprite) {
-            const originalX = this.scene.playerSprite.x;
-            this.scene.playerSprite.x = width * 1.3;
-            this.scene.playerSprite.setAlpha(1);
-            
-            await new Promise(resolve => {
-                this.scene.tweens.add({
-                    targets: this.scene.playerSprite,
-                    x: originalX,
-                    duration: 600,
-                    ease: 'Back.easeOut',
-                    onComplete: resolve
+        // Sprite joueur (Phaser ou GIF)
+        if (this.scene.playerSpriteData) {
+            if (this.scene.playerSpriteData.type === 'phaser' && this.scene.playerSprite) {
+                const originalX = this.scene.playerSprite.x;
+                this.scene.playerSprite.x = width * 1.3;
+                this.scene.playerSprite.setAlpha(1);
+                
+                await new Promise(resolve => {
+                    this.scene.tweens.add({
+                        targets: this.scene.playerSprite,
+                        x: originalX,
+                        duration: 600,
+                        ease: 'Back.easeOut',
+                        onComplete: resolve
+                    });
                 });
-            });
+            } else if (this.scene.playerSpriteData.type === 'gif' && this.scene.playerGifContainer) {
+                // Animation GIF via CSS
+                const container = this.scene.playerGifContainer;
+                const originalX = parseFloat(container.style.left);
+                container.style.left = `${width * 1.3}px`;
+                container.style.opacity = '1';
+                container.style.transition = 'left 600ms cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                
+                await new Promise(resolve => {
+                    setTimeout(() => {
+                        container.style.left = `${originalX}px`;
+                        setTimeout(resolve, 600);
+                    }, 50);
+                });
+            }
         }
         
         await this.scene.wait(300);

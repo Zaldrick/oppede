@@ -276,10 +276,10 @@ export class UIManager {
             },
             {
                 label: "Équipe",
-                icon: "�",
+                icon: "⚾",
                 color: 0xFF6B6B,
                 action: () => this.openPokemonTeam(),
-                description: "Votre équipe Pokémon"
+                description: "Votre équipe"
             },
             {
                 label: "Fermer",

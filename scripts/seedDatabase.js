@@ -89,6 +89,46 @@ async function seedDatabase() {
                     "type": "item"
                 },
                 {
+                    "nom": "Super Potion",
+                    "image": "super-potion.png",
+                    "is_echangeable": true,
+                    "prix": 700,
+                    "type": "healing",
+                    "description": "Rend 50 PV à un Pokémon."
+                },
+                {
+                    "nom": "Poké Ball",
+                    "image": "poke-ball.png",
+                    "is_echangeable": true,
+                    "prix": 200,
+                    "type": "pokeball",
+                    "description": "Un objet pour capturer des Pokémon sauvages."
+                },
+                {
+                    "nom": "Super Ball",
+                    "image": "great-ball.png",
+                    "is_echangeable": true,
+                    "prix": 600,
+                    "type": "pokeball",
+                    "description": "Une Ball plus performante que la Poké Ball."
+                },
+                {
+                    "nom": "Antidote",
+                    "image": "antidote.png",
+                    "is_echangeable": true,
+                    "prix": 100,
+                    "type": "healing",
+                    "description": "Soigne un Pokémon empoisonné."
+                },
+                {
+                    "nom": "CT Tonnerre",
+                    "image": "tm-electric.png",
+                    "is_echangeable": true,
+                    "prix": 3000,
+                    "type": "tm_hm",
+                    "description": "Apprend l'attaque Tonnerre à un Pokémon compatible."
+                },
+                {
                     "nom": "Floki",
                     "image": "Floki.png",
                     "is_echangeable": false,
@@ -746,20 +786,47 @@ async function seedDatabase() {
                 item_id: insertedItems.insertedIds[3], // Lien avec "Livre Rouge"
                 quantité: 1,
             },
+            // Items pour Marin (index 3)
             {
-                player_id: insertedPlayers.insertedIds[3], // Lien avec le deuxième joueur
-                item_id: insertedItems.insertedIds[4], // Lien avec "Livre Rouge"
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[9], // Floki
                 quantité: 1,
             },
             {
-                player_id: insertedPlayers.insertedIds[3], // Lien avec le deuxième joueur
-                item_id: insertedItems.insertedIds[5], // Lien avec "Livre Rouge"
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[10], // Sirius
                 quantité: 1,
             },
             {
-                player_id: insertedPlayers.insertedIds[3], // Lien avec le deuxième joueur
-                item_id: insertedItems.insertedIds[6], // Lien avec "Livre Rouge"
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[11], // Gaara
                 quantité: 1,
+            },
+            // Nouveaux items pour Marin (x10)
+            {
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[4], // Super Potion
+                quantité: 10,
+            },
+            {
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[5], // Poké Ball
+                quantité: 10,
+            },
+            {
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[6], // Super Ball
+                quantité: 10,
+            },
+            {
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[7], // Antidote
+                quantité: 10,
+            },
+            {
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[8], // CT Tonnerre
+                quantité: 10,
             },
             {
                 player_id: insertedPlayers.insertedIds[3], // Marin
@@ -808,7 +875,19 @@ async function seedDatabase() {
                 item_id: insertedItems.insertedIds[0], // Lien avec "Potion"
                 action_name: "Utiliser",
                 action_type: "heal",
+                parameters: { amount: 20 },
+            },
+            {
+                item_id: insertedItems.insertedIds[4], // Super Potion
+                action_name: "Utiliser",
+                action_type: "heal",
                 parameters: { amount: 50 },
+            },
+            {
+                item_id: insertedItems.insertedIds[7], // Antidote
+                action_name: "Utiliser",
+                action_type: "heal_status",
+                parameters: { status: "poison" },
             },
             {
                 item_id: insertedItems.insertedIds[1], // Lien avec "Épée"
@@ -823,19 +902,19 @@ async function seedDatabase() {
                 parameters: { door_id: "12345" },
             },
             {
-                item_id: insertedItems.insertedIds[4], // Lien avec "Livre Rouge"
+                item_id: insertedItems.insertedIds[9], // Floki
                 action_name: "Caresser",
                 action_type: "pet",
                 parameters: { lore: "Ancien secrets Il vous regarde plein d'amour." },
             },
             {
-                item_id: insertedItems.insertedIds[5], // Lien avec "Livre Rouge"
+                item_id: insertedItems.insertedIds[10], // Sirius
                 action_name: "Caresser",
                 action_type: "pet",
                 parameters: { lore: "Il vous regarde plein d'amour." },
             },
             {
-                item_id: insertedItems.insertedIds[6], // Lien avec "Livre Rouge"
+                item_id: insertedItems.insertedIds[11], // Gaara
                 action_name: "Caresser",
                 action_type: "pet",
                 parameters: { lore: "Il vous regarde plein d'amour." },

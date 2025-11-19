@@ -57,6 +57,12 @@ export default class BattleMenuManager {
     /**
      * Affiche le menu du sac
      */
+    showBagMenu() {
+        // Masquer les GIF sprites pendant le menu
+        SpriteLoader.hideAllGifs(this.scene);
+        this.scene.showInventory();
+    }
+
     /**
      * Affiche le menu Pokémon
      */

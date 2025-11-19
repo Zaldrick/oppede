@@ -1372,6 +1372,9 @@ export class PokemonBattleScene extends Phaser.Scene {
                         }
                     }
                     await this.displayXPGains(result.xpGains);
+                    
+                    // 🆕 SAUVEGARDER l'XP en base de données
+                    await this.applyXPGainsToDB(result.xpGains);
                 }
                 
                 // Transition de retour sans message "VICTOIRE"
@@ -2055,6 +2058,34 @@ export class PokemonBattleScene extends Phaser.Scene {
     /**
      * 🆕 Sauvegarde les changements HP/XP/status du combat
      */
+    /**
+     * 🆕 Applique les gains d'XP au battleState avant sauvegarde
+     */
+    async applyXPGainsToDB(xpGains) {
+        console.log('[BattleScene] Application des gains XP:', xpGains);
+        
+        for (const gain of xpGains) {
+            const pokemon = this.battleState.playerTeam.find(
+                p => p._id.toString() === gain.pokemonId.toString()
+            );
+            
+            if (pokemon) {
+                console.log(`[BattleScene] Update ${pokemon.name}: Level ${pokemon.level} → ${gain.newLevel}, XP ${pokemon.experience} → ${gain.currentXP + gain.xpGained}`);
+                
+                // Mettre à jour les valeurs dans battleState
+                pokemon.experience = (gain.currentXP || 0) + gain.xpGained;
+                pokemon.level = gain.newLevel || pokemon.level;
+                
+                // Si level up, mettre à jour les stats (optionnel, le serveur le fait déjà)
+                if (gain.leveledUp) {
+                    console.log(`[BattleScene] ${pokemon.name} a monté de niveau ! Nouveau niveau: ${pokemon.level}`);
+                }
+            } else {
+                console.warn(`[BattleScene] Pokémon ${gain.pokemonId} non trouvé dans playerTeam`);
+            }
+        }
+    }
+
     async saveBattleChanges() {
         if (!this.battleState || !this.battleState.playerTeam) {
             console.warn('[BattleScene] Pas de battleState à sauvegarder');
@@ -2162,6 +2193,8 @@ export class PokemonBattleScene extends Phaser.Scene {
 
     returnToScene() {
         console.log('[BattleScene] Retour à:', this.returnScene);
+        // 🆕 Nettoyer les ressources (GIFs, tweens, etc.)
+        this.cleanupBattle();
         this.scene.start(this.returnScene, { playerId: this.playerId });
     }
 
