@@ -139,4 +139,62 @@ export default class BattleSpriteManager {
             }
         }
     }
+
+    /**
+     * 🆕 Crée/Recrée le sprite joueur avec animation (GÉNÉRIQUE pour init + switch)
+     * @param {Object} pokemon - Données du Pokémon
+     * @param {boolean} animate - Si true, anime l'apparition
+     */
+    async createOrUpdatePlayerSprite(pokemon, animate = true) {
+        const { width, height } = this.scene.scale;
+        const playerSpriteX = width * 0.22;
+        const playerSpriteY = height * 0.45;
+        
+        // Détruire ancien sprite si existe
+        if (this.scene.playerSprite) this.scene.playerSprite.destroy();
+        if (this.scene.playerShadow) this.scene.playerShadow.destroy();
+        
+        if (pokemon.sprites && pokemon.sprites.backCombat) {
+            try {
+                const sprite = await SpriteLoader.displaySprite(
+                    this.scene,
+                    playerSpriteX,
+                    playerSpriteY,
+                    pokemon.sprites.backCombat,
+                    pokemon.nickname?.substring(0, 2) || pokemon.name?.substring(0, 2) || 'PK',
+                    3
+                );
+                
+                if (sprite) {
+                    this.scene.playerSprite = sprite;
+                    sprite.setAlpha(animate ? 0 : 1);
+                    sprite.setDepth(1);
+                    
+                    // Créer ombre
+                    const shadow = this.scene.add.graphics();
+                    shadow.fillStyle(0x000000, 0.6);
+                    const shadowOffsetY = sprite.displayHeight * 0.45;
+                    shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowOffsetY, sprite.displayWidth * 0.85, sprite.displayHeight * 0.15);
+                    shadow.setDepth(0);
+                    this.scene.playerShadow = shadow;
+                    shadow.setAlpha(animate ? 0 : 1);
+                    
+                    // Animation entrée si demandé
+                    if (animate) {
+                        await new Promise(resolve => {
+                            this.scene.tweens.add({
+                                targets: [sprite, shadow],
+                                alpha: 1,
+                                duration: 500,
+                                ease: 'Power2',
+                                onComplete: resolve
+                            });
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('[BattleSpriteManager] Erreur création sprite joueur:', error);
+            }
+        }
+    }
 }

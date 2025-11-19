@@ -249,6 +249,16 @@ export default class BattleAnimationManager {
 
         const hpPercent = Math.max(0, (newHP / maxHP) * 100);
         const props = hpBar === this.scene.playerHPBar ? this.scene.playerHPBarProps : this.scene.opponentHPBarProps;
+        
+        // 🔧 FIXE: Récupérer le pourcentage actuel stocké (évite bug de calcul)
+        const isPlayerBar = hpBar === this.scene.playerHPBar;
+        const currentPercentKey = isPlayerBar ? 'currentPlayerHPPercent' : 'currentOpponentHPPercent';
+        
+        // Si pas encore initialisé, calculer depuis HP actuel
+        if (this.scene[currentPercentKey] === undefined) {
+            const currentHP = isPlayerBar ? this.scene.battleState.playerActive.currentHP : this.scene.battleState.opponentActive.currentHP;
+            this.scene[currentPercentKey] = Math.max(0, (currentHP / maxHP) * 100);
+        }
 
         let hpColor1, hpColor2;
         if (hpPercent > 50) {
@@ -260,7 +270,7 @@ export default class BattleAnimationManager {
         }
 
         await new Promise(resolve => {
-            let startPercent = parseFloat(hpBar.width) / (props.width - 4) * 100;
+            const startPercent = this.scene[currentPercentKey];
             const duration = 500;
             const startTime = Date.now();
 
@@ -278,6 +288,7 @@ export default class BattleAnimationManager {
                     props.height - 4,
                     4
                 );
+                hpBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
 
                 if (hpText) {
                     hpText.setText(`${Math.max(0, Math.floor(newHP))}/${maxHP}`);
@@ -286,6 +297,8 @@ export default class BattleAnimationManager {
                 if (progress < 1) {
                     requestAnimationFrame(updateHP);
                 } else {
+                    // 🔧 FIXE: Stocker le pourcentage final pour la prochaine animation
+                    this.scene[currentPercentKey] = hpPercent;
                     resolve();
                 }
             };
@@ -336,35 +349,98 @@ export default class BattleAnimationManager {
     }
 
     /**
-     * Animation gain XP
+     * 🆕 Anime le gain d'XP avec barre progressive et gestion level-up
+     * @param {number} xpGained - XP gagné
+     * @param {number} oldXP - XP avant le gain (optionnel, sinon utilise player.experience)
+     * @param {number} oldLevel - Niveau avant le gain (optionnel, sinon utilise player.level)
      */
-    async animateXPGain(xpGained) {
+    async animateXPGain(xpGained, oldXP = null, oldLevel = null) {
         console.log('[BattleAnimationManager] Gain XP:', xpGained);
 
         const player = this.scene.battleState.playerActive;
-        const oldXP = player.experience || 0;
-        const newXP = oldXP + xpGained;
+        const startXP = oldXP !== null ? oldXP : (player.experience || 0);
+        const startLevel = oldLevel !== null ? oldLevel : (player.level || 1);
+        const newXP = startXP + xpGained;
+        const newLevel = this.scene.calculateLevelFromXP(newXP);
 
+        console.log('[BattleAnimationManager] XP:', { startXP, newXP, startLevel, newLevel });
+
+        // Pas de level-up : animation simple
+        if (newLevel === startLevel) {
+            await this.fillXPBar(startXP, newXP, startLevel);
+            player.experience = newXP;
+            player.level = newLevel;
+            return false;
+        }
+
+        // Level-up : animation complexe
+        let currentXP = startXP;
+        let currentLevel = startLevel;
+
+        while (currentLevel < newLevel) {
+            const nextLevelXP = this.scene.calculateXPForLevel(currentLevel + 1);
+
+            // 1. Remplir la barre jusqu'à 100%
+            await this.fillXPBar(currentXP, nextLevelXP, currentLevel);
+            await this.scene.wait(300);
+
+            // 2. Flash de level-up
+            await this.animateLevelUpFlash();
+
+            // 3. Incrémenter le niveau et mettre à jour l'affichage IMMÉDIATEMENT
+            currentLevel++;
+            if (this.scene.playerLevelText) {
+                this.scene.playerLevelText.setText(currentLevel);
+            }
+
+            // 4. Pause pour voir le changement de niveau
+            await this.scene.wait(300);
+
+            // 5. Message de level-up
+            this.scene.menuManager.showDialog(`${player.name} passe niveau ${currentLevel} !`);
+            await this.scene.wait(1500);
+
+            // 6. Vider la barre (reset à 0%)
+            currentXP = nextLevelXP;
+            await this.fillXPBar(currentXP, currentXP, currentLevel);
+            await this.scene.wait(200);
+        }
+
+        // 7. Remplir avec le surplus d'XP du nouveau niveau
+        if (newXP > currentXP) {
+            await this.fillXPBar(currentXP, newXP, currentLevel);
+        }
+
+        // Mettre à jour le Pokémon
         player.experience = newXP;
+        player.level = newLevel;
 
-        const oldLevel = player.level || 1;
-        const currentLevelXP = this.scene.calculateXPForLevel(oldLevel);
-        const nextLevelXP = this.scene.calculateXPForLevel(oldLevel + 1);
+        return true;
+    }
 
-        const xpInLevel = newXP - currentLevelXP;
+    /**
+     * Remplit la barre XP de fromXP à toXP pour un niveau donné
+     */
+    async fillXPBar(fromXP, toXP, level) {
+        const currentLevelXP = this.scene.calculateXPForLevel(level);
+        const nextLevelXP = this.scene.calculateXPForLevel(level + 1);
         const xpNeededForLevel = nextLevelXP - currentLevelXP;
-        const targetPercent = Math.min(100, (xpInLevel / xpNeededForLevel) * 100);
+
+        const startXPInLevel = fromXP - currentLevelXP;
+        const endXPInLevel = toXP - currentLevelXP;
+
+        const startPercent = Math.max(0, Math.min(100, (startXPInLevel / xpNeededForLevel) * 100));
+        const endPercent = Math.max(0, Math.min(100, (endXPInLevel / xpNeededForLevel) * 100));
 
         await new Promise(resolve => {
             const props = this.scene.playerXPBarProps;
-            let currentPercent = 0;
-            const duration = 1000;
+            const duration = 800;
             const startTime = Date.now();
 
             const updateXP = () => {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
-                currentPercent = targetPercent * progress;
+                const currentPercent = startPercent + (endPercent - startPercent) * progress;
 
                 this.scene.playerXPBar.clear();
                 this.scene.playerXPBar.fillGradientStyle(0x3498DB, 0x3498DB, 0x2980B9, 0x2980B9, 1, 1, 1, 1);
@@ -375,6 +451,7 @@ export default class BattleAnimationManager {
                     props.height - 2,
                     3
                 );
+                this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
 
                 if (progress < 1) {
                     requestAnimationFrame(updateXP);
@@ -385,5 +462,32 @@ export default class BattleAnimationManager {
 
             updateXP();
         });
+    }
+
+    /**
+     * Animation de flash pour le level-up (blanc, doré, blanc)
+     */
+    async animateLevelUpFlash() {
+        const flashColors = [
+            { color: 0xFFFFFF, duration: 150 }, // Blanc
+            { color: 0xFFD700, duration: 150 }, // Doré
+            { color: 0xFFFFFF, duration: 150 }  // Blanc
+        ];
+
+        for (const flash of flashColors) {
+            // Flash sur la barre XP
+            this.scene.playerXPBar.clear();
+            this.scene.playerXPBar.fillStyle(flash.color, 1);
+            this.scene.playerXPBar.fillRoundedRect(
+                this.scene.playerXPBarProps.x + 1,
+                this.scene.playerXPBarProps.y - this.scene.playerXPBarProps.height/2 + 1,
+                this.scene.playerXPBarProps.width - 2,
+                this.scene.playerXPBarProps.height - 2,
+                3
+            );
+            this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+            
+            await this.scene.wait(flash.duration);
+        }
     }
 }

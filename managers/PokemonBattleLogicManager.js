@@ -515,6 +515,14 @@ class PokemonBattleLogicManager {
     }
 
     /**
+     * Récupère la liste des IDs des Pokémon ayant participé au combat
+     * @returns {Array<string>} - Tableau des IDs
+     */
+    getParticipants() {
+        return Array.from(this.participants);
+    }
+
+    /**
      * Calcule l'XP gagné après victoire (formule Gen 1-5)
      * @param {Object} defeatedPokemon - Pokémon vaincu
      * @param {Array} participants - Liste des Pokémon ayant participé au combat
@@ -540,7 +548,7 @@ class PokemonBattleLogicManager {
 
             // Facteur Lucky Egg (e)
             const hasLuckyEgg = pokemon.heldItem === 'lucky-egg';
-            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 1.0;
+            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 4.0;
 
             // Calcul de base
             let xpGained = Math.floor((tradedMultiplier * baseXP * level) / (7 * participantCount));

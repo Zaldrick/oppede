@@ -323,165 +323,6 @@ export class PokemonBattleScene extends Phaser.Scene {
         await this.animManager.playUIEntryAnimations(width, height);
     }
 
-    /**
-     * Crée l'UI de l'adversaire (HAUT GAUCHE) avec design moderne
-     */
-    async createOpponentUI(width, height) {
-        const boxX = width * 0.08;
-        const boxY = height * 0.08;
-        const boxWidth = width * 0.38;
-        const boxHeight = height * 0.10;
-
-        // Container avec ombre portée et dégradé
-        const container = this.add.graphics();
-        container.setName('opponentContainer');
-        container.setAlpha(0); // Caché au début
-        //container.setDepth(8); // Devant le sprite (depth: 10) pour que la box cache les gros sprites
-        
-        // Ombre portée (décalée)
-        container.fillStyle(0x000000, 0.15);
-        container.fillRoundedRect(boxX + 4, boxY + 4, boxWidth, boxHeight, 12);
-        
-        // Fond avec dégradé subtil (blanc vers gris très clair)
-        container.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xF5F5F5, 0xF5F5F5, 1, 1, 1, 1);
-        container.fillRoundedRect(boxX, boxY, boxWidth, boxHeight, 12);
-        
-        // Bordure extérieure épaisse
-        container.lineStyle(4, 0x2C3E50, 1);
-        container.strokeRoundedRect(boxX, boxY, boxWidth, boxHeight, 12);
-        
-        // Bordure intérieure dorée
-        container.lineStyle(2, 0xFFD700, 0.8);
-        container.strokeRoundedRect(boxX + 3, boxY + 3, boxWidth - 6, boxHeight - 6, 10);
-
-        const opponent = this.battleState.opponentActive;
-
-        // Badge de niveau (cercle stylé en haut à droite) - agrandi et responsive
-        const levelBadgeX = boxX + boxWidth * 0.87;
-        const levelBadgeY = boxY + boxHeight * 0.35;
-        const badgeRadius = Math.min(width, height) * 0.035; // Plus grand
-        
-        container.fillStyle(0x3498DB, 1);
-        container.fillCircle(levelBadgeX, levelBadgeY, badgeRadius);
-        container.lineStyle(3, 0xFFFFFF, 1);
-        container.strokeCircle(levelBadgeX, levelBadgeY, badgeRadius);
-        
-        // Texte "Niv" au-dessus du badge - agrandi
-        const nivText = this.add.text(levelBadgeX, levelBadgeY - badgeRadius - Math.min(width, height) * 0.018, 'Niv', {
-            fontSize: `${Math.min(width, height) * 0.035}px`,
-            fill: '#2C3E50',
-            fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0); // Caché au début
-        
-        // Texte niveau - police agrandie
-        const levelText = this.add.text(levelBadgeX, levelBadgeY, opponent.level, {
-            fontSize: `${Math.min(width, height) * 0.038}px`,
-            fill: '#FFFFFF',
-            fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0); // Caché au début
-
-        // Nom du Pokémon avec ombre
-        const nameText = this.add.text(boxX + boxWidth * 0.08, boxY + boxHeight * 0.25, opponent.name.toUpperCase(), {
-            fontSize: `${Math.min(width, height) * 0.028}px`,
-            fill: '#2C3E50',
-            fontStyle: 'bold',
-            fontFamily: 'Arial',
-            stroke: '#FFFFFF',
-            strokeThickness: 1
-        }).setOrigin(0, 0.5).setAlpha(0); // Caché au début
-
-        // Label "PS:" avec icône cœur - agrandi
-        const psLabel = this.add.text(boxX + boxWidth * 0.08, boxY + boxHeight * 0.65, '♥', {
-            fontSize: `${Math.min(width, height) * 0.038}px`,
-            fill: '#E74C3C',
-            fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0, 0.5).setAlpha(0); // Caché au début
-
-        // Barre HP (avec fond 3D et brillance)
-        const hpBarX = boxX + boxWidth * 0.18;
-        const hpBarY = boxY + boxHeight * 0.65;
-        const hpBarWidth = boxWidth * 0.70;
-        const hpBarHeight = height * 0.012;
-
-        // Ombre de la barre
-        container.fillStyle(0x000000, 0.2);
-        container.fillRoundedRect(hpBarX + 2, hpBarY - hpBarHeight/2 + 2, hpBarWidth, hpBarHeight, 6);
-        
-        // Fond de la barre (gris avec bordure)
-        container.fillStyle(0x34495E, 1);
-        container.fillRoundedRect(hpBarX, hpBarY - hpBarHeight/2, hpBarWidth, hpBarHeight, 6);
-        
-        // Bordure intérieure
-        container.lineStyle(1, 0x2C3E50, 1);
-        container.strokeRoundedRect(hpBarX, hpBarY - hpBarHeight/2, hpBarWidth, hpBarHeight, 6);
-
-        // Barre HP (couleur avec dégradé)
-        const hpPercent = (opponent.currentHP / opponent.maxHP) * 100;
-        let hpColor1, hpColor2;
-        
-        if (hpPercent > 50) {
-            hpColor1 = 0x2ECC71; hpColor2 = 0x27AE60; // Vert
-        } else if (hpPercent > 25) {
-            hpColor1 = 0xF39C12; hpColor2 = 0xE67E22; // Orange
-        } else {
-            hpColor1 = 0xE74C3C; hpColor2 = 0xC0392B; // Rouge
-        }
-        
-        const hpBarFill = this.add.graphics();
-        hpBarFill.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
-        hpBarFill.fillRoundedRect(
-            hpBarX + 2,
-            hpBarY - hpBarHeight/2 + 2,
-            (hpBarWidth - 4) * hpPercent / 100,
-            hpBarHeight - 4,
-            4
-        );
-        hpBarFill.setAlpha(0).setDepth(3); // Caché au début
-        
-        this.opponentHPBar = hpBarFill;
-        this.opponentHPBarProps = { x: hpBarX, y: hpBarY, width: hpBarWidth, height: hpBarHeight, maxHP: opponent.maxHP };
-        
-        // Stocker tous les éléments pour l'animation
-        this.opponentUIElements = [nivText, levelText, nameText, psLabel, hpBarFill];
-
-        // Sprite adversaire avec animation d'entrée
-        const opponentSpriteX = width * 0.68;
-        const opponentSpriteY = height * 0.26;
-        
-        if (opponent.sprites && opponent.sprites.frontCombat) {
-            try {
-                const spriteUrl = opponent.sprites.frontCombat;
-                const sprite = await SpriteLoader.displaySprite(
-                    this,
-                    opponentSpriteX,
-                    opponentSpriteY,
-                    spriteUrl,
-                    opponent.name.substring(0, 2),
-                    2.5
-                );
-                
-                if (sprite) {
-                    this.opponentSprite = sprite;
-                    sprite.setAlpha(0);
-                    sprite.setDepth(5); // Derrière la box UI (depth: 8)
-                    
-                    // Ombre SOUS le sprite (créée après pour avoir la bonne position)
-                    const shadow = this.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    // Position de l'ombre : sous les pieds du sprite
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowOffsetY, sprite.displayWidth * 0.8, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.opponentShadow = shadow; // 🆕 Stocker référence pour K.O.
-                }
-            } catch (error) {
-                console.error('[BattleScene] Erreur chargement sprite adversaire:', error);
-            }
-        }
-    }
 
     /**
      * Crée l'UI du joueur (BAS DROITE) avec design moderne
@@ -691,41 +532,6 @@ export class PokemonBattleScene extends Phaser.Scene {
         
         // Stocker tous les éléments pour l'animation
         this.playerUIElements = [nivText, levelText, nameText, psLabel, hpBarFill, this.playerHPText, xpLabel, xpBarFill];
-
-        // Sprite joueur (DOS)
-        const playerSpriteX = width * 0.22;
-        const playerSpriteY = height * 0.45;
-        
-        if (player.sprites && player.sprites.backCombat) {
-            try {
-                const spriteUrl = player.sprites.backCombat;
-                const sprite = await SpriteLoader.displaySprite(
-                    this,
-                    playerSpriteX,
-                    playerSpriteY,
-                    spriteUrl,
-                    player.name.substring(0, 2),
-                    3
-                );
-                
-                if (sprite) {
-                    this.playerSprite = sprite;
-                    sprite.setAlpha(0);
-                    sprite.setDepth(1); 
-                    
-                    // Ombre SOUS le sprite (créée après pour avoir la bonne position)
-                    const shadow = this.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    // Position de l'ombre : sous les pieds du sprite
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowOffsetY, sprite.displayWidth * 0.85, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.playerShadow = shadow; // 🆕 Stocker référence pour K.O.
-                }
-            } catch (error) {
-                console.error('[BattleScene] Erreur chargement sprite joueur:', error);
-            }
-        }
     }
 
     /**
@@ -1176,7 +982,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             const playerKO = this.battleState?.playerActive?.currentHP <= 0;
             if (playerKO) {
                 console.warn('[BattleScene] Joueur K.O., action bloquée');
-                this.showDialog('Vous devez changer de Pokémon !');
+                this.menuManager.showDialog('Vous devez changer de Pokémon !');
                 return;
             }
             
@@ -1215,9 +1021,9 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     showBagMenuPlaceholder() {
         if (this.turnInProgress) return;
-        this.showDialog("Le sac n'est pas encore implémenté en combat.");
+        this.menuManager.showDialog("Le sac n'est pas encore implémenté en combat.");
         setTimeout(() => {
-            this.hideDialog();
+            this.menuManager.hideDialog();
         }, 2000);
     }
 
@@ -1242,16 +1048,16 @@ export class PokemonBattleScene extends Phaser.Scene {
         if (this.turnInProgress) return;
 
         console.log('[BattleScene] Ouverture du sac');
-        this.hideMainMenu();
+        this.menuManager.hideMainMenu();
 
-        this.scene.launch('BagScene', {
+        this.scene.launch('InventoryScene', {
             playerId: this.playerId,
             inBattle: true,
             battleContext: this.battleState,
             onItemUsed: (item) => {
                 if (!item) {
                     // Annulé
-                    this.hideDialog();
+                    this.menuManager.hideDialog();
                     return;
                 }
 
@@ -1281,7 +1087,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                     
                     if (result.captured) {
                         // Capture réussie ! Terminer le combat
-                        this.showDialog(`${this.opponentPokemon.species_name} a été capturé !`);
+                        this.menuManager.showDialog(`${this.opponentPokemon.species_name} a été capturé !`);
                         await this.wait(2000);
                         
                         // Retourner à l'overworld
@@ -1290,15 +1096,15 @@ export class PokemonBattleScene extends Phaser.Scene {
                         this.scene.resume('GameScene');
                     } else {
                         // Échec : continuer le combat
-                        this.showDialog(`Oh non ! ${this.opponentPokemon.species_name} s'est échappé !`);
+                        this.menuManager.showDialog(`Oh non ! ${this.opponentPokemon.species_name} s'est échappé !`);
                         await this.wait(2000);
-                        this.hideDialog();
+                        this.menuManager.hideDialog();
                         
                         // L'adversaire attaque
-                        await this.opponentTurn();
+                        await this.turnManager.opponentTurn();
                         
                         // Revenir au menu
-                        this.hideDialog();
+                        this.menuManager.hideDialog();
                     }
                 }
             });
@@ -1310,9 +1116,9 @@ export class PokemonBattleScene extends Phaser.Scene {
             // TODO: Appel API pour utiliser l'item
             // TODO: Animation + effets
             
-            this.showDialog(`${item.itemData.name_fr} utilisé ! (en développement)`);
+            this.menuManager.showDialog(`${item.itemData.name_fr} utilisé ! (en développement)`);
             await this.wait(2000);
-            this.hideDialog();
+            this.menuManager.hideDialog();
         }
     }
 
@@ -1367,7 +1173,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         const oldName = oldPokemon?.nickname || oldPokemon?.name || oldPokemon?.speciesData?.name_fr || 'Pokémon';
         const newName = newPokemon?.nickname || newPokemon?.name || newPokemon?.speciesData?.name_fr || 'Pokémon';
         
-        this.showDialog(`Reviens, ${oldName} !`);
+        this.menuManager.showDialog(`Reviens, ${oldName} !`);
         await this.wait(1000);
         
         // Animation de retrait (fade out)
@@ -1405,7 +1211,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             if (!response.ok) {
                 const error = await response.json();
                 console.error('[BattleScene] Erreur switch serveur:', error);
-                this.showDialog('Erreur lors du changement de Pokémon');
+                this.menuManager.showDialog('Erreur lors du changement de Pokémon');
                 this.turnInProgress = false;
                 return;
             }
@@ -1415,7 +1221,7 @@ export class PokemonBattleScene extends Phaser.Scene {
 
         } catch (error) {
             console.error('[BattleScene] Erreur appel /switch:', error);
-            this.showDialog('Erreur de connexion');
+            this.menuManager.showDialog('Erreur de connexion');
             this.turnInProgress = false;
             return;
         }
@@ -1439,386 +1245,32 @@ export class PokemonBattleScene extends Phaser.Scene {
             index: newIndex
         });
         
-        this.showDialog(`Go, ${newName} !`);
+        this.menuManager.showDialog(`Go, ${newName} !`);
         await this.wait(800);
         
         // Recréer sprite ET UI avec animation
         await this.recreatePlayerSpriteAndUI(newPokemon);
         
         // L'adversaire attaque
-        await this.opponentTurn();
+        await this.turnManager.opponentTurn();
         
         this.turnInProgress = false;
-        this.hideDialog();
+        this.menuManager.hideDialog();
     }
     
     /**
-     * Recrée le sprite et l'UI du joueur (utilisé pour switch)
+     * 🆕 Recrée le sprite et l'UI du joueur (FACTORIZED - utilise les managers)
+     * Utilisé pour switch Pokémon
      */
     async recreatePlayerSpriteAndUI(pokemon) {
-        const { width, height } = this.scale;
-        const playerSpriteX = width * 0.22;
-        const playerSpriteY = height * 0.45;
+        // ✅ Utiliser le manager de sprites (avec animation)
+        await this.spriteManager.createOrUpdatePlayerSprite(pokemon, true);
         
-        // Créer nouveau sprite
-        if (pokemon.sprites && pokemon.sprites.backCombat) {
-            try {
-                const SpriteLoader = (await import('./utils/spriteLoader')).default;
-                const spriteKey = pokemon.nickname?.substring(0, 2) || pokemon.name?.substring(0, 2) || 'PK';
-                const sprite = await SpriteLoader.displaySprite(
-                    this,
-                    playerSpriteX,
-                    playerSpriteY,
-                    pokemon.sprites.backCombat,
-                    spriteKey,
-                    3.8
-                );
-                
-                if (sprite) {
-                    this.playerSprite = sprite;
-                    sprite.setAlpha(0);
-                    sprite.setDepth(5); // Derrière la box UI (depth: 8)
-                    
-                    // Créer ombre
-                    const shadow = this.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowOffsetY, sprite.displayWidth * 0.85, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.playerShadow = shadow;
-                    shadow.setAlpha(0);
-                    
-                    // Animation entrée
-                    await new Promise(resolve => {
-                        this.tweens.add({
-                            targets: [sprite, shadow],
-                            alpha: 1,
-                            duration: 500,
-                            ease: 'Power2',
-                            onComplete: resolve
-                        });
-                    });
-                }
-            } catch (error) {
-                console.error('[BattleScene] Erreur création sprite:', error);
-            }
-        }
-        
-        // Mettre à jour toute l'UI du joueur
-        await this.updateCompletePlayerUI(pokemon);
+        // ✅ Utiliser le manager d'UI (recrée toute la box)
+        await this.uiManager.updateCompletePlayerUI(pokemon);
     }
     
-    /**
-     * Met à jour COMPLÈTEMENT l'UI du joueur (nom, niveau, HP, XP)
-     */
-    async updateCompletePlayerUI(pokemon) {
-        const { width, height } = this.scale;
-        
-        // Détruire anciens éléments
-        if (this.playerUIElements) {
-            this.playerUIElements.forEach(el => {
-                if (el && el.destroy) el.destroy();
-            });
-        }
-        
-        const boxX = width * 0.50;
-        const boxY = height * 0.45;
-        const boxWidth = width * 0.47;
-        const boxHeight = height * 0.12;
-        
-        // ✅ Détruire et recréer container pour avoir le fond
-        let container = this.children.getByName('playerContainer');
-        if (container) container.destroy();
-        
-        container = this.add.graphics({ x: 0, y: 0 });
-        container.setName('playerContainer');
-        container.setDepth(5); // Devant le sprite joueur (depth: 10 pour textes restent visibles)
-        
-        // ✅ Recréer fond de la box
-        // Ombre de la box
-        container.fillStyle(0x000000, 0.3);
-        container.fillRoundedRect(boxX + 4, boxY + 4, boxWidth, boxHeight, 12);
-        
-        // Fond avec dégradé (blanc vers bleu très clair)
-        container.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xEBF5FB, 0xEBF5FB, 1, 1, 1, 1);
-        container.fillRoundedRect(boxX, boxY, boxWidth, boxHeight, 12);
-        
-        // Bordure extérieure épaisse
-        container.lineStyle(4, 0x2C3E50, 1);
-        container.strokeRoundedRect(boxX, boxY, boxWidth, boxHeight, 12);
-        
-        // Bordure intérieure bleu brillant
-        container.lineStyle(2, 0x3498DB, 0.8);
-        container.strokeRoundedRect(boxX + 3, boxY + 3, boxWidth - 6, boxHeight - 6, 10);
-        
-        // Calculer level depuis XP si nécessaire
-        if (!pokemon.level || pokemon.level === 1) {
-            pokemon.level = Math.floor(Math.pow(pokemon.experience || 0, 1/3)) + 1;
-        }
-        
-        // Textes et éléments UI
-        const levelBadgeX = boxX + boxWidth * 0.88;
-        const levelBadgeY = boxY + boxHeight * 0.30;
-        const badgeRadius = Math.min(width, height) * 0.035;
-        
-        // ✅ Recréer badge de niveau (cercle)
-        container.fillStyle(0x27AE60, 1);
-        container.fillCircle(levelBadgeX, levelBadgeY, badgeRadius);
-        container.lineStyle(3, 0xFFFFFF, 1);
-        container.strokeCircle(levelBadgeX, levelBadgeY, badgeRadius);
-        
-        const nivText = this.add.text(levelBadgeX, levelBadgeY - Math.min(width, height) * 0.053, 'Niv', {
-            fontSize: `${Math.min(width, height) * 0.035}px`,
-            fill: '#2C3E50',
-            fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5).setDepth(10); // ✅ Visible au-dessus du container
-        
-        const levelText = this.add.text(levelBadgeX, levelBadgeY, pokemon.level || 1, {
-            fontSize: `${Math.min(width, height) * 0.038}px`,
-            fill: '#FFFFFF',
-            fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5).setDepth(10); // ✅ Visible au-dessus du container
-        
-        const nameText = this.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.25, pokemon.name?.toUpperCase() || 'POKEMON', {
-            fontSize: `${Math.min(width, height) * 0.028}px`,
-            fill: '#2C3E50',
-            fontStyle: 'bold',
-            fontFamily: 'Arial',
-            stroke: '#FFFFFF',
-            strokeThickness: 1
-        }).setOrigin(0, 0.5).setDepth(10); // ✅ Visible au-dessus du container
-        
-        const psLabel = this.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.60, '♥', {
-            fontSize: `${Math.min(width, height) * 0.038}px`,
-            fill: '#E74C3C',
-            fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0, 0.5).setDepth(10); // ✅ Visible au-dessus du container
-        
-        // Recréer barre HP
-        if (this.playerHPBar) this.playerHPBar.destroy();
-        const hpBarX = boxX + boxWidth * 0.14;
-        const hpBarY = boxY + boxHeight * 0.60;
-        const hpBarWidth = boxWidth * 0.56;
-        const hpBarHeight = height * 0.012;
-        
-        // ✅ Recréer fond de barre HP
-        // Ombre de la barre
-        container.fillStyle(0x000000, 0.2);
-        container.fillRoundedRect(hpBarX + 2, hpBarY - hpBarHeight/2 + 2, hpBarWidth, hpBarHeight, 6);
-        
-        // Fond de la barre
-        container.fillStyle(0x34495E, 1);
-        container.fillRoundedRect(hpBarX, hpBarY - hpBarHeight/2, hpBarWidth, hpBarHeight, 6);
-        
-        container.lineStyle(1, 0x2C3E50, 1);
-        container.strokeRoundedRect(hpBarX, hpBarY - hpBarHeight/2, hpBarWidth, hpBarHeight, 6);
-        
-        const hpPercent = (pokemon.currentHP / pokemon.maxHP) * 100;
-        let hpColor1, hpColor2;
-        if (hpPercent > 50) {
-            hpColor1 = 0x2ECC71; hpColor2 = 0x27AE60;
-        } else if (hpPercent > 25) {
-            hpColor1 = 0xF39C12; hpColor2 = 0xE67E22;
-        } else {
-            hpColor1 = 0xE74C3C; hpColor2 = 0xC0392B;
-        }
-        
-        const hpBarFill = this.add.graphics();
-        hpBarFill.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
-        hpBarFill.fillRoundedRect(
-            hpBarX + 2,
-            hpBarY - hpBarHeight/2 + 2,
-            (hpBarWidth - 4) * hpPercent / 100,
-            hpBarHeight - 4,
-            4
-        );
-        hpBarFill.setDepth(3); // ✅ Visible au-dessus du container
-        this.playerHPBar = hpBarFill;
-        
-        this.playerHPText = this.add.text(boxX + boxWidth * 0.74, boxY + boxHeight * 0.60, `${pokemon.currentHP}/${pokemon.maxHP}`, {
-            fontSize: `${Math.min(width, height) * 0.026}px`,
-            fill: '#2C3E50',
-            fontFamily: 'Arial',
-            fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setDepth(10); // ✅ Visible au-dessus du container
-        
-        // Barre XP
-        const xpBarX = boxX + boxWidth * 0.06;
-        const xpBarY = boxY + boxHeight * 0.82;
-        const xpBarWidth = boxWidth * 0.88;
-        const xpBarHeight = height * 0.008;
-        
-        // ✅ Recréer fond de barre XP
-        container.fillStyle(0xBDC3C7, 1);
-        container.fillRoundedRect(xpBarX + boxWidth * 0.10, xpBarY - xpBarHeight/2, xpBarWidth * 0.85, xpBarHeight, 4);
-        
-        container.lineStyle(1, 0x95A5A6, 1);
-        container.strokeRoundedRect(xpBarX + boxWidth * 0.10, xpBarY - xpBarHeight/2, xpBarWidth * 0.85, xpBarHeight, 4);
-        
-        const xpLabel = this.add.text(xpBarX, xpBarY, 'XP', {
-            fontSize: `${Math.min(width, height) * 0.022}px`,
-            fill: '#7F8C8D',
-            fontFamily: 'Arial',
-            fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setDepth(10); // ✅ Visible au-dessus du container
-        
-        if (this.playerXPBar) this.playerXPBar.destroy();
-        
-        const currentLevelXP = this.calculateXPForLevel(pokemon.level || 1);
-        const nextLevelXP = this.calculateXPForLevel((pokemon.level || 1) + 1);
-        const xpInLevel = (pokemon.experience || 0) - currentLevelXP;
-        const xpNeededForLevel = nextLevelXP - currentLevelXP;
-        const xpPercent = Math.max(0, Math.min(100, (xpInLevel / xpNeededForLevel) * 100));
-        
-        const xpBarFill = this.add.graphics();
-        xpBarFill.fillGradientStyle(0x3498DB, 0x3498DB, 0x2980B9, 0x2980B9, 1, 1, 1, 1);
-        xpBarFill.fillRoundedRect(
-            xpBarX + boxWidth * 0.10 + 1,
-            xpBarY - xpBarHeight/2 + 1,
-            (xpBarWidth * 0.85 - 2) * xpPercent / 100,
-            xpBarHeight - 2,
-            3
-        );
-        xpBarFill.setDepth(10); // ✅ Visible au-dessus du container
-        this.playerXPBar = xpBarFill;
-        
-        // Stocker nouveaux éléments
-        this.playerUIElements = [nivText, levelText, nameText, psLabel, hpBarFill, this.playerHPText, xpLabel, xpBarFill];
-        
-        console.log('[BattleScene] UI complète recréée pour:', pokemon.name);
-    }
 
-    /**
-     * Mise à jour de l'UI du joueur après switch
-     */
-    /**
-     * Tour de l'adversaire seul (après switch)
-     */
-    async opponentTurn() {
-        // Vérifier que l'adversaire est toujours en vie
-        if (this.battleState.opponentActive.currentHP <= 0) {
-            console.log('[BattleScene] Adversaire K.O., pas d\'attaque');
-            return;
-        }
-        
-        const opponentMove = this.battleState.opponentActive.moveset[
-            Math.floor(Math.random() * this.battleState.opponentActive.moveset.length)
-        ];
-
-        // 🆕 Traduire nom du move adversaire
-        const moveNameFR = await this.getMoveName(opponentMove.name);
-        
-        this.showDialog(`${this.battleState.opponentActive.name} utilise ${moveNameFR} !`);
-        await this.wait(800);
-
-        // Calculer dégâts manuellement (sans battleManager)
-        const attacker = this.battleState.opponentActive;
-        const defender = this.battleState.playerActive;
-        
-        let damage = 0;
-        let effectiveness = 1.0;
-        
-        if (opponentMove.power && opponentMove.power > 0) {
-            const attack = opponentMove.category === 'special' ? attacker.stats?.sp_attack || 50 : attacker.stats?.attack || 50;
-            const defense = opponentMove.category === 'special' ? defender.stats?.sp_defense || 50 : defender.stats?.defense || 50;
-            const level = attacker.level || 5;
-            
-            // ✅ Calcul des dégâts de base
-            damage = Math.floor(((2 * level / 5 + 2) * opponentMove.power * attack / defense) / 50) + 2;
-            
-            // ✅ Appliquer le multiplicateur de type (STAB + effectiveness)
-            const attackerTypes = attacker.types || [];
-            const defenderTypes = defender.types || [];
-            
-            // STAB (Same Type Attack Bonus) : x1.5 si le move est du même type que l'attaquant
-            const stab = attackerTypes.includes(opponentMove.type) ? 1.5 : 1.0;
-            
-            // Type effectiveness : calculer contre chaque type du défenseur
-            effectiveness = getTypeEffectiveness(opponentMove.type, defenderTypes);
-            
-            // Appliquer multiplicateurs
-            damage = Math.floor(damage * stab * effectiveness);
-            
-            // Random factor (85% - 100%)
-            damage = Math.max(1, Math.floor(damage * (Math.random() * 0.15 + 0.85)));
-            
-            console.log('[BattleScene] Dégâts calculés:', {
-                move: opponentMove.name,
-                type: opponentMove.type,
-                attacker: attacker.name,
-                defender: defender.name,
-                defenderTypes,
-                baseDamage: Math.floor(((2 * level / 5 + 2) * opponentMove.power * attack / defense) / 50) + 2,
-                stab,
-                effectiveness,
-                finalDamage: damage
-            });
-        }
-
-        // Animation attaque
-        await this.animManager.animateAttack(this.opponentSprite, this.playerSprite, { 
-            move: opponentMove.name, 
-            damage: damage,
-            effectiveness: effectiveness
-        });
-
-        // Appliquer dégâts
-        this.battleState.playerActive.currentHP = Math.max(0, this.battleState.playerActive.currentHP - damage);
-        
-        // ✅ Syncer HP dans playerTeam pour TeamScene
-        const teamIndex = this.battleState.playerTeam.findIndex(p => p._id === this.battleState.playerActive._id);
-        if (teamIndex !== -1) {
-            this.battleState.playerTeam[teamIndex].currentHP = this.battleState.playerActive.currentHP;
-        }
-        
-        // Animer barre HP
-        await this.animManager.animateHPDrain(
-            this.playerHPBar, 
-            this.playerHPText, 
-            this.battleState.playerActive.currentHP, 
-            this.battleState.playerActive.maxHP
-        );
-        
-        // ✅ Afficher message d'efficacité
-        if (damage > 0) {
-            const effectivenessMsg = getEffectivenessMessage(effectiveness);
-            if (effectivenessMsg) {
-                this.showDialog(effectivenessMsg);
-                await this.wait(1000);
-            }
-        }
-
-        // Vérifier KO
-        if (this.battleState.playerActive.currentHP <= 0) {
-            await this.animManager.animateKO(this.playerSprite, 'playerContainer', false);
-            this.showDialog(`${this.battleState.playerActive.name} est K.O. !`);
-            await this.wait(1500);
-            
-            // 🆕 Vérifier si d'autres Pokémon disponibles
-            const alivePokemon = this.battleState.playerTeam.filter(p => p.currentHP > 0);
-            
-            if (alivePokemon.length === 0) {
-                // Défaite totale
-                this.showDialog('Vous n\'avez plus de Pokémon ! Vous avez perdu...');
-                await this.wait(2000);
-                await this.returnToSceneWithTransition();
-            } else {
-                // ✅ IMPORTANT: Débloquer turnInProgress AVANT d'afficher le message
-                // Sinon showPokemonMenu() sera bloqué par le check "if (this.turnInProgress) return;"
-                this.turnInProgress = false;
-                
-                this.showDialog('Choisissez un autre Pokémon !');
-                await this.wait(1000);
-                
-                // ✅ Utiliser la fonction normale qui gère déjà tout
-                this.showPokemonMenu();
-            }
-            return; // ✅ NE PAS continuer opponentTurn
-        }
-    }
 
     /**
      * Affiche un message dans la boîte de dialogue
@@ -1842,108 +1294,6 @@ export class PokemonBattleScene extends Phaser.Scene {
     }
 
     /**
-     * Animations de glissement des éléments UI
-     */
-    async playUIEntryAnimations(width, height) {
-        // Récupérer les conteneurs Graphics
-        const opponentContainer = this.children.getByName('opponentContainer');
-        const playerContainer = this.children.getByName('playerContainer');
-        
-        // Cacher les box au début (on va les faire apparaître en fondu)
-        if (opponentContainer) opponentContainer.setAlpha(0);
-        if (playerContainer) playerContainer.setAlpha(0);
-        
-        // 1. Faire apparaître la box adversaire en fondu d'abord
-        if (opponentContainer) {
-            await new Promise(resolve => {
-                this.tweens.add({
-                    targets: [opponentContainer, ...this.opponentUIElements],
-                    alpha: 1,
-                    duration: 300,
-                    ease: 'Power2',
-                    onComplete: resolve
-                });
-            });
-        }
-        
-        await this.wait(100);
-        
-        // 2. Glissement sprite adversaire depuis la gauche
-        if (this.opponentSprite) {
-            const originalX = this.opponentSprite.x;
-            this.opponentSprite.x = -width * 0.3; // Hors écran à gauche
-            this.opponentSprite.setAlpha(1);
-            
-            await new Promise(resolve => {
-                this.tweens.add({
-                    targets: this.opponentSprite,
-                    x: originalX,
-                    duration: 600,
-                    ease: 'Back.easeOut',
-                    onComplete: resolve
-                });
-            });
-        }
-        
-        await this.wait(200);
-        
-        // 3. Faire apparaître la box joueur en fondu
-        if (playerContainer) {
-            await new Promise(resolve => {
-                this.tweens.add({
-                    targets: [playerContainer, ...this.playerUIElements],
-                    alpha: 1,
-                    duration: 300,
-                    ease: 'Power2',
-                    onComplete: resolve
-                });
-            });
-        }
-        
-        await this.wait(100);
-        
-        // 4. Glissement sprite joueur depuis la droite
-        if (this.playerSprite) {
-            const originalX = this.playerSprite.x;
-            this.playerSprite.x = width * 1.3; // Hors écran à droite
-            this.playerSprite.setAlpha(1);
-            
-            await new Promise(resolve => {
-                this.tweens.add({
-                    targets: this.playerSprite,
-                    x: originalX,
-                    duration: 600,
-                    ease: 'Back.easeOut',
-                    onComplete: resolve
-                });
-            });
-        }
-        
-        await this.wait(300);
-        
-        // 5. Apparition du menu en fondu
-        await new Promise(resolve => {
-            this.tweens.add({
-                targets: [this.mainMenuBg, ...this.mainMenuButtons],
-                alpha: 1,
-                duration: 400,
-                ease: 'Power2',
-                onComplete: resolve
-            });
-        });
-        
-        await this.wait(200);
-        
-        // 6. Message d'apparition + affichage dialogue
-        const opponent = this.battleState.opponentActive;
-        this.showDialog(`Un ${opponent.name} sauvage apparaît !`);
-        
-        await this.wait(1500);
-        
-        // 7. Message d'action
-        this.showDialog(`Que va faire ${this.battleState.playerActive.name} ?`);
-    }
-    /**
      * Sélectionne et exécute un move
      */
     async selectMove(moveName) {
@@ -1953,14 +1303,14 @@ export class PokemonBattleScene extends Phaser.Scene {
         console.log('[BattleScene] Move sélectionné:', moveName);
 
         // Cacher le sélecteur de moves
-        this.hideMoveSelector();
+        this.menuManager.hideMoveSelector();
 
         try {
             // 🆕 Traduire nom du move pour le message
             const moveNameFR = await this.getMoveName(moveName);
             
             // Message d'action
-            this.showDialog(`${this.battleState.playerActive.name} utilise ${moveNameFR} !`);
+            this.menuManager.showDialog(`${this.battleState.playerActive.name} utilise ${moveNameFR} !`);
 
             // Petite pause pour lire le message
             await this.wait(800);
@@ -1971,7 +1321,9 @@ export class PokemonBattleScene extends Phaser.Scene {
                 moveName
             );
 
-            console.log('[BattleScene] Résultat tour:', result);
+            console.log('[BattleScene] Résultat tour COMPLET:', JSON.stringify(result, null, 2));
+            console.log('[BattleScene] isOver:', result.isOver, 'winner:', result.winner);
+            console.log('[BattleScene] xpGains:', result.xpGains);
 
             // Animer le tour
             await this.animateTurn(result);
@@ -1981,22 +1333,31 @@ export class PokemonBattleScene extends Phaser.Scene {
 
             // Vérifier fin de combat
             if (result.isOver) {
+                console.log('[BattleScene] ✅ Combat terminé! Winner:', result.winner);
                 // Si victoire et XP à distribuer, afficher AVANT la fin
                 if (result.winner === 'player' && result.xpGains && result.xpGains.length > 0) {
+                    console.log('[BattleScene] ✅ Affichage XP:', result.xpGains.length, 'gains');
                     // Afficher gains XP
                     for (const gain of result.xpGains) {
                         const pokemon = this.battleState.playerTeam.find(p => p._id === gain.pokemonId);
                         if (pokemon) {
-                            this.showDialog(`${pokemon.name} gagne ${gain.xpGained} points d'expérience !`);
+                            this.menuManager.showDialog(`${pokemon.name} gagne ${gain.xpGained} points d'expérience !`);
                             await this.wait(1500);
                             
                             // Animer barre XP si c'est le Pokémon actif
                             if (pokemon._id === this.battleState.playerActive._id) {
-                                await this.animManager.animateXPGain({
-                                    currentXP: gain.oldXP || pokemon.experience - gain.xpGained,
-                                    xpGained: gain.xpGained,
-                                    currentLevel: pokemon.level
-                                });
+                                // Utiliser l'XP d'AVANT le gain (currentXP dans gain)
+                                const oldXP = gain.currentXP || 0;
+                                const oldLevel = gain.currentLevel || pokemon.level;
+                                
+                                const leveledUp = await this.animManager.animateXPGain(gain.xpGained, oldXP, oldLevel);
+                                
+                                // Si level up et nouveaux moves disponibles
+                                if (leveledUp && gain.newMovesAvailable && gain.newMovesAvailable.length > 0) {
+                                    this.menuManager.showDialog(`${pokemon.name} peut apprendre de nouvelles capacités !`);
+                                    await this.wait(1500);
+                                    // TODO: Ouvrir menu d'apprentissage de moves
+                                }
                             }
                         }
                     }
@@ -2015,13 +1376,13 @@ export class PokemonBattleScene extends Phaser.Scene {
                     
                     if (alivePokemon.length === 0) {
                         // Défaite totale
-                        this.showDialog('Vous n\'avez plus de Pokémon ! Vous avez perdu...');
+                        this.menuManager.showDialog('Vous n\'avez plus de Pokémon ! Vous avez perdu...');
                         await this.wait(2000);
                         await this.returnToSceneWithTransition();
                     } else {
                         // ✅ Débloquer PUIS ouvrir menu
                         this.turnInProgress = false;
-                        this.showDialog('Choisissez un autre Pokémon !');
+                        this.menuManager.showDialog('Choisissez un autre Pokémon !');
                         await this.wait(1000);
                         this.showPokemonMenu();
                     }
@@ -2029,18 +1390,18 @@ export class PokemonBattleScene extends Phaser.Scene {
                 }
                 
                 // Réafficher le menu principal seulement si le joueur est vivant
-                this.hideDialog();
+                this.menuManager.hideDialog();
                 setTimeout(() => {
-                    this.showDialog(`Que va faire ${this.battleState.playerActive.name} ?`);
+                    this.menuManager.showDialog(`Que va faire ${this.battleState.playerActive.name} ?`);
                 }, 500);
                 this.turnInProgress = false;
             }
 
         } catch (error) {
             console.error('[BattleScene] Erreur tour:', error);
-            this.showDialog('Une erreur est survenue !');
+            this.menuManager.showDialog('Une erreur est survenue !');
             setTimeout(() => {
-                this.hideDialog();
+                this.menuManager.hideDialog();
                 this.turnInProgress = false;
             }, 2000);
         }
@@ -2086,64 +1447,89 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     async animateTurn(result) {
         // Animation du joueur
-        if (result.playerAction && !result.playerAction.missed) {
-            await this.animManager.animateAttack(this.playerSprite, this.opponentSprite, result.playerAction);
-            if (result.playerAction.damage > 0) {
-                await this.animManager.animateHPDrain(this.opponentHPBar, this.opponentHPText, result.opponentHP, this.battleState.opponentActive.maxHP);
-                
-                // Message de dégâts
-                const effectiveness = result.playerAction.effectiveness;
-                if (effectiveness > 1) {
-                    this.showDialog("C'est super efficace !");
-                    await this.wait(1000);
-                } else if (effectiveness < 1 && effectiveness > 0) {
-                    this.showDialog("Ce n'est pas très efficace...");
-                    await this.wait(1000);
-                } else if (effectiveness === 0) {
-                    this.showDialog("Ça n'a aucun effet...");
-                    await this.wait(1000);
-                }
+        if (result.playerAction) {
+            if (result.playerAction.missed) {
+                // Attaque ratée
+                const player = this.battleState.playerActive;
+                const opponent = this.battleState.opponentActive;
+                this.menuManager.showDialog(`${player.name} utilise ${result.playerAction.move}!`);
+                await this.wait(800);
+                this.menuManager.showDialog(`${player.name} rate ${opponent.name}!`);
+                await this.wait(1000);
+            } else {
+                // Attaque réussie
+                await this.animManager.animateAttack(this.playerSprite, this.opponentSprite, result.playerAction);
+                if (result.playerAction.damage > 0) {
+                    await this.animManager.animateHPDrain(this.opponentHPBar, this.opponentHPText, result.opponentHP, this.battleState.opponentActive.maxHP);
+                    
+                    // Message de dégâts
+                    const effectiveness = result.playerAction.effectiveness;
+                    if (effectiveness > 1) {
+                        this.menuManager.showDialog("C'est super efficace !");
+                        await this.wait(1000);
+                    } else if (effectiveness < 1 && effectiveness > 0) {
+                        this.menuManager.showDialog("Ce n'est pas très efficace...");
+                        await this.wait(1000);
+                    } else if (effectiveness === 0) {
+                        this.menuManager.showDialog("Ça n'a aucun effet...");
+                        await this.wait(1000);
+                    }
 
-                if (result.playerAction.critical) {
-                    this.showDialog("Coup critique !");
-                    await this.wait(800);
-                }
-                
-                // Vérifier KO adversaire
-                if (result.opponentHP <= 0) {
-                    await this.animManager.animateKO(this.opponentSprite, 'opponentContainer', true);
+                    if (result.playerAction.critical) {
+                        this.menuManager.showDialog("Coup critique !");
+                        await this.wait(800);
+                    }
+                    
+                    // Vérifier KO adversaire
+                    if (result.opponentHP <= 0) {
+                        const opponentName = this.battleState.opponentActive.name || 'Le Pokémon adverse';
+                        this.menuManager.showDialog(`${opponentName} sauvage est K.O. !`);
+                        await this.wait(1200);
+                        await this.animManager.animateKO(this.opponentSprite, 'opponentContainer', true);
+                    }
                 }
             }
         }
 
         // Animation de l'adversaire
-        if (result.opponentAction && !result.opponentAction.missed) {
-            const opponent = this.battleState.opponentActive;
-            this.showDialog(`${opponent.name} utilise ${result.opponentAction.move || 'une attaque'} !`);
-            await this.wait(800);
+        if (result.opponentAction) {
+            if (result.opponentAction.missed) {
+                // Attaque ratée
+                const opponent = this.battleState.opponentActive;
+                const player = this.battleState.playerActive;
+                this.menuManager.showDialog(`${opponent.name} utilise ${result.opponentAction.move}!`);
+                await this.wait(800);
+                this.menuManager.showDialog(`${opponent.name} rate ${player.name}!`);
+                await this.wait(1000);
+            } else {
+                // Attaque réussie
+                const opponent = this.battleState.opponentActive;
+                this.menuManager.showDialog(`${opponent.name} utilise ${result.opponentAction.move || 'une attaque'} !`);
+                await this.wait(800);
 
-            await this.animManager.animateAttack(this.opponentSprite, this.playerSprite, result.opponentAction);
-            if (result.opponentAction.damage > 0) {
-                await this.animManager.animateHPDrain(this.playerHPBar, this.playerHPText, result.playerHP, this.battleState.playerActive.maxHP);
-                
-                // Message de dégâts
-                const effectiveness = result.opponentAction.effectiveness;
-                if (effectiveness > 1) {
-                    this.showDialog("C'est super efficace !");
-                    await this.wait(1000);
-                } else if (effectiveness < 1 && effectiveness > 0) {
-                    this.showDialog("Ce n'est pas très efficace...");
-                    await this.wait(1000);
-                }
+                await this.animManager.animateAttack(this.opponentSprite, this.playerSprite, result.opponentAction);
+                if (result.opponentAction.damage > 0) {
+                    await this.animManager.animateHPDrain(this.playerHPBar, this.playerHPText, result.playerHP, this.battleState.playerActive.maxHP);
+                    
+                    // Message de dégâts
+                    const effectiveness = result.opponentAction.effectiveness;
+                    if (effectiveness > 1) {
+                        this.menuManager.showDialog("C'est super efficace !");
+                        await this.wait(1000);
+                    } else if (effectiveness < 1 && effectiveness > 0) {
+                        this.menuManager.showDialog("Ce n'est pas très efficace...");
+                        await this.wait(1000);
+                    }
 
-                if (result.opponentAction.critical) {
-                    this.showDialog("Coup critique !");
-                    await this.wait(800);
-                }
-                
-                // Vérifier KO joueur
-                if (result.playerHP <= 0) {
-                    await this.animManager.animateKO(this.playerSprite, 'playerContainer', false);
+                    if (result.opponentAction.critical) {
+                        this.menuManager.showDialog("Coup critique !");
+                        await this.wait(800);
+                    }
+                    
+                    // Vérifier KO joueur
+                    if (result.playerHP <= 0) {
+                        await this.animManager.animateKO(this.playerSprite, 'playerContainer', false);
+                    }
                 }
             }
         }
@@ -2196,7 +1582,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         const pokemonName = isOpponent ? this.battleState.opponentActive.name : this.battleState.playerActive.name;
         
         // Message KO
-        this.showDialog(`${pokemonName} est K.O. !`);
+        this.menuManager.showDialog(`${pokemonName} est K.O. !`);
         await this.wait(800);
 
         // Récupérer le container et l'ombre (utiliser références stockées)
@@ -2525,7 +1911,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                 message += `\n(${bonuses.join(', ')})`;
             }
 
-            this.showDialog(message);
+            this.menuManager.showDialog(message);
 
             // Animer la barre XP si c'est le Pokémon actif
             if (isActivePokemon && this.playerXPBar) {
@@ -2536,7 +1922,7 @@ export class PokemonBattleScene extends Phaser.Scene {
 
             // Si level up
             if (xp.leveledUp) {
-                this.showDialog(`${xp.pokemonName} monte au niveau ${xp.newLevel} !`);
+                this.menuManager.showDialog(`${xp.pokemonName} monte au niveau ${xp.newLevel} !`);
                 
                 // Son/effet montée niveau (optionnel)
                 this.tweens.add({
@@ -2559,7 +1945,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             }
         }
 
-        this.hideDialog();
+        this.menuManager.hideDialog();
         await this.wait(500);
     }
 
@@ -2586,12 +1972,12 @@ export class PokemonBattleScene extends Phaser.Scene {
                 newMove: newMove,
                 onComplete: (learned, moveName) => {
                     if (learned) {
-                        this.showDialog(`${pokemon.nickname || pokemon.species_name} a appris ${moveName} !`);
+                        this.menuManager.showDialog(`${pokemon.nickname || pokemon.species_name} a appris ${moveName} !`);
                     } else {
-                        this.showDialog(`${pokemon.nickname || pokemon.species_name} n'a pas appris ${newMove.name}.`);
+                        this.menuManager.showDialog(`${pokemon.nickname || pokemon.species_name} n'a pas appris ${newMove.name}.`);
                     }
                     setTimeout(() => {
-                        this.hideDialog();
+                        this.menuManager.hideDialog();
                         resolve();
                     }, 1500);
                 }
@@ -2604,15 +1990,18 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     async flee() {
         if (this.battleType !== 'wild') {
-            this.showDialog("Impossible de fuir un combat de dresseur !");
-            setTimeout(() => this.hideDialog(), 2000);
+            this.menuManager.showDialog("Impossible de fuir un combat de dresseur !");
+            setTimeout(() => this.menuManager.hideDialog(), 2000);
             return;
         }
 
-        console.log('[BattleScene] Fuite du combat');
-        this.showDialog("Vous avez pris la fuite !");
+        console.log('[BattleScene] Fuite du combat (PAS de sauvegarde HP)');
+        this.menuManager.showDialog("Vous avez pris la fuite !");
         
         await this.wait(1500);
+        
+        // 🔧 FIXE: NE PAS sauvegarder les changements (garde HP actuels)
+        // Retourner directement sans appeler saveBattleChanges()
         this.returnToScene();
     }
 
@@ -2624,6 +2013,9 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     async returnToSceneWithTransition() {
         const { width, height } = this.scale;
+        
+        // ✅ IMPORTANT: Sauvegarder les changements de HP/XP avant de quitter
+        await this.saveBattleChanges();
         
         // Petite pause
         await this.wait(1000);
@@ -2648,6 +2040,48 @@ export class PokemonBattleScene extends Phaser.Scene {
         
         // Retourner à la scène précédente
         this.returnToScene();
+    }
+
+    /**
+     * 🆕 Sauvegarde les changements HP/XP/status du combat
+     */
+    async saveBattleChanges() {
+        if (!this.battleState || !this.battleState.playerTeam) {
+            console.warn('[BattleScene] Pas de battleState à sauvegarder');
+            return;
+        }
+
+        try {
+            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            
+            // Préparer les données du team avec les changements
+            const teamUpdates = this.battleState.playerTeam.map(pokemon => ({
+                _id: pokemon._id,
+                currentHP: Math.max(0, pokemon.currentHP || 0),
+                experience: pokemon.experience || 0,
+                level: pokemon.level || 1
+            }));
+
+            const response = await fetch(`${apiUrl}/api/battle/save-changes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playerId: this.playerId,
+                    battleId: this.battleId,
+                    teamUpdates: teamUpdates
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('[BattleScene] Erreur sauvegarde:', error);
+                return;
+            }
+
+            console.log('[BattleScene] Changements sauvegardés avec succès');
+        } catch (error) {
+            console.error('[BattleScene] Erreur appel /save-changes:', error);
+        }
     }
 
     /**
@@ -2694,6 +2128,12 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.moveSelectorCreated = false; // 🆕 Reset flag pour recréer buttons
         this.battleState = null; // ⚠️ Crucial pour éviter XP aux mauvais Pokemon
         this.battleId = null;
+        
+        // 🔧 FIXE: Nettoyer les pourcentages HP pour le prochain combat
+        this.currentPlayerHPPercent = undefined;
+        this.currentOpponentHPPercent = undefined;
+        
+        console.log('[BattleScene] ✅ Ressources nettoyées (HP percentages réinitialisés)');
     }
 
     returnToScene() {

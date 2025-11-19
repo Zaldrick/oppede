@@ -85,6 +85,7 @@ export default class PokemonBattleManager {
 
             const turnResult = await response.json();
             console.log('[BattleManager Client] Tour exécuté:', turnResult);
+            console.log('[BattleManager Client] 🔍 isOver:', turnResult.isOver, 'winner:', turnResult.winner, 'xpGains:', turnResult.xpGains);
 
             // Mettre à jour l'état local
             if (this.currentBattle && this.currentBattle.battleId === battleId) {

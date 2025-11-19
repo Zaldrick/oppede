@@ -338,6 +338,9 @@ export default class BattleUIManager {
             nextLevelXP: nextLevelXP
         };
         
+        // 🆕 Stocker référence au texte de niveau pour animation level-up
+        this.scene.playerLevelText = levelText;
+        
         // Stocker tous les éléments pour l'animation
         this.scene.playerUIElements = [nivText, levelText, nameText, psLabel, hpBarFill, this.scene.playerHPText, xpLabel, xpBarFill];
     }
@@ -773,6 +776,51 @@ export default class BattleUIManager {
         const g = Math.min(255, Math.floor(((color >> 8) & 0xFF) * factor));
         const b = Math.min(255, Math.floor((color & 0xFF) * factor));
         return (r << 16) | (g << 8) | b;
+    }
+
+    /**
+     * 🆕 Met à jour complètement l'UI du joueur après un switch
+     * @param {Object} pokemon - Nouveau Pokémon actif
+     */
+    async updateCompletePlayerUI(pokemon) {
+        const { width, height } = this.scene.scale;
+        
+        // 🔧 FIXE: Réinitialiser le pourcentage HP pour le nouveau Pokémon
+        this.scene.currentPlayerHPPercent = undefined;
+        
+        // Détruire anciens éléments UI
+        if (this.scene.playerUIElements) {
+            this.scene.playerUIElements.forEach(el => {
+                if (el && el.destroy) el.destroy();
+            });
+        }
+        
+        // Recréer l'UI complète
+        await this.createPlayerUI(width, height);
+        
+        // Animer l'apparition
+        const container = this.scene.children.getByName('playerContainer');
+        if (container) {
+            container.setAlpha(0);
+            this.scene.tweens.add({
+                targets: container,
+                alpha: 1,
+                duration: 500
+            });
+        }
+        
+        if (this.scene.playerUIElements) {
+            this.scene.playerUIElements.forEach(el => {
+                if (el) {
+                    el.setAlpha(0);
+                    this.scene.tweens.add({
+                        targets: el,
+                        alpha: 1,
+                        duration: 500
+                    });
+                }
+            });
+        }
     }
 
     /**

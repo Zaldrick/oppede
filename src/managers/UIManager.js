@@ -43,10 +43,10 @@ export class UIManager {
 
     // Bouton A
     const buttonARadius = gameWidth * 0.07 / this.zoomFactor;
-    this.buttonA = this.scene.add.circle(gameWidth * 0.92, gameHeight * 0.79, buttonARadius, 0x808080)
+    this.buttonA = this.scene.add.circle(gameWidth * 0.87, gameHeight * 0.8, buttonARadius, 0x808080)
       .setInteractive()
       .on('pointerdown', () => this.handleButtonA());
-    this.buttonAText = this.scene.add.text(gameWidth * 0.92, gameHeight * 0.79, "A", {
+    this.buttonAText = this.scene.add.text(gameWidth * 0.87, gameHeight * 0.8, "A", {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
@@ -56,12 +56,12 @@ export class UIManager {
 
     // Bouton B
     const buttonBRadius = gameWidth * 0.07 / this.zoomFactor;
-    this.buttonB = this.scene.add.circle(gameWidth * 0.75, gameHeight * 0.85, buttonBRadius, 0x808080)
+    this.buttonB = this.scene.add.circle(gameWidth * 0.74, gameHeight * 0.85, buttonBRadius, 0x808080)
       .setInteractive()
       .on('pointerdown', () => { this.scene.playerManager?.setSpeedBoost(true); })
       .on('pointerup', () => { this.scene.playerManager?.setSpeedBoost(false); })
       .on('pointerout', () => { this.scene.playerManager?.setSpeedBoost(false); });
-    this.buttonBText = this.scene.add.text(gameWidth * 0.75, gameHeight * 0.85, "B", {
+    this.buttonBText = this.scene.add.text(gameWidth * 0.74, gameHeight * 0.85, "B", {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
@@ -72,10 +72,10 @@ export class UIManager {
     // Bouton Start
     const startButtonWidth = gameWidth * 0.20 / this.zoomFactor;
     const startButtonHeight = gameHeight * 0.04 / this.zoomFactor;
-    this.startButton = this.scene.add.rectangle(gameWidth * 0.5, gameHeight * 0.93, startButtonWidth, startButtonHeight, 0x808080)
+    this.startButton = this.scene.add.rectangle(gameWidth * 0.5, gameHeight * 0.88, startButtonWidth, startButtonHeight, 0x808080)
       .setInteractive()
       .on('pointerdown', () => this.handleStartButton());
-    this.startButtonText = this.scene.add.text(gameWidth * 0.5, gameHeight * 0.93, "Start", {
+    this.startButtonText = this.scene.add.text(gameWidth * 0.5, gameHeight * 0.88, "Start", {
       font: `${gameWidth * 0.05 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"

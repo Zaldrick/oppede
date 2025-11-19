@@ -44,15 +44,47 @@ export default class BattleTurnManager {
             await this.updateBattleState(result);
 
             if (result.isOver) {
+                console.log('[BattleTurnManager] Combat terminé - winner:', result.winner, 'xpGains:', result.xpGains);
+                
                 if (result.winner === 'player' && result.xpGains && result.xpGains.length > 0) {
+                    console.log('[BattleTurnManager] ✅ XP à distribuer:', result.xpGains.length, 'gains');
                     for (const gain of result.xpGains) {
-                        const pokemon = this.scene.battleState.playerTeam.find(p => p._id === gain.pokemonId);
+                        // 🔧 FIXE: Chercher par ID (string ou ObjectId)
+                        const pokemon = this.scene.battleState.playerTeam.find(p => 
+                            p._id && (p._id === gain.pokemonId || p._id.toString() === gain.pokemonId.toString())
+                        );
+                        
                         if (pokemon) {
-                            this.scene.menuManager.showDialog(`${pokemon.name} gagne ${gain.xpGained} points d'expérience !`);
+                            // 🔧 FIXE: Utiliser le bon nom (nickname > name > species name)
+                            const pokemonName = pokemon.nickname || pokemon.name || pokemon.speciesData?.name_fr || gain.pokemonName;
+                            
+                            this.scene.menuManager.showDialog(`${pokemonName} gagne ${gain.xpGained} points d'expérience !`);
                             await this.scene.wait(1500);
                             
-                            if (pokemon._id === this.scene.battleState.playerActive._id) {
-                                await this.scene.animManager.animateXPGain(gain.xpGained);
+                            // Animer XP seulement pour le Pokémon actif
+                            if (pokemon._id === this.scene.battleState.playerActive._id || 
+                                pokemon._id.toString() === this.scene.battleState.playerActive._id.toString()) {
+                                // 🆕 Passer l'ancien XP et l'ancien niveau pour animation correcte
+                                const oldXP = gain.currentXP || 0;
+                                const oldLevel = gain.currentLevel || pokemon.level;
+                                
+                                const leveledUp = await this.scene.animManager.animateXPGain(
+                                    gain.xpGained, 
+                                    oldXP, 
+                                    oldLevel
+                                );
+                                
+                                // TODO: Gérer apprentissage de nouveaux moves si level-up
+                                if (leveledUp && gain.newMovesAvailable && gain.newMovesAvailable.length > 0) {
+                                    // Afficher menu d'apprentissage de moves
+                                    console.log('[Battle] Nouveaux moves disponibles:', gain.newMovesAvailable);
+                                }
+                            } else {
+                                // 🆕 Pour les Pokémon non-actifs, afficher juste un message si level-up
+                                if (gain.leveledUp) {
+                                    this.scene.menuManager.showDialog(`${pokemonName} passe niveau ${gain.newLevel} !`);
+                                    await this.scene.wait(1500);
+                                }
                             }
                         }
                     }
@@ -97,54 +129,81 @@ export default class BattleTurnManager {
      * Anime un tour de combat
      */
     async animateTurn(result) {
-        if (result.playerAction && !result.playerAction.missed) {
-            await this.scene.animManager.animateAttack(this.scene.playerSprite, this.scene.opponentSprite, result.playerAction);
-            if (result.playerAction.damage > 0) {
-                await this.scene.animManager.animateHPDrain(
-                    this.scene.opponentHPBar,
-                    null,
-                    result.opponentHP,
-                    this.scene.battleState.opponentActive.maxHP
-                );
-                
-                const effectiveness = result.playerAction.effectiveness || 1;
-                if (effectiveness !== 1) {
-                    const effectivenessMsg = getEffectivenessMessage(effectiveness);
-                    if (effectivenessMsg) {
-                        this.scene.menuManager.showDialog(effectivenessMsg);
+        // ========== ACTION DU JOUEUR ==========
+        if (result.playerAction) {
+            if (result.playerAction.missed) {
+                // AFFICHER MESSAGE DE RATÉ
+                const opponentName = this.scene.battleState.opponentActive.name;
+                this.scene.menuManager.showDialog(`${this.scene.battleState.playerActive.name} rate ${opponentName} adverse !`);
+                await this.scene.wait(1500);
+            } else {
+                // Attaque réussie
+                await this.scene.animManager.animateAttack(this.scene.playerSprite, this.scene.opponentSprite, result.playerAction);
+                if (result.playerAction.damage > 0) {
+                    await this.scene.animManager.animateHPDrain(
+                        this.scene.opponentHPBar,
+                        null,
+                        result.opponentHP,
+                        this.scene.battleState.opponentActive.maxHP
+                    );
+                    
+                    const effectiveness = result.playerAction.effectiveness || 1;
+                    if (effectiveness !== 1) {
+                        const effectivenessMsg = getEffectivenessMessage(effectiveness);
+                        if (effectivenessMsg) {
+                            this.scene.menuManager.showDialog(effectivenessMsg);
+                            await this.scene.wait(1000);
+                        }
+                    }
+                    
+                    if (result.playerAction.critical) {
+                        this.scene.menuManager.showDialog('Coup critique !');
                         await this.scene.wait(1000);
                     }
-                }
-                
-                if (result.playerAction.critical) {
-                    this.scene.menuManager.showDialog('Coup critique !');
-                    await this.scene.wait(1000);
-                }
-                
-                if (result.opponentHP <= 0) {
-                    await this.scene.animManager.animateKO(this.scene.opponentSprite, 'opponentContainer', true);
+                    
+                    // MESSAGE K.O. AVANT ANIMATION
+                    if (result.opponentHP <= 0) {
+                        const opponentName = this.scene.battleState.opponentActive.name;
+                        this.scene.menuManager.showDialog(`Le ${opponentName} adverse est K.O. !`);
+                        await this.scene.wait(1200);
+                        await this.scene.animManager.animateKO(this.scene.opponentSprite, 'opponentContainer', true);
+                    }
                 }
             }
         }
 
-        if (result.opponentAction && !result.opponentAction.missed) {
-            const opponentMove = this.scene.battleState.opponentActive.moveset[0];
-            const moveNameFR = await this.scene.getMoveName(opponentMove?.name || 'Charge');
-            this.scene.menuManager.showDialog(`${this.scene.battleState.opponentActive.name} utilise ${moveNameFR} !`);
-            await this.scene.wait(800);
-            
-            await this.scene.animManager.animateAttack(this.scene.opponentSprite, this.scene.playerSprite, result.opponentAction);
-            
-            if (result.opponentAction.damage > 0) {
-                await this.scene.animManager.animateHPDrain(
-                    this.scene.playerHPBar,
-                    this.scene.playerHPText,
-                    result.playerHP,
-                    this.scene.battleState.playerActive.maxHP
-                );
+        // ========== ACTION DE L'ADVERSAIRE ==========
+        // 🔧 FIXE: Vérifier que l'adversaire n'est pas K.O. avant d'attaquer
+        if (result.opponentAction && result.opponentHP > 0) {
+            if (result.opponentAction.missed) {
+                // AFFICHER MESSAGE DE RATÉ
+                const playerName = this.scene.battleState.playerActive.name;
+                this.scene.menuManager.showDialog(`${this.scene.battleState.opponentActive.name} rate ${playerName} !`);
+                await this.scene.wait(1500);
+            } else {
+                // Attaque réussie
+                const opponentMove = this.scene.battleState.opponentActive.moveset[0];
+                const moveNameFR = await this.scene.getMoveName(opponentMove?.name || 'Charge');
+                this.scene.menuManager.showDialog(`${this.scene.battleState.opponentActive.name} utilise ${moveNameFR} !`);
+                await this.scene.wait(800);
                 
-                if (result.playerHP <= 0) {
-                    await this.scene.animManager.animateKO(this.scene.playerSprite, 'playerContainer', false);
+                await this.scene.animManager.animateAttack(this.scene.opponentSprite, this.scene.playerSprite, result.opponentAction);
+                
+                if (result.opponentAction.damage > 0) {
+                    await this.scene.animManager.animateHPDrain(
+                        this.scene.playerHPBar,
+                        this.scene.playerHPText,
+                        result.playerHP,
+                        this.scene.battleState.playerActive.maxHP
+                    );
+                    
+                    // MESSAGE K.O. AVANT ANIMATION
+                    if (result.playerHP <= 0) {
+                        const playerName = this.scene.battleState.playerActive.name;
+                        this.scene.menuManager.showDialog(`${playerName} est K.O. !`);
+                        await this.scene.wait(1200);
+                        await this.scene.animManager.animateKO(this.scene.playerSprite, 'playerContainer', false);
+                    }
                 }
             }
         }

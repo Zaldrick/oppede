@@ -1,3 +1,17 @@
+## ⚠️ RÈGLES CRITIQUES - À RESPECTER ABSOLUMENT
+
+**INTERDICTIONS ABSOLUES** :
+1. ❌ **NE JAMAIS faire de `git reset`, `git revert`, ou rollback Git sans demander explicitement la permission au développeur**
+2. ❌ **NE JAMAIS supprimer une collection MongoDB (`db.collection.drop()`) sans confirmation explicite**
+3. ❌ **NE JAMAIS supprimer des fichiers ou dossiers entiers sans validation**
+4. ❌ **NE JAMAIS modifier les commits existants ou l'historique Git**
+
+**TOUJOURS** :
+- ✅ Proposer les changements et attendre la confirmation avant toute opération destructive
+- ✅ Créer des backups avant modifications importantes de la DB
+- ✅ Faire des commits réguliers avec des messages clairs
+- ✅ Demander validation avant suppression de données
+
 ## Repo snapshot for AI coding agents
 
 This repo is a combined React + Phaser frontend and an Express/Socket.IO backend with MongoDB. Key entry points:
