@@ -17,7 +17,56 @@ export default class BattleSpriteManager {
     }
 
     /**
-     * Crée le sprite adversaire (FACE)
+     * 🆕 Détruit un sprite (GÉNÉRIQUE - GIF ou PNG)
+     */
+    destroySprite(spriteData) {
+        if (!spriteData) return;
+        
+        if (spriteData.type === 'phaser' && spriteData.sprite) {
+            spriteData.sprite.destroy();
+        } else if (spriteData.type === 'gif' && spriteData.gifContainer) {
+            SpriteLoader.removeAnimatedGif(spriteData.gifContainer);
+        }
+    }
+
+    /**
+     * 🆕 Anime l'apparition d'un sprite (GÉNÉRIQUE)
+     */
+    async fadeInSprite(spriteData, shadow, duration = 500) {
+        if (spriteData.type === 'phaser' && spriteData.sprite) {
+            const targets = shadow ? [spriteData.sprite, shadow] : [spriteData.sprite];
+            return new Promise(resolve => {
+                this.scene.tweens.add({
+                    targets: targets,
+                    alpha: 1,
+                    duration,
+                    ease: 'Power2',
+                    onComplete: resolve
+                });
+            });
+        } else if (spriteData.type === 'gif' && spriteData.gifContainer) {
+            return new Promise(resolve => {
+                // Animation CSS pour GIF
+                spriteData.gifContainer.style.transition = `opacity ${duration}ms ease`;
+                spriteData.gifContainer.style.opacity = '1';
+                
+                if (shadow) {
+                    this.scene.tweens.add({
+                        targets: shadow,
+                        alpha: 1,
+                        duration,
+                        ease: 'Power2',
+                        onComplete: resolve
+                    });
+                } else {
+                    setTimeout(resolve, duration);
+                }
+            });
+        }
+    }
+
+    /**
+     * 🆕 Crée le sprite adversaire (GÉNÉRIQUE - GIF ou PNG)
      */
     async createOpponentSprite(width, height) {
         const opponent = this.scene.battleState.opponentActive;
@@ -26,27 +75,39 @@ export default class BattleSpriteManager {
         
         if (opponent.sprites && opponent.sprites.frontCombat) {
             try {
-                const sprite = await SpriteLoader.displaySprite(
+                // 🆕 Utiliser la méthode générique
+                const result = await SpriteLoader.displaySpriteAuto(
                     this.scene,
                     opponentSpriteX,
                     opponentSpriteY,
                     opponent.sprites.frontCombat,
                     opponent.name.substring(0, 2),
-                    2.5
+                    2.5,
+                    5, // depth
+                    this.scene.useAnimatedSprites // Option globale
                 );
                 
-                if (sprite) {
-                    this.scene.opponentSprite = sprite;
-                    sprite.setAlpha(0);
-                    sprite.setDepth(5);
-                    
-                    const shadow = this.scene.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowOffsetY, sprite.displayWidth * 0.8, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.scene.opponentShadow = shadow;
+                // Stocker les références (unifiées)
+                this.scene.opponentSpriteData = result;
+                
+                if (result.type === 'phaser') {
+                    this.scene.opponentSprite = result.sprite;
+                    result.sprite.setAlpha(0);
+                } else if (result.type === 'gif') {
+                    this.scene.opponentGifContainer = result.gifContainer;
+                    result.gifContainer.style.opacity = '0';
                 }
+                
+                // Ombre (identique pour les deux)
+                const shadow = this.scene.add.graphics();
+                shadow.fillStyle(0x000000, 0.6);
+                const shadowSize = result.type === 'phaser' && result.sprite 
+                    ? { width: result.sprite.displayWidth * 0.8, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
+                    : { width: 80, height: 15, offsetY: 50 }; // Estimation pour GIF
+                shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
+                shadow.setDepth(0);
+                this.scene.opponentShadow = shadow;
+                
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur sprite adversaire:', error);
             }
@@ -54,7 +115,7 @@ export default class BattleSpriteManager {
     }
 
     /**
-     * Crée le sprite joueur (DOS)
+     * 🆕 Crée le sprite joueur (GÉNÉRIQUE - GIF ou PNG)
      */
     async createPlayerSprite(width, height) {
         const player = this.scene.battleState.playerActive;
@@ -63,27 +124,39 @@ export default class BattleSpriteManager {
         
         if (player.sprites && player.sprites.backCombat) {
             try {
-                const sprite = await SpriteLoader.displaySprite(
+                // 🆕 Utiliser la méthode générique
+                const result = await SpriteLoader.displaySpriteAuto(
                     this.scene,
                     playerSpriteX,
                     playerSpriteY,
                     player.sprites.backCombat,
                     player.name.substring(0, 2),
-                    3
+                    3,
+                    1, // depth
+                    this.scene.useAnimatedSprites // Option globale
                 );
                 
-                if (sprite) {
-                    this.scene.playerSprite = sprite;
-                    sprite.setAlpha(0);
-                    sprite.setDepth(1);
-                    
-                    const shadow = this.scene.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowOffsetY, sprite.displayWidth * 0.85, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.scene.playerShadow = shadow;
+                // Stocker les références (unifiées)
+                this.scene.playerSpriteData = result;
+                
+                if (result.type === 'phaser') {
+                    this.scene.playerSprite = result.sprite;
+                    result.sprite.setAlpha(0);
+                } else if (result.type === 'gif') {
+                    this.scene.playerGifContainer = result.gifContainer;
+                    result.gifContainer.style.opacity = '0';
                 }
+                
+                // Ombre (identique pour les deux)
+                const shadow = this.scene.add.graphics();
+                shadow.fillStyle(0x000000, 0.6);
+                const shadowSize = result.type === 'phaser' && result.sprite 
+                    ? { width: result.sprite.displayWidth * 0.85, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
+                    : { width: 90, height: 15, offsetY: 50 }; // Estimation pour GIF
+                shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
+                shadow.setDepth(0);
+                this.scene.playerShadow = shadow;
+                
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur sprite joueur:', error);
             }
@@ -141,7 +214,7 @@ export default class BattleSpriteManager {
     }
 
     /**
-     * 🆕 Crée/Recrée le sprite joueur avec animation (GÉNÉRIQUE pour init + switch)
+     * 🆕 Crée/Recrée le sprite joueur avec animation (GÉNÉRIQUE pour init + switch - GIF ou PNG)
      * @param {Object} pokemon - Données du Pokémon
      * @param {boolean} animate - Si true, anime l'apparition
      */
@@ -150,47 +223,52 @@ export default class BattleSpriteManager {
         const playerSpriteX = width * 0.22;
         const playerSpriteY = height * 0.45;
         
-        // Détruire ancien sprite si existe
+        // Détruire ancien sprite si existe (GIF ou PNG)
+        if (this.scene.playerSpriteData) {
+            this.destroySprite(this.scene.playerSpriteData);
+        }
         if (this.scene.playerSprite) this.scene.playerSprite.destroy();
         if (this.scene.playerShadow) this.scene.playerShadow.destroy();
         
         if (pokemon.sprites && pokemon.sprites.backCombat) {
             try {
-                const sprite = await SpriteLoader.displaySprite(
+                // 🆕 Utiliser la méthode générique
+                const result = await SpriteLoader.displaySpriteAuto(
                     this.scene,
                     playerSpriteX,
                     playerSpriteY,
                     pokemon.sprites.backCombat,
                     pokemon.nickname?.substring(0, 2) || pokemon.name?.substring(0, 2) || 'PK',
-                    3
+                    3,
+                    1, // depth
+                    this.scene.useAnimatedSprites // Option globale
                 );
                 
-                if (sprite) {
-                    this.scene.playerSprite = sprite;
-                    sprite.setAlpha(animate ? 0 : 1);
-                    sprite.setDepth(1);
-                    
-                    // Créer ombre
-                    const shadow = this.scene.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowOffsetY, sprite.displayWidth * 0.85, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.scene.playerShadow = shadow;
-                    shadow.setAlpha(animate ? 0 : 1);
-                    
-                    // Animation entrée si demandé
-                    if (animate) {
-                        await new Promise(resolve => {
-                            this.scene.tweens.add({
-                                targets: [sprite, shadow],
-                                alpha: 1,
-                                duration: 500,
-                                ease: 'Power2',
-                                onComplete: resolve
-                            });
-                        });
-                    }
+                // Stocker les références
+                this.scene.playerSpriteData = result;
+                
+                if (result.type === 'phaser') {
+                    this.scene.playerSprite = result.sprite;
+                    result.sprite.setAlpha(animate ? 0 : 1);
+                } else if (result.type === 'gif') {
+                    this.scene.playerGifContainer = result.gifContainer;
+                    result.gifContainer.style.opacity = animate ? '0' : '1';
+                }
+                
+                // Créer ombre
+                const shadow = this.scene.add.graphics();
+                shadow.fillStyle(0x000000, 0.6);
+                const shadowSize = result.type === 'phaser' && result.sprite 
+                    ? { width: result.sprite.displayWidth * 0.85, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
+                    : { width: 90, height: 15, offsetY: 50 };
+                shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
+                shadow.setDepth(0);
+                this.scene.playerShadow = shadow;
+                shadow.setAlpha(animate ? 0 : 1);
+                
+                // Animation entrée si demandé
+                if (animate) {
+                    await this.fadeInSprite(result, shadow, 500);
                 }
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur création sprite joueur:', error);

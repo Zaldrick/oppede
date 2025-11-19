@@ -11,6 +11,9 @@ export class InventoryScene extends Phaser.Scene {
         this.inventory = Array.isArray(data.inventory) ? data.inventory : [];
         this.playerId = data.playerId;
         this.selectedItem = null;
+        this.returnScene = data.returnScene || 'GameScene'; // 🆕 Scène de retour
+        this.inBattle = data.inBattle || false; // 🆕 En combat
+        this.battleState = data.battleState || null; // 🆕 État du combat
 
         // Récupère la configuration pour cette scène
         this.config = ConfigManager.getSceneConfig('Inventory', this.scale.width, this.scale.height);
@@ -202,8 +205,16 @@ export class InventoryScene extends Phaser.Scene {
         ).setOrigin(0.5).setInteractive();
 
         returnButton.on("pointerdown", () => {
-            this.scene.stop();
-            this.scene.resume("GameScene");
+            // 🆕 Retour vers combat : résumer la scène
+            if (this.inBattle && this.returnScene === 'PokemonBattleScene') {
+                this.scene.stop();
+                this.scene.resume(this.returnScene);
+            }
+            // Cas normal : résumer GameScene
+            else {
+                this.scene.stop();
+                this.scene.resume(this.returnScene);
+            }
         });
     }
 

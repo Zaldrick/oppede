@@ -58,6 +58,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.battleType = data.battleType || 'wild';
         this.opponentId = data.opponentId || null;
         this.returnScene = data.returnScene || 'PokemonTeamScene';
+        this.restoreBattleState = data.restoreBattleState || null; // 🆕 État à restaurer
     }
 
     async create() {
@@ -82,6 +83,25 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
 
         // ✅ Initialiser les managers modulaires (refactoring)
+        // 🆕 Option pour sprites animés (GIF) ou statiques (PNG)
+        // Charger depuis localStorage (défaut: true si non défini)
+        this.useAnimatedSprites = localStorage.getItem('useAnimatedSprites') !== 'false';
+        this.gifContainers = []; // Référence pour cleanup DOM
+        console.log(`[BattleScene] Mode sprites: ${this.useAnimatedSprites ? 'GIF animés' : 'PNG statiques'}`);
+        
+        // 🆕 Écouter l'événement resume pour réafficher les GIFs et menu après fermeture des menus
+        this.events.on('resume', () => {
+            console.log('[BattleScene] Scene resumed - réaffichage des GIFs et menu principal');
+            const SpriteLoader = require('./utils/spriteLoader').default;
+            SpriteLoader.showAllGifs(this);
+            
+            // Réafficher le menu principal si on revient d'un sous-menu
+            if (this.mainMenuBg) this.mainMenuBg.setVisible(true);
+            if (this.mainMenuButtons) {
+                this.mainMenuButtons.forEach(btn => btn.setVisible(true));
+            }
+        });
+        
         this.uiManager = new BattleUIManager(this);
         this.menuManager = new BattleMenuManager(this);
         this.animManager = new BattleAnimationManager(this);
@@ -92,26 +112,37 @@ export class PokemonBattleScene extends Phaser.Scene {
             menuManager: !!this.menuManager,
             animManager: !!this.animManager,
             spriteManager: !!this.spriteManager,
-            turnManager: !!this.turnManager
+            turnManager: !!this.turnManager,
+            useAnimatedSprites: this.useAnimatedSprites
         });
 
         try {
-            // Démarrer le combat (pendant le spiral)
-            const battleData = await this.battleManager.startBattle(
-                this.playerId,
-                this.opponentId,
-                this.battleType
-            );
+            // 🆕 Restaurer l'état du combat ou démarrer nouveau combat
+            if (this.restoreBattleState) {
+                console.log('[BattleScene] Restauration état combat existant');
+                this.battleState = this.restoreBattleState;
+                this.battleId = this.battleState._id || this.battleState.battleId;
+            } else {
+                // Démarrer le combat (pendant le spiral)
+                const battleData = await this.battleManager.startBattle(
+                    this.playerId,
+                    this.opponentId,
+                    this.battleType
+                );
 
-            this.battleId = battleData.battleId;
-            this.battleState = {
-                _id: battleData.battleId,
-                playerTeam: battleData.playerTeam,
-                opponentTeam: battleData.opponentTeam,
-                playerActive: battleData.playerTeam[0],
-                opponentActive: battleData.opponentTeam[0],
-                battleLog: battleData.battleLog || []
-            };
+                this.battleId = battleData.battleId;
+                this.battleState = {
+                    _id: battleData.battleId,
+                    battleId: battleData.battleId,
+                    battleType: this.battleType,
+                    opponentId: this.opponentId,
+                    playerTeam: battleData.playerTeam,
+                    opponentTeam: battleData.opponentTeam,
+                    playerActive: battleData.playerTeam[0],
+                    opponentActive: battleData.opponentTeam[0],
+                    battleLog: battleData.battleLog || []
+                };
+            }
             
             // Debug: vérifier les données du Pokémon actif
             console.log('[BattleScene] Pokémon actif:', {
@@ -607,7 +638,7 @@ export class PokemonBattleScene extends Phaser.Scene {
 
         const buttons = [
             { label: 'COMBATTRE', x: 0, y: 0, color: 0xE74C3C, action: () => this.menuManager.showMoveSelector() },
-            { label: 'SAC', x: 1, y: 0, color: 0x3498DB, action: () => this.menuManager.showBagMenu() },
+            { label: 'SAC', x: 1, y: 0, color: 0x3498DB, action: () => this.showInventory() },
             { label: 'POKÉMON', x: 0, y: 1, color: 0x2ECC71, action: () => this.menuManager.showPokemonMenu() },
             { label: 'FUIR', x: 1, y: 1, color: 0x95A5A6, action: () => this.flee() }
         ];
@@ -1014,20 +1045,6 @@ export class PokemonBattleScene extends Phaser.Scene {
      * Affiche le menu du sac (TODO: implémenter)
      */
     /**
-     * Affiche le menu du sac (objets)
-     */
-    /**
-     * Placeholder pour le sac (en attendant l'intégration items)
-     */
-    showBagMenuPlaceholder() {
-        if (this.turnInProgress) return;
-        this.menuManager.showDialog("Le sac n'est pas encore implémenté en combat.");
-        setTimeout(() => {
-            this.menuManager.hideDialog();
-        }, 2000);
-    }
-
-    /**
      * Masque le menu principal de combat
      */
     hideMainMenu() {
@@ -1044,27 +1061,20 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
     }
 
-    showBagMenu() {
+    showInventory() {
         if (this.turnInProgress) return;
 
-        console.log('[BattleScene] Ouverture du sac');
+        console.log('[BattleScene] Ouverture inventaire');
         this.menuManager.hideMainMenu();
-
+        this.scene.pause('PokemonBattleScene');
+        
         this.scene.launch('InventoryScene', {
             playerId: this.playerId,
+            returnScene: 'PokemonBattleScene',
             inBattle: true,
-            battleContext: this.battleState,
-            onItemUsed: (item) => {
-                if (!item) {
-                    // Annulé
-                    this.menuManager.hideDialog();
-                    return;
-                }
-
-                // Item utilisé
-                this.useItemInBattle(item);
-            }
+            battleState: this.battleState
         });
+        this.scene.bringToTop('InventoryScene');
     }
 
     /**
@@ -2129,11 +2139,25 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.battleState = null; // ⚠️ Crucial pour éviter XP aux mauvais Pokemon
         this.battleId = null;
         
+        // 🆕 CLEANUP GIF: Retirer tous les containers DOM GIF
+        if (this.gifContainers?.length > 0) {
+            console.log(`[BattleScene] Nettoyage de ${this.gifContainers.length} GIF containers`);
+            const SpriteLoader = require('./utils/spriteLoader').default;
+            this.gifContainers.forEach(container => {
+                try {
+                    SpriteLoader.removeAnimatedGif(container);
+                } catch (error) {
+                    console.error('[BattleScene] Erreur suppression GIF container:', error);
+                }
+            });
+            this.gifContainers = [];
+        }
+        
         // 🔧 FIXE: Nettoyer les pourcentages HP pour le prochain combat
         this.currentPlayerHPPercent = undefined;
         this.currentOpponentHPPercent = undefined;
         
-        console.log('[BattleScene] ✅ Ressources nettoyées (HP percentages réinitialisés)');
+        console.log('[BattleScene] ✅ Ressources nettoyées (HP percentages + GIF containers réinitialisés)');
     }
 
     returnToScene() {

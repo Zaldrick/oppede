@@ -85,7 +85,10 @@ export class PokemonTeamScene extends Phaser.Scene {
         // Bouton Combat Sauvage (en haut à droite)
         this.createBattleButton();
 
-        // 🐛 Boutons DEBUG (en haut à droite, sous le bouton Combat)
+        // 🆕 Bouton toggle sprites GIF (en haut à droite, sous le bouton Combat)
+        this.createGifToggleButton();
+
+        // 🐛 Boutons DEBUG (en haut à droite, sous le bouton GIF)
         this.createDebugButtons();
 
         // Instructions EN BAS (responsive)
@@ -546,15 +549,14 @@ export class PokemonTeamScene extends Phaser.Scene {
             this.optionsMenu = null;
         }
 
-        this.scene.start('PokemonDetailScene', {
+        this.scene.pause('PokemonTeamScene');
+        this.scene.launch('PokemonDetailScene', {
             pokemon: pokemon, // 🆕 Passer directement le Pokémon
             returnScene: 'PokemonTeamScene',
             playerId: this.currentPlayer,
             inBattle: this.inBattle, // 🆕 Passer flag combat
             battleState: this.battleState // 🆕 Passer state combat
         });
-        
-        // 🆕 Forcer DetailScene au premier plan
         this.scene.bringToTop('PokemonDetailScene');
     }
 
@@ -608,16 +610,14 @@ export class PokemonTeamScene extends Phaser.Scene {
     returnToScene() {
         console.log(`[PokemonTeam] Retour à ${this.returnScene}, inBattle: ${this.inBattle}`);
         
-        // Cas combat: résumer BattleScene et la mettre au top
+        // Cas combat: résumer BattleScene
         if (this.inBattle && this.returnScene === 'PokemonBattleScene') {
             this.scene.resume(this.returnScene);
-            this.scene.bringToTop(this.returnScene);
             this.scene.stop('PokemonTeamScene');
         }
-        // Cas normal: démarrer la scène de retour
+        // Cas normal: démarrer ou résumer la scène de retour
         else if (this.scene.isPaused(this.returnScene)) {
             this.scene.resume(this.returnScene);
-            this.scene.bringToTop(this.returnScene);
             this.scene.stop('PokemonTeamScene');
         } 
         else {
@@ -657,6 +657,111 @@ export class PokemonTeamScene extends Phaser.Scene {
     /**
      * 🐛 Crée les boutons DEBUG (mode développeur)
      */
+    /**
+     * 🆕 Crée le bouton pour activer/désactiver les sprites GIF en combat
+     */
+    createGifToggleButton() {
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        
+        const buttonWidth = width * 0.25;
+        const buttonHeight = height * 0.05;
+        const x = width * 0.85;
+        const y = height * 0.80; // Sous le bouton Combat Sauvage
+
+        // Récupérer l'état actuel depuis localStorage
+        const useAnimatedSprites = localStorage.getItem('useAnimatedSprites') !== 'false';
+        
+        // Fond bouton (vert si activé, gris si désactivé)
+        const button = this.add.rectangle(x, y, buttonWidth, buttonHeight, useAnimatedSprites ? 0x27AE60 : 0x7F8C8D);
+        button.setInteractive({ useHandCursor: true });
+
+        // Texte bouton
+        const text = this.add.text(x, y, useAnimatedSprites ? '🎬 Sprites GIF: ON' : '🖼️ Sprites GIF: OFF', {
+            fontSize: `${Math.min(width, height) * 0.028}px`,
+            fill: '#FFFFFF',
+            fontWeight: 'bold'
+        }).setOrigin(0.5);
+
+        // Stocker les références pour pouvoir les mettre à jour
+        this.gifToggleButton = button;
+        this.gifToggleText = text;
+
+        button.on('pointerdown', () => {
+            // Toggle l'état
+            const currentState = localStorage.getItem('useAnimatedSprites') !== 'false';
+            const newState = !currentState;
+            localStorage.setItem('useAnimatedSprites', newState.toString());
+            
+            // Mettre à jour le visuel
+            button.setFillStyle(newState ? 0x27AE60 : 0x7F8C8D);
+            text.setText(newState ? '🎬 Sprites GIF: ON' : '🖼️ Sprites GIF: OFF');
+            
+            console.log(`[PokemonTeam] Sprites GIF ${newState ? 'activés' : 'désactivés'}`);
+            
+            // Notification utilisateur
+            this.showNotification(
+                newState ? '✅ Sprites GIF activés pour les prochains combats' : '✅ Sprites PNG activés pour les prochains combats',
+                newState ? 0x27AE60 : 0x3498DB
+            );
+        });
+
+        button.on('pointerover', () => {
+            const currentState = localStorage.getItem('useAnimatedSprites') !== 'false';
+            button.setFillStyle(currentState ? 0x229954 : 0x6C7A89);
+            this.tweens.add({ targets: button, scaleX: 1.05, scaleY: 1.05, duration: 100 });
+        });
+
+        button.on('pointerout', () => {
+            const currentState = localStorage.getItem('useAnimatedSprites') !== 'false';
+            button.setFillStyle(currentState ? 0x27AE60 : 0x7F8C8D);
+            this.tweens.add({ targets: button, scaleX: 1.0, scaleY: 1.0, duration: 100 });
+        });
+    }
+
+    /**
+     * 🆕 Affiche une notification temporaire
+     */
+    showNotification(message, color = 0x27AE60) {
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+        
+        const notifBg = this.add.rectangle(width * 0.5, height * 0.5, width * 0.7, height * 0.15, color);
+        notifBg.setAlpha(0.95);
+        notifBg.setDepth(1000);
+        
+        const notifText = this.add.text(width * 0.5, height * 0.5, message, {
+            fontSize: `${Math.min(width, height) * 0.04}px`,
+            fill: '#FFFFFF',
+            fontWeight: 'bold',
+            align: 'center',
+            wordWrap: { width: width * 0.65 }
+        }).setOrigin(0.5).setDepth(1001);
+        
+        // Fade in
+        notifBg.setScale(0.8);
+        notifText.setScale(0.8);
+        this.tweens.add({
+            targets: [notifBg, notifText],
+            scale: 1,
+            duration: 200,
+            ease: 'Back.easeOut'
+        });
+        
+        // Fade out après 2s
+        this.time.delayedCall(2000, () => {
+            this.tweens.add({
+                targets: [notifBg, notifText],
+                alpha: 0,
+                duration: 300,
+                onComplete: () => {
+                    notifBg.destroy();
+                    notifText.destroy();
+                }
+            });
+        });
+    }
+
     createDebugButtons() {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
@@ -666,7 +771,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         const x = width * 0.85;
         
         // Bouton 1: Supprimer tous les Pokémon
-        const y1 = height * 0.78; // Sous le bouton Combat Sauvage
+        const y1 = height * 0.91; // Sous le bouton Combat Sauvage
         
         const deleteButton = this.add.rectangle(x, y1, buttonWidth, buttonHeight, 0x95A5A6);
         deleteButton.setInteractive({ useHandCursor: true });

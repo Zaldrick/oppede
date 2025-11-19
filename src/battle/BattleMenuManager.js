@@ -8,6 +8,8 @@
  * - Afficher messages de dialogue
  */
 
+import SpriteLoader from '../utils/spriteLoader';
+
 export default class BattleMenuManager {
     constructor(scene) {
         this.scene = scene;
@@ -55,31 +57,14 @@ export default class BattleMenuManager {
     /**
      * Affiche le menu du sac
      */
-    showBagMenu() {
-        if (this.scene.turnInProgress) return;
-
-        console.log('[BattleMenuManager] Ouverture du sac');
-        this.hideMainMenu();
-
-        this.scene.scene.launch('BagScene', {
-            playerId: this.scene.playerId,
-            inBattle: true,
-            battleContext: this.scene.battleState,
-            onItemUsed: (item) => {
-                if (!item) {
-                    this.hideDialog();
-                    return;
-                }
-                this.scene.turnManager.useItemInBattle(item);
-            }
-        });
-    }
-
     /**
      * Affiche le menu Pokémon
      */
     showPokemonMenu() {
         if (this.scene.turnInProgress) return;
+
+        // 🆕 Masquer les GIF sprites pendant le menu
+        SpriteLoader.hideAllGifs(this.scene);
 
         this.scene.scene.pause('PokemonBattleScene');
         this.scene.scene.launch('PokemonTeamScene', {
@@ -127,14 +112,4 @@ export default class BattleMenuManager {
         }
     }
 
-    /**
-     * Placeholder sac
-     */
-    showBagMenuPlaceholder() {
-        if (this.scene.turnInProgress) return;
-        this.showDialog("Le sac n'est pas encore implémenté en combat.");
-        setTimeout(() => {
-            this.hideDialog();
-        }, 2000);
-    }
 }

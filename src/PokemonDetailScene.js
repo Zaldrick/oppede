@@ -195,20 +195,9 @@ export class PokemonDetailScene extends Phaser.Scene {
         button.on('pointerdown', () => {
             console.log('[PokemonDetail] Retour à', this.returnScene, 'inBattle:', this.inBattle);
             
-            // Cas combat: retour à TeamScene avec contexte combat
-            if (this.inBattle && this.returnScene === 'PokemonTeamScene') {
-                this.scene.start(this.returnScene, {
-                    playerId: this.scene.settings.data?.playerId,
-                    returnScene: 'PokemonBattleScene',
-                    inBattle: true,
-                    battleState: this.battleState
-                });
-            }
-            // Cas normal: simple retour
-            else {
-                const playerId = this.scene.settings.data?.playerId;
-                this.scene.start(this.returnScene, { playerId: playerId });
-            }
+            // Stop cette scène et resume la scène parente
+            this.scene.stop('PokemonDetailScene');
+            this.scene.resume(this.returnScene);
         });
         button.on('pointerover', () => button.setFillStyle(0x45a049));
         button.on('pointerout', () => button.setFillStyle(0x4CAF50));
@@ -599,16 +588,8 @@ export class PokemonDetailScene extends Phaser.Scene {
         button.on('pointerdown', () => {
             console.log('[PokemonDetail] Envoi au combat:', this.pokemon.nickname);
             
-            // Retourner à TeamScene qui gère le switch
-            this.scene.stop('PokemonDetailScene');
-            this.scene.stop('PokemonTeamScene');
-            
-            // Reprendre BattleScene et faire le switch
+            // Récupérer BattleScene avant de stopper les scènes
             const battleScene = this.scene.get('PokemonBattleScene');
-            this.scene.resume('PokemonBattleScene');
-            
-            // 🆕 Forcer BattleScene au premier plan
-            this.scene.bringToTop('PokemonBattleScene');
             
             // Trouver l'index du Pokémon dans l'équipe
             const teamIndex = this.battleState.playerTeam.findIndex(
@@ -618,6 +599,15 @@ export class PokemonDetailScene extends Phaser.Scene {
             console.log('[PokemonDetail] Switch - Pokemon ID:', this.pokemon._id, 'Index trouvé:', teamIndex);
             console.log('[PokemonDetail] PlayerTeam:', this.battleState.playerTeam.map((p, i) => ({ index: i, name: p.name, id: p._id })));
             
+            // Stopper les scènes de menu
+            this.scene.stop('PokemonDetailScene');
+            this.scene.stop('PokemonTeamScene');
+            
+            // Reprendre BattleScene et forcer au premier plan
+            this.scene.resume('PokemonBattleScene');
+            this.scene.bringToTop('PokemonBattleScene');
+            
+            // Faire le switch
             if (teamIndex !== -1 && battleScene.switchPokemon) {
                 battleScene.switchPokemon(teamIndex);
             } else {

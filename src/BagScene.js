@@ -18,6 +18,9 @@ class BagScene extends Phaser.Scene {
         this.inBattle = data.inBattle || false; // En combat ou non
         this.battleContext = data.battleContext || null; // Contexte combat si applicable
         this.onItemUsed = data.onItemUsed || null; // Callback après usage
+        this.returnScene = data.returnScene || 'PokemonBattleScene'; // 🆕 Scène de retour
+        
+        console.log('[BagScene] Init - returnScene:', this.returnScene, 'inBattle:', this.inBattle);
     }
 
     async create() {
@@ -188,13 +191,17 @@ class BagScene extends Phaser.Scene {
                 if (this.onItemUsed) {
                     this.onItemUsed(item);
                 }
-                this.scene.stop();
+                this.scene.stop('BagScene');
+                this.scene.resume(this.returnScene);
+                this.scene.bringToTop(this.returnScene);
             } else {
                 // Autres items: retourner l'item au contexte de combat
                 if (this.onItemUsed) {
                     this.onItemUsed(item);
                 }
-                this.scene.stop();
+                this.scene.stop('BagScene');
+                this.scene.resume(this.returnScene);
+                this.scene.bringToTop(this.returnScene);
             }
         } else {
             // Hors combat: appeler API directement
@@ -223,7 +230,10 @@ class BagScene extends Phaser.Scene {
         button.on('pointerout', () => button.setFillStyle(0xE74C3C));
         button.on('pointerdown', () => {
             if (this.onItemUsed) this.onItemUsed(null); // Annuler
-            this.scene.stop();
+            console.log(`[BagScene] Retour vers ${this.returnScene}`);
+            this.scene.stop('BagScene');
+            this.scene.resume(this.returnScene);
+            this.scene.bringToTop(this.returnScene); // ⚠️ IMPORTANT: Mettre au premier plan
         });
     }
 
