@@ -23,26 +23,121 @@ class BagScene extends Phaser.Scene {
         console.log('[BagScene] Init - returnScene:', this.returnScene, 'inBattle:', this.inBattle);
     }
 
-    async create() {
-        const { width, height } = this.scale;
+    create() {
+        // Nettoyage préventif
+        this.destroyDom();
 
-        // Background
-        this.add.rectangle(0, 0, width, height, 0x2C3E50, 0.95).setOrigin(0);
-
-        // Titre
-        this.add.text(width * 0.5, height * 0.08, 'SAC', {
-            fontSize: `${Math.min(width, height) * 0.06}px`,
-            fill: '#FFFFFF',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 4
-        }).setOrigin(0.5);
+        // Création de l'interface DOM (pour être au-dessus des GIFs)
+        this.createDomOverlay();
 
         // Charger inventaire
-        await this.loadInventory();
+        this.loadInventory();
+
+        // Gestion du nettoyage
+        this.events.on('shutdown', () => this.destroyDom());
+        this.events.on('destroy', () => this.destroyDom());
+    }
+
+    createDomOverlay() {
+        // Conteneur principal
+        this.domContainer = document.createElement('div');
+        Object.assign(this.domContainer.style, {
+            position: 'absolute',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(44, 62, 80, 0.95)', // Fond semi-transparent
+            zIndex: '100', // Au-dessus des GIFs (z-index 1-5)
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif',
+            color: 'white',
+            padding: '20px',
+            boxSizing: 'border-box',
+            pointerEvents: 'auto' // Capturer les clics
+        });
+
+        // Titre
+        const title = document.createElement('h2');
+        title.textContent = 'SAC';
+        Object.assign(title.style, {
+            margin: '0 0 20px 0',
+            fontSize: '2rem',
+            textShadow: '2px 2px 0 #000',
+            flexShrink: '0'
+        });
+        this.domContainer.appendChild(title);
+
+        // Conteneur liste (scrollable)
+        this.listContainer = document.createElement('div');
+        Object.assign(this.listContainer.style, {
+            flex: '1',
+            width: '100%',
+            maxWidth: '600px',
+            overflowY: 'auto',
+            marginBottom: '20px',
+            paddingRight: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+        });
+        // Style scrollbar
+        const style = document.createElement('style');
+        style.textContent = `
+            #bag-list::-webkit-scrollbar { width: 8px; }
+            #bag-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+            #bag-list::-webkit-scrollbar-thumb { background: #7F8C8D; border-radius: 4px; }
+            #bag-list::-webkit-scrollbar-thumb:hover { background: #95A5A6; }
+        `;
+        this.listContainer.id = 'bag-list';
+        this.domContainer.appendChild(style);
+        this.domContainer.appendChild(this.listContainer);
 
         // Bouton Retour
-        this.createBackButton();
+        const backBtn = document.createElement('button');
+        backBtn.textContent = 'RETOUR';
+        Object.assign(backBtn.style, {
+            padding: '15px 40px',
+            fontSize: '1.2rem',
+            backgroundColor: '#E74C3C',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            boxShadow: '0 4px 0 #C0392B',
+            flexShrink: '0',
+            transition: 'transform 0.1s'
+        });
+        
+        backBtn.onmousedown = () => backBtn.style.transform = 'translateY(2px)';
+        backBtn.onmouseup = () => backBtn.style.transform = 'translateY(0)';
+        backBtn.onmouseleave = () => backBtn.style.transform = 'translateY(0)';
+        
+        backBtn.onclick = () => {
+            if (this.onItemUsed) this.onItemUsed(null);
+            this.closeScene();
+        };
+        this.domContainer.appendChild(backBtn);
+
+        // Ajouter au DOM du jeu
+        this.game.canvas.parentElement.appendChild(this.domContainer);
+    }
+
+    destroyDom() {
+        if (this.domContainer && this.domContainer.parentNode) {
+            this.domContainer.parentNode.removeChild(this.domContainer);
+        }
+        this.domContainer = null;
+    }
+
+    closeScene() {
+        this.destroyDom();
+        this.scene.stop('BagScene');
+        this.scene.resume(this.returnScene);
+        // Pas besoin de bringToTop car le DOM est supprimé
     }
 
     async loadInventory() {
@@ -64,13 +159,10 @@ class BagScene extends Phaser.Scene {
     }
 
     displayInventory(inventory) {
-        const { width, height } = this.scale;
+        this.listContainer.innerHTML = ''; // Clear
 
         if (inventory.length === 0) {
-            this.add.text(width * 0.5, height * 0.5, 'Sac vide', {
-                fontSize: `${Math.min(width, height) * 0.05}px`,
-                fill: '#95A5A6'
-            }).setOrigin(0.5);
+            this.listContainer.innerHTML = '<div style="text-align:center; color: #95A5A6; margin-top: 50px; font-size: 1.2rem;">Sac vide</div>';
             return;
         }
 
@@ -82,84 +174,108 @@ class BagScene extends Phaser.Scene {
             );
         }
 
-        // Grille d'items
-        const cardWidth = width * 0.85;
-        const cardHeight = height * 0.10;
-        const startY = height * 0.18;
-        const spacing = height * 0.015;
+        if (filtered.length === 0) {
+            this.listContainer.innerHTML = '<div style="text-align:center; color: #95A5A6; margin-top: 50px; font-size: 1.2rem;">Aucun objet utilisable</div>';
+            return;
+        }
 
-        filtered.forEach((item, index) => {
-            const yPos = startY + index * (cardHeight + spacing);
-            this.createItemCard(item, cardWidth, cardHeight, width * 0.075, yPos);
+        filtered.forEach(item => {
+            const card = this.createItemDomCard(item);
+            this.listContainer.appendChild(card);
         });
     }
 
-    createItemCard(item, cardWidth, cardHeight, x, y) {
-        const container = this.add.container(x, y);
-
-        // Fond
-        const card = this.add.graphics();
-        card.fillStyle(0x34495E, 0.9);
-        card.fillRoundedRect(0, 0, cardWidth, cardHeight, 10);
-        card.lineStyle(3, 0xFFFFFF, 0.8);
-        card.strokeRoundedRect(0, 0, cardWidth, cardHeight, 10);
-        container.add(card);
-
-        // Nom
-        const nameText = this.add.text(cardWidth * 0.05, cardHeight * 0.3, 
-            item.itemData.name_fr, {
-            fontSize: `${Math.min(this.scale.width, this.scale.height) * 0.042}px`,
-            fill: '#FFFFFF',
-            fontStyle: 'bold'
-        }).setOrigin(0, 0.5);
-        container.add(nameText);
-
-        // Quantité
-        const qtyText = this.add.text(cardWidth * 0.75, cardHeight * 0.5, 
-            `x${item.quantity}`, {
-            fontSize: `${Math.min(this.scale.width, this.scale.height) * 0.045}px`,
-            fill: '#3498DB',
-            fontStyle: 'bold'
-        }).setOrigin(0, 0.5);
-        container.add(qtyText);
-
-        // Type badge
-        const typeColor = this.getTypeColor(item.itemData.type);
-        const typeBg = this.add.graphics();
-        typeBg.fillStyle(typeColor, 1);
-        typeBg.fillRoundedRect(cardWidth * 0.05, cardHeight * 0.65, cardWidth * 0.25, cardHeight * 0.25, 5);
-        container.add(typeBg);
-
-        const typeLabel = this.getTypeLabel(item.itemData.type);
-        const typeText = this.add.text(cardWidth * 0.175, cardHeight * 0.775, typeLabel, {
-            fontSize: `${Math.min(this.scale.width, this.scale.height) * 0.028}px`,
-            fill: '#FFFFFF',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        container.add(typeText);
-
-        // Interaction
-        card.setInteractive(new Phaser.Geom.Rectangle(0, 0, cardWidth, cardHeight), Phaser.Geom.Rectangle.Contains);
-
-        card.on('pointerover', () => {
-            card.clear();
-            card.fillStyle(0x1ABC9C, 0.9);
-            card.fillRoundedRect(0, 0, cardWidth, cardHeight, 10);
-            card.lineStyle(4, 0xFFFFFF, 1);
-            card.strokeRoundedRect(0, 0, cardWidth, cardHeight, 10);
+    createItemDomCard(item) {
+        const card = document.createElement('div');
+        Object.assign(card.style, {
+            backgroundColor: 'rgba(52, 73, 94, 0.9)',
+            border: '2px solid rgba(255, 255, 255, 0.8)',
+            borderRadius: '10px',
+            padding: '15px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            userSelect: 'none'
         });
 
-        card.on('pointerout', () => {
-            card.clear();
-            card.fillStyle(0x34495E, 0.9);
-            card.fillRoundedRect(0, 0, cardWidth, cardHeight, 10);
-            card.lineStyle(3, 0xFFFFFF, 0.8);
-            card.strokeRoundedRect(0, 0, cardWidth, cardHeight, 10);
-        });
+        card.onmouseover = () => {
+            card.style.backgroundColor = 'rgba(26, 188, 156, 0.9)';
+            card.style.borderColor = 'white';
+            card.style.transform = 'translateX(5px)';
+        };
+        card.onmouseout = () => {
+            card.style.backgroundColor = 'rgba(52, 73, 94, 0.9)';
+            card.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+            card.style.transform = 'translateX(0)';
+        };
+        card.onclick = () => this.useItem(item);
 
-        card.on('pointerdown', () => {
-            this.useItem(item);
+        // Gauche: Image + Nom + Type
+        const leftDiv = document.createElement('div');
+        leftDiv.style.display = 'flex';
+        leftDiv.style.alignItems = 'center';
+        leftDiv.style.gap = '15px';
+
+        // Image de l'item
+        const img = document.createElement('img');
+        // Logique de chemin d'image (à adapter selon vos données)
+        let imagePath = '/assets/items/pokeball1.png'; // Default
+        if (item.itemData.image) {
+            imagePath = `/assets/items/${item.itemData.image}`;
+        } else if (item.itemData.type === 'pokeball') {
+            // Mapping basique pour les balls
+            if (item.itemData.id === 'great-ball' || item.itemData.name_fr.includes('Super')) imagePath = '/assets/items/pokeball2.png';
+            else if (item.itemData.id === 'ultra-ball' || item.itemData.name_fr.includes('Hyper')) imagePath = '/assets/items/pokeball5.png';
+            else imagePath = '/assets/items/pokeball1.png';
+        }
+        
+        img.src = imagePath;
+        img.style.width = '48px';
+        img.style.height = '48px';
+        img.style.objectFit = 'contain';
+        img.onerror = () => { img.src = '/assets/items/pokeball1.png'; }; // Fallback
+        leftDiv.appendChild(img);
+
+        const textDiv = document.createElement('div');
+        textDiv.style.display = 'flex';
+        textDiv.style.flexDirection = 'column';
+        textDiv.style.gap = '5px';
+
+        const name = document.createElement('div');
+        name.textContent = item.itemData.name_fr;
+        name.style.fontWeight = 'bold';
+        name.style.fontSize = '1.1rem';
+        textDiv.appendChild(name);
+
+        const typeLabel = document.createElement('span');
+        typeLabel.textContent = this.getTypeLabel(item.itemData.type);
+        Object.assign(typeLabel.style, {
+            fontSize: '0.8rem',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            backgroundColor: '#' + this.getTypeColor(item.itemData.type).toString(16).padStart(6, '0'),
+            width: 'fit-content',
+            fontWeight: 'bold'
         });
+        textDiv.appendChild(typeLabel);
+        
+        leftDiv.appendChild(textDiv);
+
+        card.appendChild(leftDiv);
+
+        // Droite: Quantité
+        const qty = document.createElement('div');
+        qty.textContent = `x${item.quantity}`;
+        Object.assign(qty.style, {
+            fontSize: '1.2rem',
+            fontWeight: 'bold',
+            color: '#3498DB'
+        });
+        card.appendChild(qty);
+
+        return card;
     }
 
     getTypeColor(type) {
@@ -186,80 +302,35 @@ class BagScene extends Phaser.Scene {
         console.log('[BagScene] Usage:', item.itemData.name_fr);
 
         if (this.inBattle) {
-            // Si c'est une Poké Ball, on utilise directement (pas de sélection de Pokémon)
-            if (item.itemData.type === 'pokeball') {
-                if (this.onItemUsed) {
-                    this.onItemUsed(item);
-                }
-                this.scene.stop('BagScene');
-                this.scene.resume(this.returnScene);
-                this.scene.bringToTop(this.returnScene);
-            } else {
-                // Autres items: retourner l'item au contexte de combat
-                if (this.onItemUsed) {
-                    this.onItemUsed(item);
-                }
-                this.scene.stop('BagScene');
-                this.scene.resume(this.returnScene);
-                this.scene.bringToTop(this.returnScene);
+            if (this.onItemUsed) {
+                this.onItemUsed(item);
             }
+            this.closeScene();
         } else {
-            // Hors combat: appeler API directement
-            // TODO: Sélectionner Pokémon cible si nécessaire
-            this.showMessage('Fonctionnalité hors combat en développement');
+            this.displayError('Fonctionnalité hors combat en développement');
         }
     }
 
-    createBackButton() {
-        const { width, height } = this.scale;
-        const btnWidth = width * 0.3;
-        const btnHeight = height * 0.06;
-        const x = width * 0.5;
-        const y = height * 0.92;
-
-        const button = this.add.rectangle(x, y, btnWidth, btnHeight, 0xE74C3C);
-        button.setInteractive();
-
-        const text = this.add.text(x, y, 'RETOUR', {
-            fontSize: `${Math.min(width, height) * 0.04}px`,
-            fill: '#FFFFFF',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        button.on('pointerover', () => button.setFillStyle(0xC0392B));
-        button.on('pointerout', () => button.setFillStyle(0xE74C3C));
-        button.on('pointerdown', () => {
-            if (this.onItemUsed) this.onItemUsed(null); // Annuler
-            console.log(`[BagScene] Retour vers ${this.returnScene}`);
-            this.scene.stop('BagScene');
-            this.scene.resume(this.returnScene);
-            this.scene.bringToTop(this.returnScene); // ⚠️ IMPORTANT: Mettre au premier plan
-        });
-    }
-
     displayError(message) {
-        const { width, height } = this.scale;
-        this.add.text(width * 0.5, height * 0.5, message, {
-            fontSize: `${Math.min(width, height) * 0.05}px`,
-            fill: '#E74C3C',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-    }
-
-    showMessage(message) {
-        const { width, height } = this.scale;
-        const msgBox = this.add.rectangle(width * 0.5, height * 0.5, width * 0.8, height * 0.15, 0x34495E, 0.95);
-        const msgText = this.add.text(width * 0.5, height * 0.5, message, {
-            fontSize: `${Math.min(width, height) * 0.04}px`,
-            fill: '#FFFFFF',
-            align: 'center',
-            wordWrap: { width: width * 0.7 }
-        }).setOrigin(0.5);
-
-        this.time.delayedCall(2000, () => {
-            msgBox.destroy();
-            msgText.destroy();
+        // Simple toast notification
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        Object.assign(toast.style, {
+            position: 'absolute',
+            bottom: '20%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(231, 76, 60, 0.9)',
+            color: 'white',
+            padding: '10px 20px',
+            borderRadius: '5px',
+            zIndex: '101',
+            fontWeight: 'bold'
         });
+        this.domContainer.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 2000);
     }
 }
 

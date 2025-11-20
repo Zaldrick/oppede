@@ -32,45 +32,52 @@ class ItemManager {
             // Index existe déjà
         }
 
-        // Seed items Pokémon de base si aucun n'existe
-        const pokemonItemsCount = await this.itemsCollection.countDocuments({ type: { $in: ['healing', 'status-heal', 'pokeball', 'held'] } });
-        if (pokemonItemsCount === 0) {
-            await this.seedBaseItems();
-        }
+        // Seed items Pokémon de base (toujours exécuter pour mise à jour)
+        await this.seedBaseItems();
 
         console.log('[ItemManager] Collections initialisées');
     }
 
     /**
-     * Seed items de base dans la DB
+     * Seed items de base dans la DB (Mise à jour forcée)
      */
     async seedBaseItems() {
         const baseItems = [
             // Soins HP
-            { item_id: 'potion', name: 'Potion', name_fr: 'Potion', type: 'healing', effect: 'heal', value: 20, price: 300 },
-            { item_id: 'super-potion', name: 'Super Potion', name_fr: 'Super Potion', type: 'healing', effect: 'heal', value: 50, price: 700 },
-            { item_id: 'hyper-potion', name: 'Hyper Potion', name_fr: 'Hyper Potion', type: 'healing', effect: 'heal', value: 200, price: 1200 },
-            { item_id: 'max-potion', name: 'Max Potion', name_fr: 'Potion Max', type: 'healing', effect: 'heal-full', value: 9999, price: 2500 },
+            { item_id: 'potion', name: 'Potion', name_fr: 'Potion', type: 'healing', effect: 'heal', value: 20, price: 300, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'super-potion', name: 'Super Potion', name_fr: 'Super Potion', type: 'healing', effect: 'heal', value: 50, price: 700, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'hyper-potion', name: 'Hyper Potion', name_fr: 'Hyper Potion', type: 'healing', effect: 'heal', value: 200, price: 1200, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'max-potion', name: 'Max Potion', name_fr: 'Potion Max', type: 'healing', effect: 'heal-full', value: 9999, price: 2500, usage_context: ['Battle', 'Menu'] },
             
             // Soins statuts
-            { item_id: 'antidote', name: 'Antidote', name_fr: 'Antidote', type: 'status-heal', effect: 'cure-poison', value: 0, price: 100 },
-            { item_id: 'paralyze-heal', name: 'Paralyze Heal', name_fr: 'Anti-Para', type: 'status-heal', effect: 'cure-paralysis', value: 0, price: 200 },
-            { item_id: 'awakening', name: 'Awakening', name_fr: 'Réveil', type: 'status-heal', effect: 'cure-sleep', value: 0, price: 250 },
-            { item_id: 'burn-heal', name: 'Burn Heal', name_fr: 'Anti-Brûle', type: 'status-heal', effect: 'cure-burn', value: 0, price: 250 },
-            { item_id: 'ice-heal', name: 'Ice Heal', name_fr: 'Antigel', type: 'status-heal', effect: 'cure-freeze', value: 0, price: 250 },
-            { item_id: 'full-heal', name: 'Full Heal', name_fr: 'Total Soin', type: 'status-heal', effect: 'cure-all', value: 0, price: 600 },
+            { item_id: 'antidote', name: 'Antidote', name_fr: 'Antidote', type: 'status-heal', effect: 'cure-poison', value: 0, price: 100, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'paralyze-heal', name: 'Paralyze Heal', name_fr: 'Anti-Para', type: 'status-heal', effect: 'cure-paralysis', value: 0, price: 200, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'awakening', name: 'Awakening', name_fr: 'Réveil', type: 'status-heal', effect: 'cure-sleep', value: 0, price: 250, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'burn-heal', name: 'Burn Heal', name_fr: 'Anti-Brûle', type: 'status-heal', effect: 'cure-burn', value: 0, price: 250, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'ice-heal', name: 'Ice Heal', name_fr: 'Antigel', type: 'status-heal', effect: 'cure-freeze', value: 0, price: 250, usage_context: ['Battle', 'Menu'] },
+            { item_id: 'full-heal', name: 'Full Heal', name_fr: 'Total Soin', type: 'status-heal', effect: 'cure-all', value: 0, price: 600, usage_context: ['Battle', 'Menu'] },
 
             // Poké Balls
-            { item_id: 'poke-ball', name: 'Poké Ball', name_fr: 'Poké Ball', type: 'pokeball', effect: 'capture', value: 1.0, price: 200 },
-            { item_id: 'great-ball', name: 'Great Ball', name_fr: 'Super Ball', type: 'pokeball', effect: 'capture', value: 1.5, price: 600 },
-            { item_id: 'ultra-ball', name: 'Ultra Ball', name_fr: 'Hyper Ball', type: 'pokeball', effect: 'capture', value: 2.0, price: 1200 },
+            { item_id: 'poke-ball', name: 'Poké Ball', name_fr: 'Poké Ball', type: 'pokeball', effect: 'capture', value: 1.0, price: 200, usage_context: ['Battle'], image: 'pokeball1.png' },
+            { item_id: 'great-ball', name: 'Great Ball', name_fr: 'Super Ball', type: 'pokeball', effect: 'capture', value: 1.5, price: 600, usage_context: ['Battle'], image: 'pokeball2.png' },
+            { item_id: 'ultra-ball', name: 'Ultra Ball', name_fr: 'Hyper Ball', type: 'pokeball', effect: 'capture', value: 2.0, price: 1200, usage_context: ['Battle'], image: 'pokeball2.png' },
 
             // Objets tenus
-            { item_id: 'lucky-egg', name: 'Lucky Egg', name_fr: 'Œuf Chance', type: 'held', effect: 'exp-boost', value: 1.5, price: 5000 }
+            { item_id: 'lucky-egg', name: 'Lucky Egg', name_fr: 'Œuf Chance', type: 'held', effect: 'exp-boost', value: 1.5, price: 5000, usage_context: ['Menu'] }
         ];
 
-        await this.itemsCollection.insertMany(baseItems);
-        console.log(`✅ ${baseItems.length} items de base ajoutés à la DB`);
+        const operations = baseItems.map(item => ({
+            updateOne: {
+                filter: { item_id: item.item_id },
+                update: { $set: item },
+                upsert: true
+            }
+        }));
+
+        if (operations.length > 0) {
+            await this.itemsCollection.bulkWrite(operations);
+            console.log(`✅ ${operations.length} items de base mis à jour/ajoutés`);
+        }
     }
 
     /**

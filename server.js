@@ -23,6 +23,7 @@ const SocketManager = require('./managers/SocketManager');
 const PokemonDatabaseManager = require('./managers/PokemonDatabaseManager');
 const PokemonBattleManager = require('./managers/PokemonBattleManager');
 const TranslationManager = require('./managers/TranslationManager');
+const ItemManager = require('./managers/ItemManager'); // 🆕 Import ItemManager
 
 
 const PORT = process.env.BACKEND_PORT || 3000;
@@ -144,6 +145,11 @@ class Server {
             this.managers.translationManager = new TranslationManager(this.managers.databaseManager);
             await this.managers.translationManager.initialize();
             console.log('✅ TranslationManager initialisé');
+
+            // ItemManager - gestion des objets et seeding
+            this.managers.itemManager = new ItemManager(this.managers.databaseManager);
+            await this.managers.itemManager.initialize();
+            console.log('✅ ItemManager initialisé');
 
         } catch (error) {
             console.error('❌ Erreur lors de l\'initialisation des managers:', error);
@@ -316,6 +322,7 @@ class Server {
             console.log('   • PhotoManager (Galerie photos)');
             console.log('   • PokemonDatabaseManager (Pokémon)');
             console.log('   • SocketManager (WebSocket)');
+            console.log('   • ItemManager (Objets)');
             console.log('🎉 ====================================');
             console.log('');
         });

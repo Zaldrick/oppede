@@ -33,7 +33,7 @@ export class SpriteLoader {
             
             img.onload = () => {
                 try {
-                    // Créer un canvas et copier l'image dedans
+                    // Créer un canvas et copier l'images dedans
                     const canvas = document.createElement('canvas');
                     canvas.width = img.width;
                     canvas.height = img.height;
@@ -254,6 +254,16 @@ export class SpriteLoader {
     static hideAllGifs(scene) {
         if (scene.gifContainers) {
             scene.gifContainers.forEach(c => c.style.display = 'none');
+        }
+    }
+
+    /**
+     * 🆕 Supprime tous les GIFs de la scène et nettoie le tableau
+     */
+    static clearAllGifs(scene) {
+        if (scene && scene.gifContainers) {
+            scene.gifContainers.forEach(c => this.removeAnimatedGif(c));
+            scene.gifContainers = [];
         }
     }
 

@@ -493,7 +493,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             const inventoryScene = this.scene.get("InventoryScene");
             if (inventoryScene && typeof inventoryScene.reloadInventory === "function") {
                 await inventoryScene.reloadInventory();
-                await inventoryScene.ensureInventoryImagesLoaded();
+                // await inventoryScene.ensureInventoryImagesLoaded(); // Removed: DOM-based inventory handles images automatically
                 inventoryScene.drawInventory();
             }
 

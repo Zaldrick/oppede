@@ -183,6 +183,7 @@ class DatabaseManager {
                             cardCount: '$itemDetails.cardCount',
                             rarityChances: '$itemDetails.rarityChances',
                             description: '$itemDetails.description',
+                            usage_context: '$itemDetails.usage_context',
                         },
                     },
                 ]).toArray();

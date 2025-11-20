@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import SpriteLoader from './utils/spriteLoader';
 
 /**
  * Scène d'animation de capture (Poké Ball)
@@ -10,12 +11,20 @@ class CaptureScene extends Phaser.Scene {
 
     init(data) {
         this.battleScene = data.battleScene;
-        this.ballType = data.ballType || 'poke-ball';
+        this.ballType = data.ballType || 'poke-ball'; // ID de l'item
         this.wildPokemon = data.wildPokemon;
+        this.startPosition = data.startPosition; // 🆕 Position exacte pour transition fluide
         this.callback = data.callback || (() => {});
     }
 
-    create() {
+    preload() {
+        // Charger les images des Pokéballs (avec slash initial pour chemin absolu)
+        this.load.image('pokeball_1', '/assets/items/pokeball1.png');
+        this.load.image('pokeball_2', '/assets/items/pokeball2.png');
+        // Fallback pour les autres types si nécessaire
+    }
+
+    async create() {
         console.log('[CaptureScene] Animation de capture avec', this.ballType);
 
         const { width, height } = this.cameras.main;
@@ -24,15 +33,55 @@ class CaptureScene extends Phaser.Scene {
         const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.3);
         overlay.setOrigin(0);
 
-        // Position du Pokémon (centre-droite comme dans la bataille)
-        const pokemonX = width * 0.7;
-        const pokemonY = height * 0.4;
+        // Position du Pokémon (utiliser position exacte si fournie)
+        const pokemonX = this.startPosition ? this.startPosition.x : width * 0.7;
+        const pokemonY = this.startPosition ? this.startPosition.y : height * 0.4;
 
         // Sprite du Pokémon (copie de la battle scene)
-        const pokemonSprite = this.add.sprite(pokemonX, pokemonY, 'pokemon-sprites');
-        pokemonSprite.setScale(3);
+        let pokemonSprite;
+        
+        if (this.wildPokemon && this.wildPokemon.sprites && this.wildPokemon.sprites.frontCombat) {
+             try {
+                // Utiliser SpriteLoader pour gérer GIF/PNG comme dans BattleScene
+                const result = await SpriteLoader.displaySpriteAuto(
+                    this,
+                    pokemonX,
+                    pokemonY,
+                    this.wildPokemon.sprites.frontCombat,
+                    this.wildPokemon.name.substring(0, 2),
+                    2.5,
+                    1,
+                    true // useAnimatedSprites (on force true pour l'instant ou on récupère de localStorage)
+                );
+                
+                if (result.type === 'phaser') {
+                    pokemonSprite = result.sprite;
+                } else {
+                    // Si c'est un GIF, on récupère le container DOM
+                    // Note: Pour l'animation de capture (alpha, scale), il faudra manipuler le style du container
+                    pokemonSprite = {
+                        x: pokemonX,
+                        y: pokemonY,
+                        alpha: 1,
+                        destroy: () => SpriteLoader.removeAnimatedGif(result.gifContainer),
+                        setAlpha: (a) => result.gifContainer.style.opacity = a,
+                        setVisible: (v) => result.gifContainer.style.display = v ? 'block' : 'none'
+                    };
+                    // Hack pour tweening sur objet JS qui update le DOM
+                    pokemonSprite.domElement = result.gifContainer;
+                }
+            } catch (e) {
+                console.error('Erreur chargement sprite capture:', e);
+                // Fallback
+                pokemonSprite = this.add.sprite(pokemonX, pokemonY, 'pokemon-sprites');
+                pokemonSprite.setScale(3);
+            }
+        } else {
+             pokemonSprite = this.add.sprite(pokemonX, pokemonY, 'pokemon-sprites');
+             pokemonSprite.setScale(3);
+        }
 
-        // Créer la Poké Ball
+        // Créer la Poké Ball (utilise l'image chargée)
         const ball = this.createPokeBall(width * 0.2, height * 0.6);
 
         // Lancer l'animation
@@ -43,36 +92,19 @@ class CaptureScene extends Phaser.Scene {
      * Créer le sprite de Poké Ball
      */
     createPokeBall(x, y) {
-        // Cercle rouge + blanc avec ligne noire au milieu
-        const graphics = this.add.graphics();
-
-        // Moitié supérieure (rouge)
-        graphics.fillStyle(0xFF0000, 1);
-        graphics.fillCircle(0, 0, 20);
-
-        // Moitié inférieure (blanc)
-        graphics.fillStyle(0xFFFFFF, 1);
-        graphics.beginPath();
-        graphics.arc(0, 0, 20, 0, Math.PI, false);
-        graphics.closePath();
-        graphics.fill();
-
-        // Ligne noire au milieu
-        graphics.lineStyle(3, 0x000000, 1);
-        graphics.lineBetween(-20, 0, 20, 0);
-
-        // Bouton central (blanc avec bordure noire)
-        graphics.fillStyle(0xFFFFFF, 1);
-        graphics.fillCircle(0, 0, 6);
-        graphics.lineStyle(2, 0x000000, 1);
-        graphics.strokeCircle(0, 0, 6);
-
-        // Convertir en texture
-        graphics.generateTexture('pokeball-sprite', 50, 50);
-        graphics.destroy();
-
-        const ball = this.add.sprite(x, y, 'pokeball-sprite');
-        ball.setScale(1.5);
+        // Déterminer la texture en fonction du type de ball
+        let textureKey = 'pokeball_1'; // Défaut (Poké Ball classique)
+        
+        // Mapping des IDs d'items vers les textures
+        if (this.ballType === 'great-ball' || this.ballType === 'ultra-ball' || this.ballType.includes('2')) {
+            textureKey = 'pokeball_2';
+        }
+        
+        // Créer le sprite avec l'image chargée
+        const ball = this.add.sprite(x, y, textureKey);
+        
+        // Ajuster l'échelle (les images peuvent être grandes)
+        ball.setScale(0.5); // Ajustez selon la taille réelle de vos images PNG
 
         return ball;
     }
@@ -100,7 +132,8 @@ class CaptureScene extends Phaser.Scene {
         );
 
         // 2️⃣ Flash blanc et disparition du Pokémon
-        const flash = this.add.rectangle(pokemonX, pokemonY, 200, 200, 0xFFFFFF, 1);
+        const { width, height } = this.cameras.main;
+        const flash = this.add.rectangle(0, 0, width, height, 0xFFFFFF, 1).setOrigin(0);
         flash.setDepth(100);
 
         this.tweens.add({
@@ -109,11 +142,27 @@ class CaptureScene extends Phaser.Scene {
             duration: 300
         });
 
-        this.tweens.add({
-            targets: pokemonSprite,
-            alpha: 0,
-            duration: 300
-        });
+        // Sauvegarder l'échelle originale pour le breakout
+        this.originalScale = pokemonSprite.scaleX || 1;
+        if (pokemonSprite.domElement) {
+            // Pour les GIFs, on essaie de deviner ou on utilise une valeur par défaut
+            this.originalScale = 1; // Le scale CSS est relatif
+        }
+
+        // Disparition du Pokémon (compatible Sprite Phaser et GIF DOM)
+        if (pokemonSprite.domElement) {
+            // Animation manuelle pour DOM
+            pokemonSprite.domElement.style.transition = 'opacity 0.3s, transform 0.3s';
+            pokemonSprite.domElement.style.opacity = '0';
+            pokemonSprite.domElement.style.transform = 'translate(-50%, -50%) scale(0.1)'; // Rétrécir dans la ball
+        } else {
+            this.tweens.add({
+                targets: pokemonSprite,
+                alpha: 0,
+                scale: 0.1, // Rétrécir
+                duration: 300
+            });
+        }
 
         await this.wait(300);
 
@@ -137,19 +186,56 @@ class CaptureScene extends Phaser.Scene {
         if (result.captured) {
             await this.showCaptureSuccess(result);
         } else {
+            // 🆕 Animation de libération (break out)
+            await this.animateBreakOut(ball, pokemonSprite);
             await this.showCaptureFailure();
-            // Réafficher le Pokémon
-            this.tweens.add({
-                targets: pokemonSprite,
-                alpha: 1,
-                duration: 300
-            });
         }
 
         // Retourner à la scène de bataille
         await this.wait(1500);
         this.callback(result);
+        // Nettoyage GIF si nécessaire
+        if (pokemonSprite.destroy) pokemonSprite.destroy();
         this.scene.stop();
+    }
+
+    /**
+     * Animation de libération du Pokémon (Break Out)
+     */
+    async animateBreakOut(ball, pokemonSprite) {
+        console.log('[CaptureScene] Le Pokémon se libère !');
+
+        // 1. Flash rouge sur la ball
+        ball.setTint(0xFF0000);
+        await this.wait(100);
+        ball.clearTint();
+        
+        // 2. La ball s'ouvre (fade out ou scale up rapide)
+        this.tweens.add({
+            targets: ball,
+            alpha: 0,
+            scale: 1.5,
+            duration: 200
+        });
+
+        // 3. Le Pokémon réapparaît (scale up + fade in)
+        // Utiliser l'échelle originale sauvegardée ou une valeur par défaut raisonnable
+        const targetScale = this.originalScale || 1;
+
+        if (pokemonSprite.domElement) {
+            pokemonSprite.domElement.style.opacity = '1';
+            pokemonSprite.domElement.style.transform = 'translate(-50%, -50%) scale(1)'; // Reset scale CSS
+        } else {
+            this.tweens.add({
+                targets: pokemonSprite,
+                alpha: 1,
+                scale: targetScale, // Retour taille originale
+                duration: 300,
+                ease: 'Back.easeOut'
+            });
+        }
+        
+        await this.wait(500);
     }
 
     /**
@@ -159,19 +245,20 @@ class CaptureScene extends Phaser.Scene {
         console.log(`[CaptureScene] ${shakeCount} secousse(s)`);
 
         for (let i = 0; i < shakeCount; i++) {
-            // Secouer à gauche
+            // Secouer (rotation + léger déplacement)
             await this.tweenPromise(
                 this.tweens.add({
                     targets: ball,
-                    angle: -15,
-                    duration: 150,
+                    angle: { from: -15, to: 15 }, // Oscillation plus visible
+                    x: { from: ball.x - 5, to: ball.x + 5 }, // Léger tremblement horizontal
+                    duration: 100,
                     yoyo: true,
-                    repeat: 1
+                    repeat: 3 // Plus rapide et répété
                 })
             );
 
             // Pause entre les secousses
-            await this.wait(200);
+            await this.wait(500); // Pause plus longue pour le suspense
 
             // Si c'est la 4ème secousse, c'est capturé !
             if (i === 3) {
@@ -206,68 +293,16 @@ class CaptureScene extends Phaser.Scene {
      * Afficher le message de capture réussie
      */
     async showCaptureSuccess(result) {
-        const { width, height } = this.cameras.main;
-
-        const successText = this.add.text(width / 2, height / 2, 'Gotcha!\nPokémon capturé!', {
-            fontSize: '48px',
-            fontFamily: 'Arial Black',
-            color: '#FFD700',
-            stroke: '#000000',
-            strokeThickness: 6,
-            align: 'center',
-            shadow: {
-                offsetX: 3,
-                offsetY: 3,
-                color: '#000000',
-                blur: 5,
-                fill: true
-            }
-        });
-        successText.setOrigin(0.5);
-        successText.setAlpha(0);
-
-        this.tweens.add({
-            targets: successText,
-            alpha: 1,
-            scale: 1.2,
-            duration: 500,
-            yoyo: true,
-            repeat: 1
-        });
-
-        // Son de victoire (si disponible)
-        // this.sound.play('capture-success');
-
-        await this.wait(2000);
+        // Message supprimé à la demande de l'utilisateur
+        await this.wait(500);
     }
 
     /**
      * Afficher le message d'échec
      */
     async showCaptureFailure() {
-        const { width, height } = this.cameras.main;
-
-        const failText = this.add.text(width / 2, height / 2, 'Oh non!\nLe Pokémon s\'est échappé!', {
-            fontSize: '40px',
-            fontFamily: 'Arial',
-            color: '#FF4444',
-            stroke: '#000000',
-            strokeThickness: 5,
-            align: 'center'
-        });
-        failText.setOrigin(0.5);
-        failText.setAlpha(0);
-
-        this.tweens.add({
-            targets: failText,
-            alpha: 1,
-            duration: 400
-        });
-
-        // Son d'échec (si disponible)
-        // this.sound.play('capture-fail');
-
-        await this.wait(1500);
+        // Message supprimé à la demande de l'utilisateur
+        await this.wait(500);
     }
 
     /**
@@ -280,7 +315,7 @@ class CaptureScene extends Phaser.Scene {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     battleId: this.battleScene.battleId,
-                    playerId: this.battleScene.currentPlayer,
+                    playerId: this.battleScene.playerId,
                     ballType: this.ballType
                 })
             });

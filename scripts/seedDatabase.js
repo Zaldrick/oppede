@@ -98,7 +98,7 @@ async function seedDatabase() {
                 },
                 {
                     "nom": "Poké Ball",
-                    "image": "poke-ball.png",
+                    "image": "pokeball1.png",
                     "is_echangeable": true,
                     "prix": 200,
                     "type": "pokeball",
@@ -106,7 +106,7 @@ async function seedDatabase() {
                 },
                 {
                     "nom": "Super Ball",
-                    "image": "great-ball.png",
+                    "image": "pokeball2.png",
                     "is_echangeable": true,
                     "prix": 600,
                     "type": "pokeball",

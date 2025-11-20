@@ -680,7 +680,7 @@ class PokemonBattleLogicManager {
     }
 
     /**
-     * Calcule le taux de capture (formule Gen 1-5)
+     * Calcule le taux de capture (formule Gen 3-4)
      * @param {Object} pokemon - Pokémon sauvage à capturer
      * @param {number} ballRate - Multiplicateur de la ball (1.0 = Poké Ball, 1.5 = Great Ball, 2.0 = Ultra Ball)
      * @returns {Object} - { captured: boolean, shakes: number }
@@ -688,10 +688,9 @@ class PokemonBattleLogicManager {
     calculateCapture(pokemon, ballRate = 1.0) {
         console.log('[Capture] Calcul pour', pokemon.species_name, 'avec ball rate', ballRate);
 
-        // Formule Gen 1-5:
-        // a = ((3 × MaxHP - 2 × CurrentHP) × CatchRate × BallRate × StatusBonus) / (3 × MaxHP)
-        // Puis 4 checks: si rand(0-255) < a, success shake, sinon break
-
+        // Formule Gen 3-4:
+        // a = ((3 × MaxHP - 2 × CurrentHP) × CatchRate × BallRate) / (3 × MaxHP) × StatusBonus
+        
         const maxHP = pokemon.maxHP;
         const currentHP = pokemon.currentHP;
         const catchRate = pokemon.speciesData?.capture_rate || 45; // Défaut moyen si pas de data
@@ -701,22 +700,36 @@ class PokemonBattleLogicManager {
         if (pokemon.statusCondition?.type) {
             const status = pokemon.statusCondition.type;
             if (status === 'sleep' || status === 'freeze') {
-                statusBonus = 2.0;
+                statusBonus = 2.0; // x2 pour Sommeil et Gel
             } else if (status === 'poison' || status === 'burn' || status === 'paralysis') {
-                statusBonus = 1.5;
+                statusBonus = 1.5; // x1.5 pour les autres
             }
         }
 
-        // Calcul du taux modifié
-        const a = Math.floor(((3 * maxHP - 2 * currentHP) * catchRate * ballRate * statusBonus) / (3 * maxHP));
+        // 1. Calcul du taux modifié 'a'
+        // Note: Math.floor est appliqué à chaque étape importante dans les jeux originaux
+        let a = Math.floor(((3 * maxHP - 2 * currentHP) * catchRate * ballRate) / (3 * maxHP));
+        a = Math.floor(a * statusBonus);
 
-        console.log(`  HP: ${currentHP}/${maxHP}, CatchRate: ${catchRate}, StatusBonus: ${statusBonus}, a: ${a}`);
+        console.log(`  HP: ${currentHP}/${maxHP}, CatchRate: ${catchRate}, StatusBonus: ${statusBonus}, BallRate: ${ballRate}, a: ${a}`);
 
-        // 4 secousses (checks)
+        if (a >= 255) {
+            console.log('  → Capture critique (a >= 255)');
+            return { captured: true, shakes: 4, catchRate, statusBonus, a };
+        }
+
+        // 2. Calcul de la probabilité de secousse 'b'
+        // b = 65536 * (a / 255) ^ 0.25
+        // Approximation utilisée dans les jeux : b = 1048560 / sqrt(sqrt(16711680 / a))
+        const b = Math.floor(1048560 / Math.sqrt(Math.sqrt(16711680 / a)));
+        
+        console.log(`  → Shake probability b: ${b} / 65536`);
+
+        // 3. 4 secousses (checks)
         let shakes = 0;
         for (let i = 0; i < 4; i++) {
-            const rand = Math.floor(Math.random() * 256);
-            if (rand < a) {
+            const rand = Math.floor(Math.random() * 65536); // 0 à 65535
+            if (rand < b) {
                 shakes++;
             } else {
                 break; // Échappe
@@ -727,7 +740,7 @@ class PokemonBattleLogicManager {
 
         console.log(`  → ${shakes} secousse(s), ${captured ? 'CAPTURÉ' : 'ÉCHAPPÉ'}`);
 
-        return { captured, shakes, catchRate, statusBonus };
+        return { captured, shakes, catchRate, statusBonus, a, b };
     }
 }
 

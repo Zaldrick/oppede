@@ -435,7 +435,7 @@ class PokemonBattleManager {
                 const wildPokemon = battleState.opponent_team[battleState.opponent_active_index];
 
                 // Tenter la capture
-                const captureResult = await this.attemptCapture(playerId, wildPokemon, ballType);
+                const captureResult = await this.attemptCapture(playerId, wildPokemon, ballType, battleLogic);
 
                 // Si capturé, terminer le combat
                 if (captureResult.captured) {
@@ -901,9 +901,10 @@ class PokemonBattleManager {
      * @param {string} playerId - ID du joueur
      * @param {Object} wildPokemon - Pokémon sauvage
      * @param {string} ballType - Type de ball (poke-ball, great-ball, ultra-ball)
+     * @param {Object} battleLogic - Instance de PokemonBattleLogicManager
      * @returns {Promise<Object>} - Résultat de la capture
      */
-    async attemptCapture(playerId, wildPokemon, ballType = 'poke-ball') {
+    async attemptCapture(playerId, wildPokemon, ballType = 'poke-ball', battleLogic) {
         try {
             console.log('[PokemonBattleManager] Tentative de capture:', wildPokemon.species_name, 'avec', ballType);
 
@@ -918,32 +919,36 @@ class PokemonBattleManager {
             const ballRate = ballRates[ballType] || 1.0;
 
             // Calculer la capture via BattleLogicManager
-            const captureResult = this.battleLogicManager.calculateCapture(wildPokemon, ballRate);
+            // Si battleLogic n'est pas fourni, on en crée un temporaire (pour tests hors combat)
+            const logic = battleLogic || new PokemonBattleLogicManager();
+            const captureResult = logic.calculateCapture(wildPokemon, ballRate);
 
             if (captureResult.captured) {
                 // Créer le Pokémon capturé
                 const playerObjectId = new ObjectId(playerId);
-                const pokemonCollection = this.db.collection('pokemonPlayer');
+                const db = await this.databaseManager.connectToDatabase();
+                const pokemonCollection = db.collection('pokemonPlayer');
 
                 const capturedPokemon = {
                     player_id: playerObjectId,
                     species_id: wildPokemon.species_id,
-                    species_name: wildPokemon.species_name,
+                    species_name: wildPokemon.speciesData?.name || wildPokemon.species_name, // Fallback
                     nickname: null,
                     level: wildPokemon.level,
                     experience: Math.pow(wildPokemon.level, 3) * 0.8, // Medium-slow
                     currentHP: wildPokemon.currentHP,
                     maxHP: wildPokemon.maxHP,
-                    attack: wildPokemon.attack,
-                    defense: wildPokemon.defense,
-                    speed: wildPokemon.speed,
+                    attack: wildPokemon.stats?.attack || wildPokemon.attack,
+                    defense: wildPokemon.stats?.defense || wildPokemon.defense,
+                    speed: wildPokemon.stats?.speed || wildPokemon.speed,
                     moveset: wildPokemon.moveset || [],
                     originalTrainer: playerObjectId,
                     heldItem: null,
                     statusCondition: {
                         type: null,
                         turns: 0
-                    }
+                    },
+                    capturedAt: new Date()
                 };
 
                 const insertResult = await pokemonCollection.insertOne(capturedPokemon);

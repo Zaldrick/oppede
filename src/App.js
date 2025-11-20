@@ -13,6 +13,7 @@ import { PokemonTeamScene } from './PokemonTeamScene';
 import { PokemonDetailScene } from './PokemonDetailScene';
 import { PokemonBattleScene } from './PokemonBattleScene';
 import MoveLearnScene from './MoveLearnScene';
+import CaptureScene from './CaptureScene';
 import Phaser from "phaser";
 import React, { useEffect, useRef, useState } from "react";
 import VirtualJoystickPlugin from "phaser3-rex-plugins/plugins/virtualjoystick-plugin.js";
@@ -47,7 +48,7 @@ const Game = () => {
             dom: {
                 createContainer: true, // Enable DOM elements
             },
-            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene, TripleTriadGameScene, BoosterOpeningScene, PhotoGalleryScene, QuizGameScene, QuizLobbyScene, TripleTriadAIConfigScene, TripleTriadPvPConfigScene, PokemonTeamScene, PokemonDetailScene, PokemonBattleScene, MoveLearnScene],
+            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene, TripleTriadGameScene, BoosterOpeningScene, PhotoGalleryScene, QuizGameScene, QuizLobbyScene, TripleTriadAIConfigScene, TripleTriadPvPConfigScene, PokemonTeamScene, PokemonDetailScene, PokemonBattleScene, MoveLearnScene, CaptureScene],
             plugins: {
                 global: [
                     {

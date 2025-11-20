@@ -58,8 +58,6 @@ export default class BattleMenuManager {
      * Affiche le menu du sac
      */
     showBagMenu() {
-        // Masquer les GIF sprites pendant le menu
-        SpriteLoader.hideAllGifs(this.scene);
         this.scene.showInventory();
     }
 
@@ -68,9 +66,6 @@ export default class BattleMenuManager {
      */
     showPokemonMenu() {
         if (this.scene.turnInProgress) return;
-
-        // 🆕 Masquer les GIF sprites pendant le menu
-        SpriteLoader.hideAllGifs(this.scene);
 
         this.scene.scene.pause('PokemonBattleScene');
         this.scene.scene.launch('PokemonTeamScene', {
@@ -104,11 +99,42 @@ export default class BattleMenuManager {
     }
 
     /**
+     * Affiche le menu principal
+     */
+    showMainMenu() {
+        if (this.scene.mainMenuBg) {
+            this.scene.mainMenuBg.setVisible(true);
+            this.scene.mainMenuBg.setAlpha(1);
+        }
+        
+        if (this.scene.mainMenuButtons) {
+            this.scene.mainMenuButtons.forEach(btn => {
+                btn.setVisible(true);
+                btn.setAlpha(1);
+            });
+        }
+
+        // Support legacy/alternative naming
+        if (this.scene.actionButtons) {
+            this.scene.actionButtons.forEach(btn => {
+                if (btn.button) btn.button.setVisible(true);
+                if (btn.text) btn.text.setVisible(true);
+            });
+        }
+    }
+
+    /**
      * Masque le menu principal
      */
     hideMainMenu() {
         if (this.scene.dialogBox) this.scene.dialogBox.setVisible(false);
         if (this.scene.dialogText) this.scene.dialogText.setVisible(false);
+        
+        if (this.scene.mainMenuBg) this.scene.mainMenuBg.setVisible(false);
+
+        if (this.scene.mainMenuButtons) {
+            this.scene.mainMenuButtons.forEach(btn => btn.setVisible(false));
+        }
         
         if (this.scene.actionButtons) {
             this.scene.actionButtons.forEach(btn => {
@@ -117,5 +143,4 @@ export default class BattleMenuManager {
             });
         }
     }
-
 }
