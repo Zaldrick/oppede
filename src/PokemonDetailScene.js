@@ -431,7 +431,7 @@ export class PokemonDetailScene extends Phaser.Scene {
             let moveName = moveNameEN;
             if (moveData?.name) {
                 try {
-                    const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+                    const backendUrl = process.env.REACT_APP_API_URL;
                     const response = await fetch(`${backendUrl}/api/translations/move/${moveData.name}`);
                     if (response.ok) {
                         const data = await response.json();
@@ -477,7 +477,7 @@ export class PokemonDetailScene extends Phaser.Scene {
         }
 
         try {
-            const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = process.env.REACT_APP_API_URL;
             const response = await fetch(`${backendUrl}/api/pokemon/move/${moveName}`);
 
             if (!response.ok) {

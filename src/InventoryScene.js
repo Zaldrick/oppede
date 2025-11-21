@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import ConfigManager from "./managers/ConfigManager.js";
+import ItemActionManager, { ITEM_CONTEXTS } from "./managers/ItemActionManager.js";
 
 export class InventoryScene extends Phaser.Scene {
     constructor() {
@@ -13,6 +14,8 @@ export class InventoryScene extends Phaser.Scene {
         this.returnScene = data.returnScene || 'GameScene';
         this.inBattle = data.inBattle || false;
         this.battleState = data.battleState || null;
+
+        this.actionManager = new ItemActionManager(this); // 🆕 Gestionnaire d'actions
 
         this.currentCategory = this.inBattle ? 'pokeballs' : 'general';
         this.currentPage = 0;
@@ -61,7 +64,7 @@ export class InventoryScene extends Phaser.Scene {
         style.textContent = `
             .inventory-overlay {
                 position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                background-color: rgba(0, 0, 0, 0.9); z-index: 100;
+                background-color: rgba(0, 0, 0, 0.8); z-index: 100;
                 display: flex; flex-direction: column;
                 font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
                 color: white; box-sizing: border-box; pointer-events: auto; user-select: none;
@@ -106,7 +109,7 @@ export class InventoryScene extends Phaser.Scene {
 
             .inventory-details {
                 flex: 1; 
-                background-color: rgba(0, 0, 0, 0.6);
+                background-color: rgba(0, 0, 0, 0.8);
                 border-radius: 12px; border: 1px solid #555; padding: 15px;
                 display: flex; flex-direction: column; align-items: center; 
                 overflow-y: auto;
@@ -568,19 +571,27 @@ export class InventoryScene extends Phaser.Scene {
     // === ACTIONS ===
 
     async useItem(item) {
-        console.log('[InventoryScene] Utilisation:', item.nom);
+        console.log('[InventoryScene] Tentative utilisation:', item.nom);
         
+        const context = this.inBattle ? ITEM_CONTEXTS.BATTLE : ITEM_CONTEXTS.MENU;
+        
+        // 1. Vérifier si l'action est permise via le Manager
+        const check = this.actionManager.canUseItem(item, context);
+        if (!check.allowed) {
+            this.displayMessage(check.reason);
+            return;
+        }
+
+        // 2. Gestion spécifique Combat (car nécessite interaction avec BattleScene)
         if (this.inBattle) {
-            // Retourner l'item au combat
             if (this.returnScene === 'PokemonBattleScene') {
                 const battleScene = this.scene.get('PokemonBattleScene');
                 if (battleScene && battleScene.useItemInBattle) {
-                    // Adapter le format de l'item pour BattleScene
                     const battleItem = {
                         item_id: item._id || item.item_id,
                         itemData: {
                             name_fr: item.nom,
-                            type: this.categorizeItem(item) === 'pokeballs' ? 'pokeball' : 'healing' // Simplification
+                            type: this.categorizeItem(item) === 'pokeballs' ? 'pokeball' : 'healing'
                         },
                         quantity: item.quantite
                     };
@@ -589,42 +600,22 @@ export class InventoryScene extends Phaser.Scene {
                     battleScene.useItemInBattle(battleItem);
                 }
             }
-        } else {
-            if (item.utiliser && item.utiliser.scene) {
-                // Cacher l'inventaire si on lance une autre scène
-                if (this.domContainer) this.domContainer.style.display = 'none';
-                
-                this.scene.pause();
-                this.scene.launch(item.utiliser.scene, { [item.type]: item });
-                
-                // Réafficher quand la scène se termine (si elle se termine)
-                // Note: Cela dépend de la scène lancée, il faudrait peut-être écouter son shutdown
-            } else {
-                this.displayMessage("Utilisation hors combat non implémentée pour cet objet.");
-            }
+            return;
         }
+
+        // 3. Exécution de l'action hors combat via le Manager
+        await this.actionManager.executeAction(item, context);
     }
 
     openBooster(item) {
-        // Cacher l'inventaire pour laisser place à l'animation
-        if (this.domContainer) this.domContainer.style.display = 'none';
-        
-        this.scene.pause();
-        const boosterScene = this.scene.launch("BoosterOpeningScene", { booster: item });
-        this.scene.get('BoosterOpeningScene').events.once('shutdown', async () => {
-            // Réafficher l'inventaire après la fermeture du booster
-            if (this.domContainer) this.domContainer.style.display = 'flex';
-            await this.handleInventoryUpdate();
-        });
+        // Délégation au manager
+        this.actionManager.executeAction(item, ITEM_CONTEXTS.MENU);
     }
 
     executeAction(action) {
-        // ... existing executeAction logic ...
-        switch (action.action_type) {
-            case "heal": this.displayMessage(`Soin: ${action.parameters.amount} PV`); break;
-            case "open_scene": this.openBooster(this.selectedItem); break;
-            default: this.displayMessage("Action effectuée");
-        }
+        // Legacy support pour les items avec "actions" définies en JSON
+        // On essaie de mapper vers le nouveau système si possible
+        this.displayMessage("Action legacy exécutée");
     }
 
     async removeItemFromInventory(item) {

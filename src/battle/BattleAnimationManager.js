@@ -229,62 +229,133 @@ export default class BattleAnimationManager {
      * Animation d'attaque
      */
     async animateAttack(attackerSprite, defenderSprite, actionData) {
-        // Récupérer les conteneurs GIF si les sprites sont nuls
-        const isPlayerAttacker = (attackerSprite === this.scene.playerSprite) || (!attackerSprite && this.scene.playerGifContainer);
+        // 1. Identifier les objets (Sprite ou GIF Container)
+        // 🔧 FIXE: S'assurer que les références aux containers sont à jour
+        const playerObj = this.scene.playerSprite || { 
+            x: this.scene.scale.width * 0.22, 
+            y: this.scene.scale.height * 0.45, 
+            isGif: true, 
+            container: this.scene.playerGifContainer 
+        };
         
-        const attacker = isPlayerAttacker 
-            ? (this.scene.playerSprite || { x: this.scene.scale.width * 0.22, y: this.scene.scale.height * 0.45, isGif: true, container: this.scene.playerGifContainer })
-            : (this.scene.opponentSprite || { x: this.scene.scale.width * 0.68, y: this.scene.scale.height * 0.26, isGif: true, container: this.scene.opponentGifContainer });
+        const opponentObj = this.scene.opponentSprite || { 
+            x: this.scene.scale.width * 0.68, 
+            y: this.scene.scale.height * 0.26, 
+            isGif: true, 
+            container: this.scene.opponentGifContainer 
+        };
 
-        const defender = isPlayerAttacker
-            ? (this.scene.opponentSprite || { x: this.scene.scale.width * 0.68, y: this.scene.scale.height * 0.26, isGif: true, container: this.scene.opponentGifContainer })
-            : (this.scene.playerSprite || { x: this.scene.scale.width * 0.22, y: this.scene.scale.height * 0.45, isGif: true, container: this.scene.playerGifContainer });
+        // 2. Déterminer qui attaque
+        let realAttacker, realDefender;
 
-        if (!attacker || !defender) {
-            console.warn('[BattleAnimationManager] Sprites/GIFs manquants pour animation');
+        if (actionData && actionData.isPlayer !== undefined) {
+            // Si l'info est explicite (ajoutée par PokemonBattleScene)
+            realAttacker = actionData.isPlayer ? playerObj : opponentObj;
+            realDefender = actionData.isPlayer ? opponentObj : playerObj;
+        } else {
+            // Fallback (si pas d'info, on devine via les sprites passés)
+            if (attackerSprite === this.scene.playerSprite && this.scene.playerSprite) {
+                realAttacker = playerObj;
+                realDefender = opponentObj;
+            } else if (attackerSprite === this.scene.opponentSprite && this.scene.opponentSprite) {
+                realAttacker = opponentObj;
+                realDefender = playerObj;
+            } else {
+                // Cas GIF sans info explicite : on ne peut pas deviner de manière fiable
+                console.warn('[BattleAnimationManager] Impossible de déterminer l\'attaquant (GIF mode + missing isPlayer flag)');
+                
+                // TENTATIVE DE SAUVETAGE ROBUSTE :
+                // Si l'attaquant est null (GIF) et qu'on a un container joueur, on compare les positions X
+                // Le joueur est généralement à gauche (x < width/2) ou à droite selon le jeu, mais ici :
+                // Player: width * 0.22 (Gauche)
+                // Opponent: width * 0.68 (Droite)
+                
+                // Si on n'a pas de sprite, on ne peut pas comparer les références.
+                // Mais on peut essayer de voir si l'action contient des indices ou assumer par défaut.
+                
+                // Si attackerSprite est null, c'est un GIF.
+                // Si on a passé null comme premier argument à animateAttack, c'est que l'appelant savait que c'était un GIF.
+                // On va assumer que si l'appelant a passé (playerSprite, opponentSprite), l'ordre est respecté.
+                
+                // Si attackerSprite est undefined/null, on vérifie si c'est le tour du joueur via d'autres moyens ?
+                // Non, on va utiliser une heuristique simple :
+                // Si on a un container joueur et que attackerSprite est null, on assume que c'est le joueur SI l'autre argument est le sprite adverse.
+                
+                if (!attackerSprite && defenderSprite === this.scene.opponentSprite) {
+                     realAttacker = playerObj;
+                     realDefender = opponentObj;
+                } else if (!attackerSprite && defenderSprite === this.scene.playerSprite) {
+                     realAttacker = opponentObj;
+                     realDefender = playerObj;
+                } else {
+                    // Dernier recours : on regarde si on a des containers
+                    if (this.scene.playerGifContainer && !this.scene.opponentGifContainer) {
+                        realAttacker = playerObj;
+                        realDefender = opponentObj;
+                    } else {
+                        // Vraiment impossible
+                        console.error('[BattleAnimationManager] ECHEC TOTAL identification attaquant. Skip animation.');
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (!realAttacker || !realDefender) {
+            console.warn('[BattleAnimationManager] Attaquant ou défenseur introuvable');
             return;
         }
 
         // Position cible (intermédiaire)
-        const targetX = defender.x * 0.7 + attacker.x * 0.3;
-        const targetY = defender.y * 0.7 + attacker.y * 0.3;
-        const startX = attacker.x;
-        const startY = attacker.y;
+        // 🆕 Animation "Tackle" (charge) : on avance vers l'ennemi puis on revient
+        const targetX = realDefender.x * 0.3 + realAttacker.x * 0.7; // On avance de 30% vers l'ennemi
+        const targetY = realDefender.y * 0.3 + realAttacker.y * 0.7;
+        const startX = realAttacker.x;
+        const startY = realAttacker.y;
 
         await new Promise(resolve => {
             // Animation pour Sprite Phaser
-            if (!attacker.isGif) {
+            if (!realAttacker.isGif && realAttacker.x !== undefined) {
                 this.scene.tweens.add({
-                    targets: attacker,
+                    targets: realAttacker,
                     x: targetX,
                     y: targetY,
-                    duration: 150,
+                    duration: 100, // Plus rapide (charge)
                     yoyo: true,
-                    onComplete: () => this.triggerImpact(defender, actionData, resolve)
+                    ease: 'Quad.easeOut', // Mouvement plus percutant
+                    onComplete: () => this.triggerImpact(realDefender, actionData, resolve)
                 });
             } 
             // Animation pour GIF DOM
-            else if (attacker.container) {
+            else if (realAttacker.container || realAttacker.isGif) { // 🔧 FIXE: Accepter isGif même si container est temporairement inaccessible (pour éviter blocage)
+                const container = realAttacker.container;
+                if (!container) {
+                    console.warn('[BattleAnimationManager] Container GIF manquant pour animation, skip visuel');
+                    this.triggerImpact(realDefender, actionData, resolve);
+                    return;
+                }
+
                 const SpriteLoader = require('../utils/spriteLoader').default;
-                // Tween sur un objet proxy pour mettre à jour le DOM
                 const proxy = { x: startX, y: startY };
                 
                 this.scene.tweens.add({
                     targets: proxy,
                     x: targetX,
                     y: targetY,
-                    duration: 150,
+                    duration: 100,
                     yoyo: true,
+                    ease: 'Quad.easeOut',
                     onUpdate: () => {
-                        // Mettre à jour la position du DOM via SpriteLoader
-                        // On assume une largeur/hauteur approximative ou on récupère du style
-                        const width = parseFloat(attacker.container.querySelector('img').style.width);
-                        const height = parseFloat(attacker.container.querySelector('img').style.height);
-                        SpriteLoader.updateGifPosition(this.scene, attacker.container, proxy.x, proxy.y, width, height);
+                        // Récupérer dimensions actuelles pour centrage correct
+                        const img = container.querySelector('img');
+                        const width = img ? parseFloat(img.style.width) : 96;
+                        const height = img ? parseFloat(img.style.height) : 96;
+                        SpriteLoader.updateGifPosition(this.scene, container, proxy.x, proxy.y, width, height);
                     },
-                    onComplete: () => this.triggerImpact(defender, actionData, resolve)
+                    onComplete: () => this.triggerImpact(realDefender, actionData, resolve)
                 });
             } else {
+                // Cas impossible théoriquement mais pour sécurité
                 resolve();
             }
         });

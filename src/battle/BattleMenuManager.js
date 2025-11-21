@@ -67,6 +67,10 @@ export default class BattleMenuManager {
     showPokemonMenu() {
         if (this.scene.turnInProgress) return;
 
+        // 🔧 FIXE: Masquer les GIFs animés qui passeraient au-dessus du menu
+        const SpriteLoader = require('../utils/spriteLoader').default;
+        SpriteLoader.hideAllGifs(this.scene);
+
         this.scene.scene.pause('PokemonBattleScene');
         this.scene.scene.launch('PokemonTeamScene', {
             playerId: this.scene.playerId,

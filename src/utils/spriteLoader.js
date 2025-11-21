@@ -5,6 +5,35 @@
  */
 
 export class SpriteLoader {
+    static gifCache = {}; // 🆕 Cache pour les GIFs (URL -> BlobURL)
+
+    /**
+     * 🆕 Récupère un GIF depuis le cache ou le télécharge
+     */
+    static async getCachedGif(url) {
+        if (!url) return null;
+        
+        // Si déjà en cache, retourner le Blob URL
+        if (this.gifCache[url]) {
+            return this.gifCache[url];
+        }
+
+        try {
+            // console.log(`[SpriteLoader] Mise en cache GIF: ${url}`);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            this.gifCache[url] = blobUrl;
+            return blobUrl;
+        } catch (e) {
+            console.warn(`[SpriteLoader] Échec cache GIF, utilisation URL directe: ${e.message}`);
+            return url;
+        }
+    }
+
     /**
      * Charge une image depuis une URL et la stocke comme texture Phaser
      * @param {Phaser.Scene} scene - Scène Phaser courante
@@ -171,6 +200,9 @@ export class SpriteLoader {
      * @returns {Object} - { element: HTMLImageElement, container: HTMLDivElement }
      */
     static async displayAnimatedGif(scene, x, y, gifUrl, targetWidth, depth = 1) {
+        // 🆕 Utiliser le cache pour éviter de spammer l'API
+        const finalUrl = await this.getCachedGif(gifUrl);
+
         return new Promise((resolve) => {
             // Créer image GIF temporaire pour obtenir dimensions réelles
             const tempImg = new Image();
@@ -191,7 +223,7 @@ export class SpriteLoader {
                 
                 // Créer image GIF définitive
                 const img = document.createElement('img');
-                img.src = gifUrl;
+                img.src = finalUrl; // Utiliser l'URL en cache (Blob)
                 img.style.width = `${finalWidth}px`;
                 img.style.height = `${finalHeight}px`;
                 img.style.imageRendering = 'pixelated';
@@ -210,7 +242,7 @@ export class SpriteLoader {
                 if (!scene.gifContainers) scene.gifContainers = [];
                 scene.gifContainers.push(container);
                 
-                console.log(`[SpriteLoader] ✅ GIF animé créé: ${finalWidth}x${finalHeight}px`, gifUrl);
+                console.log(`[SpriteLoader] ✅ GIF animé créé: ${finalWidth}x${finalHeight}px`);
                 
                 resolve({ element: img, container, width: finalWidth, height: finalHeight, naturalWidth: tempImg.width, naturalHeight: tempImg.height });
             };
@@ -220,7 +252,7 @@ export class SpriteLoader {
                 resolve({ element: null, container: null, width: 0, height: 0, naturalWidth: 0, naturalHeight: 0 });
             };
             
-            tempImg.src = gifUrl;
+            tempImg.src = finalUrl; // Utiliser l'URL en cache (Blob)
         });
     }
 

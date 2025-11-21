@@ -59,6 +59,10 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.opponentId = data.opponentId || null;
         this.returnScene = data.returnScene || 'PokemonTeamScene';
         this.restoreBattleState = data.restoreBattleState || null; // 🆕 État à restaurer
+        
+        // 🔧 FIXE: Reset des états d'animation HP pour éviter le glitch visuel
+        this.currentPlayerHPPercent = undefined;
+        this.currentOpponentHPPercent = undefined;
     }
 
     async create() {
@@ -102,6 +106,13 @@ export class PokemonBattleScene extends Phaser.Scene {
             if (this.mainMenuButtons) {
                 this.mainMenuButtons.forEach(btn => btn.setVisible(true));
             }
+        });
+        
+        // 🆕 Écouter l'événement pause (ne plus masquer les GIFs pour les garder en background)
+        this.events.on('pause', () => {
+            console.log('[BattleScene] Scene paused - GIFs maintenus visibles');
+            // const SpriteLoader = require('./utils/spriteLoader').default;
+            // SpriteLoader.hideAllGifs(this);
         });
         
         this.uiManager = new BattleUIManager(this);
@@ -1056,6 +1067,14 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
 
         this.menuManager.showDialog("Vous prenez la fuite !");
+        
+        // 🔧 FIXE: Sauvegarder l'état de fuite en BDD (HP perdus)
+        try {
+            await this.battleManager.flee(this.battleId, this.playerId);
+        } catch (e) {
+            console.error('[BattleScene] Erreur sauvegarde fuite:', e);
+        }
+
         await this.wait(1000);
         
         // Animation de fuite (fondu)
@@ -1081,6 +1100,10 @@ export class PokemonBattleScene extends Phaser.Scene {
             this.battleState = result.battleState;
             
             // Animer le tour
+            // 🆕 Ajouter isPlayer pour aider BattleAnimationManager
+            if (result.playerAction) result.playerAction.isPlayer = true;
+            if (result.opponentAction) result.opponentAction.isPlayer = false;
+            
             await this.animateTurn(result);
             
             // Vérifier fin de combat
@@ -1154,12 +1177,13 @@ export class PokemonBattleScene extends Phaser.Scene {
             // Lancer CaptureScene avec animation
             this.scene.launch('CaptureScene', {
                 battleScene: this,
-                ballType: item.item_id,
+                ballName: item.itemData.name_fr, // 🆕 Passer le nom exact pour mapper la texture
                 wildPokemon: this.battleState.opponentActive,
+                useAnimatedSprites: this.useAnimatedSprites, // 🆕 Passer la préférence
                 // Passer les coordonnées exactes pour une transition fluide
                 startPosition: {
-                    x: this.opponentSprite ? this.opponentSprite.x : this.cameras.main.width * 0.75,
-                    y: this.opponentSprite ? this.opponentSprite.y : this.cameras.main.height * 0.35
+                    x: this.opponentSprite ? this.opponentSprite.x : this.cameras.main.width * 0.68, // Match BattleSpriteManager
+                    y: this.opponentSprite ? this.opponentSprite.y : this.cameras.main.height * 0.26 // Match BattleSpriteManager
                 },
                 callback: async (result) => {
                     this.scene.stop('CaptureScene');
@@ -1243,9 +1267,24 @@ export class PokemonBattleScene extends Phaser.Scene {
     returnToScene() {
         this.cleanupBattle();
         this.scene.stop('PokemonBattleScene');
-        if (this.returnScene) {
-            this.scene.resume(this.returnScene);
+        
+        // 🆕 Vérifier si la scène de retour est active ou en pause
+        const returnSceneKey = this.returnScene || 'GameScene';
+        const returnScene = this.scene.get(returnSceneKey);
+        
+        if (returnScene) {
+            // Si la scène est en pause (ce qui devrait être le cas), on la reprend
+            if (returnScene.sys.settings.status === Phaser.Scenes.SLEEPING || 
+                returnScene.sys.settings.status === Phaser.Scenes.PAUSED) {
+                console.log(`[BattleScene] Reprise de la scène ${returnSceneKey}`);
+                this.scene.resume(returnSceneKey);
+            } else {
+                // Sinon on la démarre
+                console.log(`[BattleScene] Démarrage de la scène ${returnSceneKey}`);
+                this.scene.start(returnSceneKey);
+            }
         } else {
+            console.warn(`[BattleScene] Scène de retour ${returnSceneKey} introuvable, retour GameScene`);
             this.scene.start('GameScene');
         }
     }
@@ -1254,6 +1293,13 @@ export class PokemonBattleScene extends Phaser.Scene {
      * Transition de retour
      */
     async returnToSceneWithTransition() {
+        // 🔧 FIXE: Vérification de sécurité pour éviter le crash "reading 'width'"
+        if (!this.cameras || !this.cameras.main) {
+            console.warn('[BattleScene] Caméra introuvable, retour immédiat');
+            this.returnToScene();
+            return;
+        }
+
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         
@@ -1308,7 +1354,11 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
         
         try {
-            const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = process.env.REACT_APP_API_URL;
+            if (!backendUrl) {
+                // Silencieux ici car c'est juste pour la traduction
+                return moveNameEN;
+            }
             const response = await fetch(`${backendUrl}/api/translations/move/${moveNameEN}`);
             
             if (response.ok) {

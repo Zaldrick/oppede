@@ -516,7 +516,11 @@ export class PokemonTeamScene extends Phaser.Scene {
      */
     async swapPokemonPositions(pokemon1, pokemon2) {
         try {
-            const backendUrl = process.env.REACT_APP_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = process.env.REACT_APP_API_URL;
+            if (!backendUrl) {
+                console.error("REACT_APP_API_URL manquant");
+                return;
+            }
             const response = await fetch(`${backendUrl}/api/pokemon/swap-positions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -826,7 +830,12 @@ export class PokemonTeamScene extends Phaser.Scene {
         try {
             console.log('[DEBUG] Suppression de tous les Pokémon...');
             
-            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (!apiUrl) {
+                alert('❌ Configuration manquante: REACT_APP_API_URL');
+                return;
+            }
+
             const response = await fetch(`${apiUrl}/api/pokemon/debug/clear/${this.currentPlayer}`, {
                 method: 'DELETE'
             });
@@ -878,7 +887,13 @@ export class PokemonTeamScene extends Phaser.Scene {
                 }
             ).setOrigin(0.5).setDepth(1000);
 
-            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (!apiUrl) {
+                loadingText.destroy();
+                alert('❌ Configuration manquante: REACT_APP_API_URL');
+                return;
+            }
+
             const response = await fetch(`${apiUrl}/api/pokemon/debug/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

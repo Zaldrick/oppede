@@ -5,12 +5,14 @@
 2. ❌ **NE JAMAIS supprimer une collection MongoDB (`db.collection.drop()`) sans confirmation explicite**
 3. ❌ **NE JAMAIS supprimer des fichiers ou dossiers entiers sans validation**
 4. ❌ **NE JAMAIS modifier les commits existants ou l'historique Git**
+5. ❌ **NE JAMAIS hardcoder de ports ou d'URLs (ex: localhost:3000)**. Toujours utiliser `process.env` (ex: `process.env.PORT || 3000`, `process.env.REACT_APP_BACKEND_URL`).
 
 **TOUJOURS** :
 - ✅ Proposer les changements et attendre la confirmation avant toute opération destructive
 - ✅ Créer des backups avant modifications importantes de la DB
 - ✅ Faire des commits réguliers avec des messages clairs
 - ✅ Demander validation avant suppression de données
+- ✅ Utiliser les variables d'environnement (`.env`) pour toute configuration (Ports, URLs, Secrets)
 
 ## Repo snapshot for AI coding agents
 

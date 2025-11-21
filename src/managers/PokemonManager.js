@@ -9,7 +9,7 @@ import PokemonAPIManager from './PokemonAPIManager';
 class PokemonManager {
     constructor(socket) {
         this.socket = socket;
-        this.baseUrl = process.env.REACT_APP_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:5000';
+        this.baseUrl = process.env.REACT_APP_API_URL;
         this.team = [];
         this.pokemonDetail = {};
         this.speciesCache = {};

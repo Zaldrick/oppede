@@ -545,54 +545,48 @@ class PokemonBattleManager {
             }
         });
 
-        /**
-         * 🆕 Sauvegarde les changements HP/XP du combat (suite à fuite ou fin)
-         */
-        app.post('/api/battle/save-changes', async (req, res) => {
+        // 🆕 Route de fuite
+        app.post('/api/battle/flee', async (req, res) => {
             try {
-                const { playerId, teamUpdates } = req.body;
+                const { battleId, playerId } = req.body;
 
-                if (!playerId || !teamUpdates || !Array.isArray(teamUpdates)) {
-                    return res.status(400).json({ error: 'Données manquantes' });
+                if (!battleId || !playerId) {
+                    return res.status(400).json({ error: 'battleId et playerId requis' });
                 }
 
-                console.log(`[Battle] Sauvegarde des changements pour joueur ${playerId}:`, teamUpdates);
+                console.log(`[Battle] Fuite du combat ${battleId} par joueur ${playerId}`);
 
-                // Mettre à jour chaque Pokémon dans la collection pokemonPlayer
-                const pokemonCollection = this.databaseManager.db.collection('pokemonPlayer');
-                
-                for (const update of teamUpdates) {
-                    if (!update._id) continue;
+                const db = await this.databaseManager.connectToDatabase();
+                const battlesCollection = db.collection('battles');
 
-                    // Convertir l'ID en ObjectId si c'est une string
-                    const pokemonId = typeof update._id === 'string' ? new ObjectId(update._id) : update._id;
+                // Récupérer l'état du combat
+                const battleLogic = this.activeBattles.get(battleId);
+                if (battleLogic) {
+                    const battleState = battleLogic.getBattleState();
+                    
+                    // Sauvegarder les HP actuels
+                    await this.updatePokemonHPAndXP(battleState, null, playerId, battleId);
+                    
+                    // Supprimer de la mémoire
+                    this.activeBattles.delete(battleId);
+                }
 
-                    const result = await pokemonCollection.updateOne(
-                        { _id: pokemonId },
-                        {
-                            $set: {
-                                currentHP: Math.max(0, update.currentHP || 0),
-                                experience: update.experience || 0,
-                                level: update.level || 1
-                            }
+                // Mettre à jour le statut du combat
+                await battlesCollection.updateOne(
+                    { _id: new ObjectId(battleId) },
+                    {
+                        $set: {
+                            state: 'fled',
+                            ended_at: new Date()
                         }
-                    );
-
-                    if (result.matchedCount > 0) {
-                        console.log(`[Battle] ✅ Pokémon ${update._id} sauvegardé (HP: ${update.currentHP}, XP: ${update.experience}, Lvl: ${update.level})`);
-                    } else {
-                        console.warn(`[Battle] ⚠️ Pokémon ${update._id} non trouvé dans pokemonPlayer`);
                     }
-                }
+                );
 
-                res.json({
-                    success: true,
-                    message: 'Changements sauvegardés'
-                });
+                res.json({ success: true, message: 'Fuite réussie' });
 
             } catch (error) {
-                console.error('[Battle] Erreur sauvegarde:', error);
-                res.status(500).json({ error: error.message });
+                console.error('[Battle] Erreur fuite:', error);
+                res.status(500).json({ error: 'Erreur serveur' });
             }
         });
 
@@ -612,6 +606,16 @@ class PokemonBattleManager {
             
             const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
             const data = await response.json();
+
+            // 🆕 Récupérer les données d'espèce (capture rate, noms fr, etc.)
+            let captureRate = 45;
+            try {
+                const speciesResponse = await fetch(data.species.url);
+                const speciesDetails = await speciesResponse.json();
+                captureRate = speciesDetails.capture_rate;
+            } catch (e) {
+                console.warn(`[Battle] Impossible de récupérer species data pour ${speciesId}, capture_rate par défaut (45)`);
+            }
             
             const sprites = cachedSprites || {
                 menu: data.sprites.versions?.['generation-vii']?.icons?.front_default,
@@ -626,6 +630,7 @@ class PokemonBattleManager {
 
             return {
                 name: data.name,
+                capture_rate: captureRate, // 🆕 Taux de capture correct
                 types: data.types.map(t => t.type.name),
                 sprites,
                 stats: {
@@ -913,7 +918,12 @@ class PokemonBattleManager {
                 'poke-ball': 1.0,
                 'great-ball': 1.5,
                 'ultra-ball': 2.0,
-                'master-ball': 255.0
+                'master-ball': 255.0,
+                // Mapping noms français
+                'Poké Ball': 1.0,
+                'Super Ball': 1.5,
+                'Hyper Ball': 2.0,
+                'Master Ball': 255.0
             };
 
             const ballRate = ballRates[ballType] || 1.0;
@@ -929,8 +939,25 @@ class PokemonBattleManager {
                 const db = await this.databaseManager.connectToDatabase();
                 const pokemonCollection = db.collection('pokemonPlayer');
 
+                // 🆕 Logique de position (équipe vs PC)
+                // Récupérer les positions occupées
+                const existingPokemon = await pokemonCollection.find(
+                    { owner_id: playerObjectId }
+                ).project({ position: 1 }).toArray();
+
+                const occupiedPositions = new Set(existingPokemon.map(p => p.position).filter(p => p));
+                
+                // Trouver la première position libre (1, 2, 3...)
+                let newPosition = 1;
+                while (occupiedPositions.has(newPosition)) {
+                    newPosition++;
+                }
+
+                console.log(`[Capture] Nouvelle position assignée: ${newPosition} (Occupées: ${Array.from(occupiedPositions).join(', ')})`);
+
                 const capturedPokemon = {
-                    player_id: playerObjectId,
+                    owner_id: playerObjectId, // Clé principale pour les requêtes
+                    player_id: playerObjectId, // Gardé pour compatibilité
                     species_id: wildPokemon.species_id,
                     species_name: wildPokemon.speciesData?.name || wildPokemon.species_name, // Fallback
                     nickname: null,
@@ -948,6 +975,8 @@ class PokemonBattleManager {
                         type: null,
                         turns: 0
                     },
+                    position: newPosition, // 🆕 Position 1-6 (équipe) ou 7+ (PC)
+                    teamPosition: newPosition - 1, // 🆕 Position 0-5 (interne)
                     capturedAt: new Date()
                 };
 

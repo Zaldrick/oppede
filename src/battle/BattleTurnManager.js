@@ -40,6 +40,10 @@ export default class BattleTurnManager {
 
             console.log('[BattleTurnManager] Résultat tour:', result);
 
+            // 🆕 Ajouter isPlayer pour aider BattleAnimationManager (GIF support)
+            if (result.playerAction) result.playerAction.isPlayer = true;
+            if (result.opponentAction) result.opponentAction.isPlayer = false;
+
             await this.animateTurn(result);
             await this.updateBattleState(result);
 
@@ -265,7 +269,8 @@ export default class BattleTurnManager {
         await this.scene.animManager.animateAttack(this.scene.opponentSprite, this.scene.playerSprite, { 
             move: opponentMove.name, 
             damage: damage,
-            effectiveness: effectiveness
+            effectiveness: effectiveness,
+            isPlayer: false // 🆕 Important pour GIF support
         });
 
         this.scene.battleState.playerActive.currentHP = Math.max(0, this.scene.battleState.playerActive.currentHP - damage);
@@ -351,7 +356,12 @@ export default class BattleTurnManager {
         
         // Notifier serveur
         try {
-            const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (!apiUrl) {
+                console.error("REACT_APP_API_URL manquant");
+                throw new Error("Configuration manquante");
+            }
+
             const response = await fetch(`${apiUrl}/api/battle/switch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

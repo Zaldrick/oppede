@@ -11,21 +11,31 @@ class CaptureScene extends Phaser.Scene {
 
     init(data) {
         this.battleScene = data.battleScene;
-        this.ballType = data.ballType || 'poke-ball'; // ID de l'item
+        this.ballName = data.ballName || 'Poké Ball'; // Nom exact de l'item
         this.wildPokemon = data.wildPokemon;
         this.startPosition = data.startPosition; // 🆕 Position exacte pour transition fluide
+        this.useAnimatedSprites = data.useAnimatedSprites !== undefined ? data.useAnimatedSprites : true; // 🆕
         this.callback = data.callback || (() => {});
     }
 
     preload() {
-        // Charger les images des Pokéballs (avec slash initial pour chemin absolu)
-        this.load.image('pokeball_1', '/assets/items/pokeball1.png');
-        this.load.image('pokeball_2', '/assets/items/pokeball2.png');
-        // Fallback pour les autres types si nécessaire
+        // Debug: Log des erreurs de chargement pour identifier les fichiers manquants
+        this.load.on('loaderror', (fileObj) => {
+            console.error('[CaptureScene] Erreur de chargement:', fileObj.key, fileObj.src);
+        });
+
+        // Charger les images en utilisant le NOM EXACT comme clé (plus de mapping ID -> Texture)
+        this.load.image('Poké Ball', '/assets/items/Poké Ball.png'); 
+        this.load.image('Super Ball', '/assets/items/Super Ball.png'); 
+        this.load.image('Hyper Ball', '/assets/items/pokeballs/Hyper Ball.png'); 
+        this.load.image('Master Ball', '/assets/items/pokeballs/Master Ball.png'); 
+        
+        // Fallback générique
+        this.load.image('default_ball', '/assets/items/Poké Ball.png');
     }
 
     async create() {
-        console.log('[CaptureScene] Animation de capture avec', this.ballType);
+        console.log('[CaptureScene] Animation de capture avec', this.ballName);
 
         const { width, height } = this.cameras.main;
 
@@ -34,8 +44,8 @@ class CaptureScene extends Phaser.Scene {
         overlay.setOrigin(0);
 
         // Position du Pokémon (utiliser position exacte si fournie)
-        const pokemonX = this.startPosition ? this.startPosition.x : width * 0.7;
-        const pokemonY = this.startPosition ? this.startPosition.y : height * 0.4;
+        const pokemonX = this.startPosition ? this.startPosition.x : width * 0.68; // Match BattleSpriteManager
+        const pokemonY = this.startPosition ? this.startPosition.y : height * 0.26; // Match BattleSpriteManager
 
         // Sprite du Pokémon (copie de la battle scene)
         let pokemonSprite;
@@ -51,7 +61,7 @@ class CaptureScene extends Phaser.Scene {
                     this.wildPokemon.name.substring(0, 2),
                     2.5,
                     1,
-                    true // useAnimatedSprites (on force true pour l'instant ou on récupère de localStorage)
+                    this.useAnimatedSprites // 🆕 Utiliser la valeur passée
                 );
                 
                 if (result.type === 'phaser') {
@@ -92,19 +102,23 @@ class CaptureScene extends Phaser.Scene {
      * Créer le sprite de Poké Ball
      */
     createPokeBall(x, y) {
-        // Déterminer la texture en fonction du type de ball
-        let textureKey = 'pokeball_1'; // Défaut (Poké Ball classique)
+        const ballName = this.ballName;
+        console.log('[CaptureScene] Création de la ball:', ballName);
+
+        // Utiliser le nom comme clé de texture directement
+        let textureKey = ballName;
         
-        // Mapping des IDs d'items vers les textures
-        if (this.ballType === 'great-ball' || this.ballType === 'ultra-ball' || this.ballType.includes('2')) {
-            textureKey = 'pokeball_2';
+        // Vérifier si la texture existe, sinon fallback
+        if (!this.textures.exists(textureKey)) {
+            console.warn(`[CaptureScene] Texture '${textureKey}' introuvable, utilisation du fallback.`);
+            textureKey = 'default_ball';
         }
         
         // Créer le sprite avec l'image chargée
         const ball = this.add.sprite(x, y, textureKey);
         
         // Ajuster l'échelle (les images peuvent être grandes)
-        ball.setScale(0.5); // Ajustez selon la taille réelle de vos images PNG
+        ball.setScale(0.3); // Ajustez selon la taille réelle de vos images PNG
 
         return ball;
     }
@@ -166,11 +180,11 @@ class CaptureScene extends Phaser.Scene {
 
         await this.wait(300);
 
-        // 3️⃣ La ball tombe au sol
+        // 3️⃣ La ball tombe au sol (ajustement précis pour l'ombre)
         await this.tweenPromise(
             this.tweens.add({
                 targets: ball,
-                y: pokemonY + 100,
+                y: pokemonY*1.1, // 🔧 FIXE: +30px pour atterrir pile sur l'ombre (ni trop haut, ni trop bas)
                 duration: 300,
                 ease: 'Bounce.easeOut'
             })
@@ -192,7 +206,7 @@ class CaptureScene extends Phaser.Scene {
         }
 
         // Retourner à la scène de bataille
-        await this.wait(1500);
+        // await this.wait(1500); // Supprimé pour fluidité
         this.callback(result);
         // Nettoyage GIF si nécessaire
         if (pokemonSprite.destroy) pokemonSprite.destroy();
@@ -224,7 +238,8 @@ class CaptureScene extends Phaser.Scene {
 
         if (pokemonSprite.domElement) {
             pokemonSprite.domElement.style.opacity = '1';
-            pokemonSprite.domElement.style.transform = 'translate(-50%, -50%) scale(1)'; // Reset scale CSS
+            // 🔧 FIXE: Ne pas utiliser translate(-50%, -50%) car SpriteLoader gère déjà le centrage via left/top
+            pokemonSprite.domElement.style.transform = 'scale(1)'; 
         } else {
             this.tweens.add({
                 targets: pokemonSprite,
@@ -275,7 +290,7 @@ class CaptureScene extends Phaser.Scene {
         for (let i = 0; i < 5; i++) {
             const angle = (i / 5) * Math.PI * 2;
             const star = this.add.text(x, y, '⭐', {
-                fontSize: '32px'
+                fontSize: '20px'
             });
 
             this.tweens.add({
@@ -283,7 +298,7 @@ class CaptureScene extends Phaser.Scene {
                 x: x + Math.cos(angle) * 80,
                 y: y + Math.sin(angle) * 80,
                 alpha: 0,
-                duration: 800,
+                duration: 400,
                 onComplete: () => star.destroy()
             });
         }
@@ -302,7 +317,7 @@ class CaptureScene extends Phaser.Scene {
      */
     async showCaptureFailure() {
         // Message supprimé à la demande de l'utilisateur
-        await this.wait(500);
+        // await this.wait(500); // Supprimé pour fluidité
     }
 
     /**
@@ -310,13 +325,20 @@ class CaptureScene extends Phaser.Scene {
      */
     async attemptCapture() {
         try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL || 'http://localhost:3000'}/api/battle/capture`, {
+            // Utilisation de la variable d'environnement existante
+            const backendUrl = process.env.REACT_APP_API_URL;
+            if (!backendUrl) {
+                console.error("REACT_APP_API_URL n'est pas défini dans le fichier .env");
+                throw new Error("Configuration manquante: REACT_APP_API_URL");
+            }
+
+            const response = await fetch(`${backendUrl}/api/battle/capture`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     battleId: this.battleScene.battleId,
                     playerId: this.battleScene.playerId,
-                    ballType: this.ballType
+                    ballType: this.ballName // Utiliser le nom de la ball (ex: "Super Ball")
                 })
             });
 

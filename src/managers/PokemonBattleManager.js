@@ -220,9 +220,10 @@ export default class PokemonBattleManager {
     /**
      * Fuit le combat (combat sauvage uniquement)
      * @param {string} battleId - ID du combat
+     * @param {string} playerId - ID du joueur
      * @returns {Promise<Object>}
      */
-    async flee(battleId) {
+    async flee(battleId, playerId) {
         try {
             console.log('[BattleManager Client] Fuite du combat:', battleId);
 
@@ -231,7 +232,7 @@ export default class PokemonBattleManager {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ battleId })
+                body: JSON.stringify({ battleId, playerId })
             });
 
             if (!response.ok) {

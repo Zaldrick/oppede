@@ -715,7 +715,7 @@ class PokemonBattleLogicManager {
 
         if (a >= 255) {
             console.log('  → Capture critique (a >= 255)');
-            return { captured: true, shakes: 4, catchRate, statusBonus, a };
+            return { captured: true, shakes: 3, catchRate, statusBonus, a };
         }
 
         // 2. Calcul de la probabilité de secousse 'b'
