@@ -1,4 +1,6 @@
 const { ObjectId } = require('mongodb');
+const PokemonEvolutionManager = require('./PokemonEvolutionManager');
+const { calculateAllStats, calculateMaxHP } = require('../utils/pokemonStats');
 
 /**
  * PokemonDatabaseManager
@@ -10,6 +12,8 @@ class PokemonDatabaseManager {
     constructor(databaseManager) {
         this.db = databaseManager;
         this.pokemonPlayerCollection = null;
+        this.evolutionManager = new PokemonEvolutionManager(databaseManager);
+        this.speciesStatsCache = new Map(); // Cache pour les stats de base
     }
 
     /**
@@ -179,6 +183,23 @@ class PokemonDatabaseManager {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
+
+        // 🧬 Exécuter une évolution
+        app.post('/api/pokemon/evolve', async (req, res) => {
+            try {
+                const { pokemonId, targetSpeciesId } = req.body;
+                
+                if (!pokemonId || !targetSpeciesId) {
+                    return res.status(400).json({ success: false, error: 'pokemonId et targetSpeciesId requis' });
+                }
+
+                const result = await this.evolutionManager.performEvolution(pokemonId, targetSpeciesId);
+                res.json(result);
+            } catch (error) {
+                console.error('Erreur évolution:', error);
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
     }
 
     /**
@@ -197,6 +218,14 @@ class PokemonDatabaseManager {
     }
 
     /**
+     * Calcule l'XP minimum requise pour atteindre un niveau (formule medium-slow)
+     */
+    calculateXPFromLevel(level) {
+        if (level <= 1) return 0;
+        return Math.floor(1.2 * Math.pow(level, 3) - 15 * Math.pow(level, 2) + 100 * level - 140);
+    }
+
+    /**
      * Récupère l'équipe complète d'un joueur (6 Pokémon max, ordonnés par teamPosition)
      */
     async getPlayerTeam(playerId) {
@@ -208,9 +237,40 @@ class PokemonDatabaseManager {
                 .limit(6)
                 .toArray();
             
-            // Calculer le level dynamiquement depuis l'XP
+            // Calculer le level, stats dynamiques et traductions FR si disponibles
             for (const pokemon of team) {
+                // 1. Calculer niveau depuis XP
                 pokemon.level = this.calculateLevelFromXP(pokemon.experience || 0);
+                
+                // 2. Récupérer stats de base
+                const baseStats = await this.getBaseStats(pokemon.species_id);
+                
+                // 3. Calculer stats complètes
+                const stats = calculateAllStats(
+                    baseStats, 
+                    pokemon.level, 
+                    pokemon.ivs || {}, 
+                    pokemon.evs || {}, 
+                    pokemon.nature || 'hardy'
+                );
+                
+                // 4. Injecter maxHP et autres stats dans l'objet retourné (sans sauvegarder en DB)
+                pokemon.maxHP = stats.maxHP;
+                pokemon.stats = stats; // Pour le frontend qui pourrait en avoir besoin
+                // 5. Traduction FR
+                try {
+                    if (this.translationManager && typeof this.translationManager.getPokemonNameFR === 'function') {
+                        const nameFr = await this.translationManager.getPokemonNameFR(pokemon.species_id);
+                        pokemon.species_name_fr = nameFr;
+                        // si le surnom est égal au nom anglais (ex: "Squirtle"), remplacer par FR
+                        if (pokemon.nickname && pokemon.species_name && pokemon.nickname.toLowerCase() === pokemon.species_name.toLowerCase()) {
+                            pokemon.nickname = nameFr;
+                        }
+                        if (!pokemon.nickname) pokemon.nickname = nameFr;
+                    }
+                } catch (e) {
+                    console.warn('Erreur traduction dans getPlayerTeam:', e.message);
+                }
             }
             
             return team;
@@ -229,8 +289,37 @@ class PokemonDatabaseManager {
             const pokemon = await this.pokemonPlayerCollection.findOne({ _id: objectId });
             
             if (pokemon) {
-                // Calculer le level dynamiquement
+                // 1. Calculer niveau depuis XP
                 pokemon.level = this.calculateLevelFromXP(pokemon.experience || 0);
+                
+                // 2. Récupérer stats de base
+                const baseStats = await this.getBaseStats(pokemon.species_id);
+                
+                // 3. Calculer stats complètes
+                const stats = calculateAllStats(
+                    baseStats, 
+                    pokemon.level, 
+                    pokemon.ivs || {}, 
+                    pokemon.evs || {}, 
+                    pokemon.nature || 'hardy'
+                );
+                
+                // 4. Injecter maxHP et autres stats
+                pokemon.maxHP = stats.maxHP;
+                pokemon.stats = stats;
+                // 5. Traduction FR pour les détails
+                try {
+                    if (this.translationManager && typeof this.translationManager.getPokemonNameFR === 'function') {
+                        const nameFr = await this.translationManager.getPokemonNameFR(pokemon.species_id);
+                        pokemon.species_name_fr = nameFr;
+                        if (pokemon.nickname && pokemon.species_name && pokemon.nickname.toLowerCase() === pokemon.species_name.toLowerCase()) {
+                            pokemon.nickname = nameFr;
+                        }
+                        if (!pokemon.nickname) pokemon.nickname = nameFr;
+                    }
+                } catch (e) {
+                    console.warn('Erreur traduction dans getPokemonById:', e.message);
+                }
             }
             
             return pokemon;
@@ -247,52 +336,92 @@ class PokemonDatabaseManager {
     async createPlayerPokemon(playerId, speciesId, nickname = null, speciesName = null) {
         try {
             const playerObjectId = new ObjectId(playerId);
+            const level = 5; // Niveau par défaut pour les starters
+
+            // Utiliser la méthode centralisée
+            const pokemonData = await this.generatePokemonData(speciesId, level, playerId, nickname);
 
             // Déterminer la position dans l'équipe
-            const teamPosition = await this.pokemonPlayerCollection.countDocuments({
+            const count = await this.pokemonPlayerCollection.countDocuments({
                 owner_id: playerObjectId
             });
 
-            // Générer IV aléatoires (0-31)
-            const ivs = {
-                hp: Math.floor(Math.random() * 32),
-                attack: Math.floor(Math.random() * 32),
-                defense: Math.floor(Math.random() * 32),
-                sp_attack: Math.floor(Math.random() * 32),
-                sp_defense: Math.floor(Math.random() * 32),
-                speed: Math.floor(Math.random() * 32)
-            };
+            pokemonData.teamPosition = count;
+            pokemonData.position = count + 1;
+            if (speciesName) pokemonData.species_name = speciesName;
 
-            // Créer le nouveau Pokémon
-            const newPokemon = {
-                owner_id: playerObjectId,
-                species_id: speciesId,
-                species_name: speciesName || `Pokemon_${speciesId}`,
-                nickname: nickname || `Pokemon_${speciesId}`,
-                level: 5,
-                experience: 0,
-                currentHP: 20,
-                maxHP: 20,
-                ivs,
-                evs: { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 },
-                nature: this.getRandomNature(),
-                moveset: [],
-                heldItem: null,
-                status: null,
-                custom: false,
-                position: null,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
-
-            const result = await this.pokemonPlayerCollection.insertOne(newPokemon);
-            newPokemon._id = result.insertedId;
+            const result = await this.pokemonPlayerCollection.insertOne(pokemonData);
+            pokemonData._id = result.insertedId;
             
-            console.log(`✅ Pokémon créé: ${newPokemon.nickname} (ID ${newPokemon.species_id})`);
-            return newPokemon;
+            console.log(`✅ Pokémon créé: ${pokemonData.nickname} (ID ${pokemonData.species_id})`);
+            return pokemonData;
         } catch (error) {
             console.error('Erreur createPlayerPokemon:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Récupère tous les moves qu'un Pokémon aurait pu apprendre jusqu'à un certain niveau
+     * Filtre STRICTEMENT sur scarlet-violet
+     */
+    async getAllLearnableMoves(speciesId, level) {
+        try {
+            const fetch = (await import('node-fetch')).default;
+            const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
+            
+            if (!response.ok) return [];
+            
+            const data = await response.json();
+            const potentialMoves = [];
+            
+            for (const moveEntry of data.moves) {
+                // 1. Chercher spécifiquement dans scarlet-violet
+                const svDetail = moveEntry.version_group_details.find(detail => 
+                    detail.version_group.name === 'scarlet-violet' &&
+                    detail.move_learn_method.name === 'level-up' &&
+                    detail.level_learned_at <= level
+                );
+
+                if (svDetail) {
+                    potentialMoves.push({
+                        name: moveEntry.move.name,
+                        url: moveEntry.move.url,
+                        learnLevel: svDetail.level_learned_at
+                    });
+                }
+            }
+            
+            // 2. Trier par niveau d'apprentissage (croissant)
+            potentialMoves.sort((a, b) => a.learnLevel - b.learnLevel);
+
+            // 3. Récupérer les détails des moves (en parallèle pour la vitesse)
+            const movePromises = potentialMoves.map(async (move) => {
+                try {
+                    const moveRes = await fetch(move.url);
+                    const moveData = await moveRes.json();
+                    return {
+                        name: moveData.name,
+                        type: moveData.type.name,
+                        category: moveData.damage_class.name,
+                        power: moveData.power || 0,
+                        accuracy: moveData.accuracy || 100,
+                        pp: moveData.pp || 10,
+                        maxPP: moveData.pp || 10,
+                        learnLevel: move.learnLevel
+                    };
+                } catch (e) {
+                    console.warn(`Erreur fetch move ${move.name}`);
+                    return null;
+                }
+            });
+
+            const resolvedMoves = await Promise.all(movePromises);
+            return resolvedMoves.filter(m => m !== null);
+            
+        } catch (error) {
+            console.error('Erreur getAllLearnableMoves:', error);
+            return [];
         }
     }
 
@@ -361,22 +490,10 @@ class PokemonDatabaseManager {
             // Pour l'instant, retourner un Pokémon aléatoire de faible niveau
             // À améliorer avec une table pokemonWildEncounters plus tard
             const randomSpeciesId = Math.floor(Math.random() * 151) + 1; // Gen 1
-
             const level = Math.floor(Math.random() * 5) + 3; // Niveau 3-8
-            const wildPokemon = {
-                species_id: randomSpeciesId,
-                species_name: `Pokemon_${randomSpeciesId}`,
-                level,
-                currentHP: 20,
-                maxHP: 20,
-                ivs: { hp: 15, attack: 15, defense: 15, sp_attack: 15, sp_defense: 15, speed: 15 },
-                evs: { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 },
-                nature: 'hardy',
-                moveset: [],
-                heldItem: null,
-                status: null,
-                isWild: true
-            };
+
+            const wildPokemon = await this.generatePokemonData(randomSpeciesId, level);
+            wildPokemon.isWild = true;
 
             return wildPokemon;
         } catch (error) {
@@ -421,82 +538,12 @@ class PokemonDatabaseManager {
      */
     async createDebugPokemon(playerId, speciesId) {
         try {
-            const fetch = (await import('node-fetch')).default;
+            const debugLevel = 15; // Niveau demandé pour le debug
             
-            // 1. Récupérer les infos du Pokémon depuis PokeAPI
-            console.log(`🔍 Récupération Pokémon ID ${speciesId} depuis PokeAPI...`);
-            const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
+            // 1. Générer les données via la méthode centralisée
+            const pokemonData = await this.generatePokemonData(speciesId, debugLevel, playerId);
             
-            if (!response.ok) {
-                throw new Error(`Pokémon ${speciesId} non trouvé sur PokeAPI`);
-            }
-            
-            const pokemonData = await response.json();
-            const speciesName = pokemonData.name;
-            
-            // 2. Extraire les moves appris au niveau <= 8 par level-up
-            const learntMoves = [];
-            
-            for (const moveEntry of pokemonData.moves) {
-                // Chercher dans les version_group_details si le move est appris par level-up
-                for (const versionDetail of moveEntry.version_group_details) {
-                    // Filtrer uniquement level-up
-                    if (versionDetail.move_learn_method.name === 'level-up') {
-                        const learnLevel = versionDetail.level_learned_at;
-                        
-                        // Si appris au niveau <= 8
-                        if (learnLevel > 0 && learnLevel <= 8) {
-                            learntMoves.push({
-                                name: moveEntry.move.name,
-                                url: moveEntry.move.url,
-                                learnLevel: learnLevel
-                            });
-                            break; // Un move par version_group suffit
-                        }
-                    }
-                }
-                
-                // Arrêter si on a déjà 4 moves
-                if (learntMoves.length >= 4) break;
-            }
-            
-            // Trier par niveau d'apprentissage (du plus bas au plus haut)
-            learntMoves.sort((a, b) => a.learnLevel - b.learnLevel);
-            
-            // Limiter à 4 moves max
-            const selectedMoves = learntMoves.slice(0, 4);
-            
-            console.log(`✅ Moves trouvés pour ${speciesName}:`, selectedMoves.map(m => `${m.name} (niv ${m.learnLevel})`));
-            
-            // 3. Récupérer les détails complets de chaque move
-            const moveset = [];
-            
-            for (const move of selectedMoves) {
-                try {
-                    const moveResponse = await fetch(move.url);
-                    if (!moveResponse.ok) continue;
-                    
-                    const moveData = await moveResponse.json();
-                    
-                    moveset.push({
-                        name: moveData.name,
-                        type: moveData.type.name,
-                        category: moveData.damage_class.name,
-                        power: moveData.power || 0,
-                        accuracy: moveData.accuracy || 100,
-                        pp: moveData.pp || 10,
-                        maxPP: moveData.pp || 10
-                    });
-                } catch (error) {
-                    console.error(`Erreur récupération move ${move.name}:`, error);
-                }
-            }
-            
-            // 4. Calculer les stats de base (simplifiées pour niveau 8)
-            const baseHP = pokemonData.stats.find(s => s.stat.name === 'hp').base_stat;
-            const maxHP = Math.floor((baseHP * 2 * 8) / 100) + 8 + 10; // Formule Pokémon simplifiée
-            
-            // 5. Trouver la première position disponible (1-6)
+            // 2. Trouver la première position disponible (1-6)
             const playerObjectId = new ObjectId(playerId);
             
             // Récupérer tous les Pokémon du joueur
@@ -529,50 +576,21 @@ class PokemonDatabaseManager {
             
             console.log(`📍 Position assignée: teamPosition=${teamPosition}, position=${displayPosition} (positions occupées: ${occupiedPositions.join(', ') || 'aucune'})`);
             
-            const ivs = {
-                hp: Math.floor(Math.random() * 32),
-                attack: Math.floor(Math.random() * 32),
-                defense: Math.floor(Math.random() * 32),
-                sp_attack: Math.floor(Math.random() * 32),
-                sp_defense: Math.floor(Math.random() * 32),
-                speed: Math.floor(Math.random() * 32)
-            };
+            // Ajouter les champs spécifiques au debug/joueur
+            pokemonData.teamPosition = teamPosition;
+            pokemonData.position = displayPosition;
+            pokemonData.originalTrainer = playerId;
+            pokemonData.heldItem = null; // Pas d'objet par défaut
             
-            const debugLevel = 8;
-            // Calculer l'XP minimum pour le niveau 8 (formule medium-slow)
-            const minXPForLevel = Math.floor(1.2 * Math.pow(debugLevel, 3) - 15 * Math.pow(debugLevel, 2) + 100 * debugLevel - 140);
+            const result = await this.pokemonPlayerCollection.insertOne(pokemonData);
+            pokemonData._id = result.insertedId;
             
-            const newPokemon = {
-                owner_id: playerObjectId,
-                originalTrainer: playerId, // 🆕 Dresseur d'origine (pour bonus traded)
-                species_id: speciesId,
-                species_name: speciesName,
-                nickname: speciesName.charAt(0).toUpperCase() + speciesName.slice(1),
-                // Pas de level stocké ! Seulement l'XP, le level sera calculé dynamiquement
-                experience: minXPForLevel,
-                currentHP: maxHP,
-                maxHP: maxHP,
-                ivs,
-                evs: { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 },
-                nature: this.getRandomNature(),
-                moveset: moveset,
-                heldItem: null, // 🆕 Objet tenu (ex: "lucky-egg", "exp-share")
-                statusCondition: { type: null, turns: 0 }, // 🆕 Statuts (poison, burn, paralysis, sleep, freeze)
-                teamPosition: teamPosition,
-                custom: false,
-                position: displayPosition, // Position 1-6 pour l'affichage
-                createdAt: new Date(),
-                updatedAt: new Date()
-            };
-            
-            const result = await this.pokemonPlayerCollection.insertOne(newPokemon);
-            newPokemon._id = result.insertedId;
-            
-            console.log(`✅ Pokémon DEBUG créé: ${newPokemon.nickname} (ID ${speciesId}) niveau 8 avec ${moveset.length} moves`);
-            return newPokemon;
+            console.log(`✅ Pokémon DEBUG créé: ${pokemonData.nickname} (ID ${speciesId}) niveau ${debugLevel} avec ${pokemonData.moveset.length} moves`);
+            return pokemonData;
             
         } catch (error) {
             console.error('Erreur createDebugPokemon:', error);
+
             throw error;
         }
     }
@@ -677,6 +695,123 @@ class PokemonDatabaseManager {
             console.error('[AvailableMoves] Erreur:', error);
             return [];
         }
+    }
+
+    /**
+     * Récupère les stats de base d'une espèce (avec cache)
+     */
+    async getBaseStats(speciesId) {
+        if (this.speciesStatsCache.has(speciesId)) {
+            return this.speciesStatsCache.get(speciesId);
+        }
+
+        try {
+            const fetch = (await import('node-fetch')).default;
+            const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
+            
+            if (!response.ok) throw new Error('Species not found');
+            
+            const data = await response.json();
+            const baseStats = {
+                hp: data.stats.find(s => s.stat.name === 'hp').base_stat,
+                attack: data.stats.find(s => s.stat.name === 'attack').base_stat,
+                defense: data.stats.find(s => s.stat.name === 'defense').base_stat,
+                sp_attack: data.stats.find(s => s.stat.name === 'special-attack').base_stat,
+                sp_defense: data.stats.find(s => s.stat.name === 'special-defense').base_stat,
+                speed: data.stats.find(s => s.stat.name === 'speed').base_stat
+            };
+
+            this.speciesStatsCache.set(speciesId, baseStats);
+            return baseStats;
+        } catch (error) {
+            console.warn(`[PokemonDatabaseManager] Impossible de récupérer stats pour ${speciesId}, utilisation défauts`);
+            return { hp: 45, attack: 49, defense: 49, sp_attack: 65, sp_defense: 65, speed: 45 };
+        }
+    }
+
+    /**
+     * Génère les données complètes d'un Pokémon (Stats, Moves, IVs, EVs, etc.
+     * Centralise la logique de création pour Wild, Debug et Starter
+     */
+    async generatePokemonData(speciesId, level, ownerId = null, nickname = null) {
+        // 1. Récupérer stats de base
+        const baseStats = await this.getBaseStats(speciesId);
+        
+        // 2. Générer IVs, EVs, Nature
+        const ivs = {
+            hp: Math.floor(Math.random() * 32),
+            attack: Math.floor(Math.random() * 32),
+            defense: Math.floor(Math.random() * 32),
+            sp_attack: Math.floor(Math.random() * 32),
+            sp_defense: Math.floor(Math.random() * 32),
+            speed: Math.floor(Math.random() * 32)
+        };
+        const evs = { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 };
+        const nature = this.getRandomNature();
+
+        // 3. Calculer stats
+        const stats = calculateAllStats(baseStats, level, ivs, evs, nature);
+        const experience = this.calculateXPFromLevel(level);
+
+        // 4. Générer Moveset (Scarlet/Violet logic)
+        const learnedMoves = await this.getAllLearnableMoves(speciesId, level);
+        // Prendre les 4 derniers moves appris
+        const moveset = learnedMoves.slice(-4);
+
+        // 5. Récupérer le nom de l'espèce et base_experience si possible (optionnel, pour le debug et XP)
+        let speciesName = `Pokemon_${speciesId}`;
+        let speciesNameFR = null;
+        let baseExperience = 50; // Valeur par défaut
+        try {
+            const fetch = (await import('node-fetch')).default;
+            const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
+            if (response.ok) {
+                const data = await response.json();
+                speciesName = data.name;
+                baseExperience = data.base_experience || 50;
+            }
+        } catch (e) {
+            console.warn('Erreur fetch name et base_experience dans generatePokemonData');
+        }
+
+        // Optional: Fetch FR name via TranslationManager
+        try {
+            if (this.translationManager && typeof this.translationManager.getPokemonNameFR === 'function') {
+                speciesNameFR = await this.translationManager.getPokemonNameFR(speciesId);
+            }
+        } catch (tErr) {
+            // non-blocking
+            console.warn(`Erreur fetch name_fr via TranslationManager pour ${speciesId}:`, tErr.message);
+        }
+
+        const finalNickname = nickname || (speciesNameFR ? (speciesNameFR.charAt(0).toUpperCase() + speciesNameFR.slice(1)) : (speciesName.charAt(0).toUpperCase() + speciesName.slice(1)));
+
+        return {
+            owner_id: ownerId ? new ObjectId(ownerId) : null,
+            species_id: speciesId,
+            species_name: speciesName,
+            species_name_fr: speciesNameFR || null,
+            nickname: finalNickname,
+            level: level,
+            experience: experience,
+            base_experience: baseExperience,
+            currentHP: stats.maxHP,
+            attack: stats.attack,
+            defense: stats.defense,
+            sp_attack: stats.sp_attack,
+            sp_defense: stats.sp_defense,
+            speed: stats.speed,
+            ivs,
+            evs,
+            nature,
+            moveset,
+            learnedMoves,
+            heldItem: null,
+            statusCondition: { type: null, turns: 0 },
+            custom: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
     }
 }
 

@@ -12,6 +12,7 @@ import { TripleTriadPvPConfigScene } from './TripleTriadPvPConfigScene';
 import { PokemonTeamScene } from './PokemonTeamScene';
 import { PokemonDetailScene } from './PokemonDetailScene';
 import { PokemonBattleScene } from './PokemonBattleScene';
+import { PokemonEvolutionScene } from './PokemonEvolutionScene';
 import MoveLearnScene from './MoveLearnScene';
 import CaptureScene from './CaptureScene';
 import Phaser from "phaser";
@@ -48,7 +49,7 @@ const Game = () => {
             dom: {
                 createContainer: true, // Enable DOM elements
             },
-            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene, TripleTriadGameScene, BoosterOpeningScene, PhotoGalleryScene, QuizGameScene, QuizLobbyScene, TripleTriadAIConfigScene, TripleTriadPvPConfigScene, PokemonTeamScene, PokemonDetailScene, PokemonBattleScene, MoveLearnScene, CaptureScene],
+            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene, TripleTriadGameScene, BoosterOpeningScene, PhotoGalleryScene, QuizGameScene, QuizLobbyScene, TripleTriadAIConfigScene, TripleTriadPvPConfigScene, PokemonTeamScene, PokemonDetailScene, PokemonBattleScene, PokemonEvolutionScene, MoveLearnScene, CaptureScene],
             plugins: {
                 global: [
                     {

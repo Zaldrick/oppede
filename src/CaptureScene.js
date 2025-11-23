@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import SpriteLoader from './utils/spriteLoader';
+import SoundManager from './utils/SoundManager';
+import getPokemonDisplayName from './utils/getDisplayName';
 
 /**
  * Scène d'animation de capture (Poké Ball)
@@ -58,10 +60,11 @@ class CaptureScene extends Phaser.Scene {
                     pokemonX,
                     pokemonY,
                     this.wildPokemon.sprites.frontCombat,
-                    this.wildPokemon.name.substring(0, 2),
+                    getPokemonDisplayName(this.wildPokemon).substring(0, 2),
                     2.5,
                     1,
-                    this.useAnimatedSprites // 🆕 Utiliser la valeur passée
+                    this.useAnimatedSprites, // 🆕 Utiliser la valeur passée
+                    { playCry: true, speciesId: this.wildPokemon.species_id, speciesName: this.wildPokemon.species_name || getPokemonDisplayName(this.wildPokemon) }
                 );
                 
                 if (result.type === 'phaser') {
@@ -310,6 +313,15 @@ class CaptureScene extends Phaser.Scene {
     async showCaptureSuccess(result) {
         // Message supprimé à la demande de l'utilisateur
         await this.wait(500);
+        // Play capture success sound (reuse battle's SoundManager if present)
+        try {
+            if (this.battleScene && this.battleScene.soundManager) {
+                this.battleScene.soundManager.playMoveSound('poke_caught', { volume: 0.9 });
+            } else {
+                const localSound = new SoundManager(this);
+                localSound.playMoveSound('poke_caught', { volume: 0.9 });
+            }
+        } catch (e) { /* ignore */ }
     }
 
     /**

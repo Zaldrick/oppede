@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { loadCardImages } from "./utils/loadCardImages.js"
 import { openBooster } from "./openBooster.js";    ;
+import SoundManager from './utils/SoundManager';
 export class BoosterOpeningScene extends Phaser.Scene {
     constructor() {
         super("BoosterOpeningScene");
@@ -140,6 +141,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             lastTrailX = pointer.x;
         });
 
+        try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
         this.input.on('pointerup', () => {
             if (!dragActive || boosterOpened) return;
             dragActive = false;
@@ -152,7 +154,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             });
             if (dragDelta > openThreshold) {
                 boosterOpened = true;
-                this.sound.play('booster_opening');
+                try { if (this.soundManager) this.soundManager.playMoveSound('booster_opening', { volume: 0.9 }); else this.sound.play('booster_opening'); } catch (e) { /* ignore */ }
                 const flash = this.add.rectangle(
                     this.cameras.main.centerX,
                     this.cameras.main.centerY,
@@ -386,9 +388,9 @@ export class BoosterOpeningScene extends Phaser.Scene {
             scale: scale * 1.1,
             duration: 350,
             ease: 'Back.Out',
-            onStart: () => {
-                this.sound.play('carte_captured');
-            }
+                    onStart: () => {
+                        try { if (this.soundManager) this.soundManager.playMoveSound('carte_captured', { volume: 0.95 }); else this.sound.play('carte_captured'); } catch (e) { /* ignore */ }
+                    }
         });
         this.tweens.add({
             targets: [valUp, valDown, valLeft, valRight],

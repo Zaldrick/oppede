@@ -9,6 +9,7 @@
  */
 
 import Phaser from 'phaser';
+import getPokemonDisplayName from './utils/getDisplayName';
 
 class MoveLearnScene extends Phaser.Scene {
     constructor() {
@@ -29,7 +30,7 @@ class MoveLearnScene extends Phaser.Scene {
 
         // Titre
         const title = this.add.text(width * 0.5, height * 0.08, 
-            `${this.pokemon.nickname || this.pokemon.species_name} peut apprendre une nouvelle attaque !`, {
+            `${getPokemonDisplayName(this.pokemon) || this.pokemon.species_name} peut apprendre une nouvelle attaque !`, {
             fontSize: `${Math.min(width, height) * 0.045}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold',
@@ -259,7 +260,7 @@ class MoveLearnScene extends Phaser.Scene {
     async learnMove(replaceIndex) {
         console.log('[MoveLearn] Apprentissage move:', this.newMove.name, 'remplace:', replaceIndex);
 
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
         try {
             const response = await fetch(`${apiUrl}/api/pokemon/learn-move`, {

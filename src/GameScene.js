@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import io from 'socket.io-client';
 import PlayerService from './services/PlayerService';
 import MusicManager from './MusicManager';
+import SoundManager from './utils/SoundManager';
 
 // Import des managers
 import { PlayerManager } from './managers/PlayerManager';
@@ -102,6 +103,9 @@ export class GameScene extends Phaser.Scene {
             this.inventory = [...newInventory];
             console.log('[GameScene] Cache inventaire mis à jour:', this.inventory.length, 'items');
         });
+
+        // Local SFX manager
+        try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
         this.scorePollingInterval = setInterval(async () => {
             const playerPseudo = this.registry.get("playerPseudo");
             if (playerPseudo) {
@@ -161,7 +165,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     update() {
-        if (!this.playerManager?.getPlayer() || !this.cursors) {
+        if (!this.playerManager?.getPlayer()?.body || !this.cursors) {
             return;
         }
 
@@ -293,11 +297,26 @@ export class GameScene extends Phaser.Scene {
         if (this.positionUpdateInterval) {
             clearInterval(this.positionUpdateInterval);
         }
+        // Nettoyage des managers pour éviter les références fantômes au redémarrage
+        this.playerManager = null;
+        this.remotePlayerManager = null;
+        this.mapManager = null;
+        this.socketManager = null;
+        this.uiManager = null;
+        this.shopManager = null;
     }
 
     addItemToInventory(item) {
         PlayerService.addItemToInventory(item);
         console.log("Updated inventory:", PlayerService.getInventory());
+        // Play item sound (key item or normal)
+        try {
+            if (this.soundManager) {
+                const isKey = item && (item.isKeyItem || (item.type && item.type === 'key_item') || (item.nom && String(item.nom).toLowerCase().includes('clé')));
+                const keyName = isKey ? 'keyitem_get' : 'item_get';
+                this.soundManager.playMoveSound(keyName, { volume: 0.85 });
+            }
+        } catch (e) { /* ignore */ }
     }
 
     removeItemFromInventory(itemName, quantity) {

@@ -69,7 +69,7 @@ export class PlayerManager {
   }
 
   handleMovement(cursors, joystick, socket, myId) {
-    if (!this.player || !cursors) return;
+    if (!this.player || !this.player.body || !cursors) return;
 
     const gridSize = 8;
     let newAnim = "";

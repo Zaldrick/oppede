@@ -11,6 +11,8 @@
  */
 
 import { getTypeEffectiveness, getEffectivenessMessage } from '../utils/typeEffectiveness';
+import SpriteLoader from '../utils/spriteLoader';
+import getPokemonDisplayName from '../utils/getDisplayName';
 
 export default class BattleTurnManager {
     constructor(scene) {
@@ -30,7 +32,7 @@ export default class BattleTurnManager {
 
         try {
             const moveNameFR = await this.scene.getMoveName(moveName);
-            this.scene.menuManager.showDialog(`${this.scene.battleState.playerActive.name} utilise ${moveNameFR} !`);
+            this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.battleState.playerActive)} utilise ${moveNameFR} !`);
             await this.scene.wait(800);
 
             const result = await this.scene.battleManager.takeTurn(
@@ -38,7 +40,7 @@ export default class BattleTurnManager {
                 moveName
             );
 
-            console.log('[BattleTurnManager] Résultat tour:', result);
+            // console.log('[BattleTurnManager] Résultat tour:', result);
 
             // 🆕 Ajouter isPlayer pour aider BattleAnimationManager (GIF support)
             if (result.playerAction) result.playerAction.isPlayer = true;
@@ -48,10 +50,25 @@ export default class BattleTurnManager {
             await this.updateBattleState(result);
 
             if (result.isOver) {
-                console.log('[BattleTurnManager] Combat terminé - winner:', result.winner, 'xpGains:', result.xpGains);
+                console.log('[BattleTurnManager] Combat terminé - winner:', result.winner);
                 
                 if (result.winner === 'player' && result.xpGains && result.xpGains.length > 0) {
                     console.log('[BattleTurnManager] ✅ XP à distribuer:', result.xpGains.length, 'gains');
+                    console.log('[BattleTurnManager] Détail gains:', JSON.stringify(result.xpGains));
+                    
+                    // 🆕 DEBUG: Afficher explicitement pourquoi l'évolution échoue
+                    result.xpGains.forEach(gain => {
+                        if (gain.evolutionCheckDebug) {
+                            console.log(`[Battle] 🔍 Debug Evolution pour ${gain.pokemonName}:`, gain.evolutionCheckDebug);
+                            if (!gain.evolutionCheckDebug.canEvolve) {
+                                console.warn(`[Battle] ⚠️ Échec évolution: ${gain.evolutionCheckDebug.error}`);
+                            }
+                        }
+                    });
+
+                    // 🧬 Stocker les évolutions à déclencher
+                    const pendingEvolutions = [];
+
                     for (const gain of result.xpGains) {
                         // 🔧 FIXE: Chercher par ID (string ou ObjectId)
                         const pokemon = this.scene.battleState.playerTeam.find(p => 
@@ -60,7 +77,7 @@ export default class BattleTurnManager {
                         
                         if (pokemon) {
                             // 🔧 FIXE: Utiliser le bon nom (nickname > name > species name)
-                            const pokemonName = pokemon.nickname || pokemon.name || pokemon.speciesData?.name_fr || gain.pokemonName;
+                            const pokemonName = getPokemonDisplayName(pokemon) || gain.pokemonName;
                             
                             this.scene.menuManager.showDialog(`${pokemonName} gagne ${gain.xpGained} points d'expérience !`);
                             await this.scene.wait(1500);
@@ -78,10 +95,54 @@ export default class BattleTurnManager {
                                     oldLevel
                                 );
                                 
-                                // TODO: Gérer apprentissage de nouveaux moves si level-up
+                                // Gérer apprentissage de nouveaux moves
                                 if (leveledUp && gain.newMovesAvailable && gain.newMovesAvailable.length > 0) {
-                                    // Afficher menu d'apprentissage de moves
                                     console.log('[Battle] Nouveaux moves disponibles:', gain.newMovesAvailable);
+                                    
+                                    for (const newMove of gain.newMovesAvailable) {
+                                        // Vérifier si le move est déjà connu
+                                        const alreadyKnown = pokemon.moveset && pokemon.moveset.some(m => m.name === newMove.name);
+                                        if (alreadyKnown) continue;
+
+                                        this.scene.menuManager.showDialog(`${pokemonName} veut apprendre ${newMove.name}...`);
+                                        await this.scene.wait(1000);
+
+                                        await new Promise(resolve => {
+                                            // Lancer la scène en parallèle (launch) et non remplacement (start)
+                                            this.scene.scene.launch('MoveLearnScene', {
+                                                pokemon: pokemon,
+                                                newMove: newMove,
+                                                onComplete: (learned, moveName) => {
+                                                    // Callback appelé quand la scène se ferme
+                                                    this.scene.scene.stop('MoveLearnScene');
+                                                    this.scene.scene.resume(this.scene.key); // Reprendre la scène de combat
+                                                    
+                                                    if (learned) {
+                                                        this.scene.menuManager.showDialog(`${pokemonName} a appris ${moveName} !`);
+                                                        
+                                                        // Mettre à jour le moveset localement pour enchaîner correctement
+                                                        if (!pokemon.moveset) pokemon.moveset = [];
+                                                        // Note: Si on a remplacé, on ne sait pas lequel sans recharger, 
+                                                        // mais pour la logique de boucle < 4 c'est suffisant
+                                                        if (pokemon.moveset.length < 4) {
+                                                            pokemon.moveset.push(newMove);
+                                                        } else {
+                                                            // On marque juste qu'on a appris pour éviter de le reproposer
+                                                            // (même si alreadyKnown le gère)
+                                                        }
+                                                    } else {
+                                                        this.scene.menuManager.showDialog(`${pokemonName} n'a pas appris ${newMove.name}.`);
+                                                    }
+                                                    
+                                                    // Petit délai pour lire le message
+                                                    setTimeout(resolve, 1500);
+                                                }
+                                            });
+                                            
+                                            // Mettre en pause la scène de combat
+                                            this.scene.scene.pause(this.scene.key);
+                                        });
+                                    }
                                 }
                             } else {
                                 // 🆕 Pour les Pokémon non-actifs, afficher juste un message si level-up
@@ -90,8 +151,65 @@ export default class BattleTurnManager {
                                     await this.scene.wait(1500);
                                 }
                             }
+
+                            // 🧬 Vérifier si une évolution est disponible
+                            if (gain.evolution) {
+                                console.log(`[Battle] Données évolution reçues pour ${pokemonName}:`, gain.evolution);
+                                if (gain.evolution.canEvolve) {
+                                    console.log(`[Battle] 🧬 Évolution VALIDÉE pour ${pokemonName}`);
+                                    pendingEvolutions.push({
+                                        pokemon: pokemon,
+                                        evolution: gain.evolution
+                                    });
+                                } else {
+                                    console.log(`[Battle] Évolution refusée (canEvolve=false)`);
+                                }
+                            }
+                        } else {
+                            console.warn(`[Battle] Pokémon ${gain.pokemonId} non trouvé dans l'équipe locale`);
                         }
                     }
+
+                    // 🧬 Déclencher les évolutions s'il y en a
+                    if (pendingEvolutions.length > 0) {
+                        for (const evo of pendingEvolutions) {
+                            this.scene.menuManager.showDialog(`Quoi ? ${getPokemonDisplayName(evo.pokemon)} évolue !`);
+                            await this.scene.wait(1000);
+                            
+                            // Lancer la scène d'évolution en overlay (pause la scène actuelle)
+                            // Masquer les GIFs pour qu'ils ne se superposent pas à l'animation
+                            SpriteLoader.hideAllGifs(this.scene);
+
+                            await new Promise(resolve => {
+                                this.scene.scene.pause(this.scene.key);
+                                this.scene.scene.launch('PokemonEvolutionScene', {
+                                    pokemon: evo.pokemon,
+                                    evolution: evo.evolution,
+                                    onComplete: (updatedPokemon) => {
+                                        this.scene.scene.stop('PokemonEvolutionScene');
+                                        this.scene.scene.resume(this.scene.key);
+                                        
+                                        // 🆕 Mettre à jour l'UI si c'est le Pokémon actif qui a évolué
+                                            if (updatedPokemon && (updatedPokemon._id === this.scene.battleState.playerActive._id || updatedPokemon._id.toString() === this.scene.battleState.playerActive._id.toString())) {
+                                            console.log('[Battle] Mise à jour UI après évolution pour', getPokemonDisplayName(updatedPokemon));
+                                            this.scene.updatePlayerUI(updatedPokemon);
+                                            
+                                            // Réafficher les GIFs (car updatePlayerUI recrée le sprite mais peut-être pas les autres)
+                                            const SpriteLoader = require('../utils/spriteLoader').default;
+                                            SpriteLoader.showAllGifs(this.scene);
+                                        }
+                                        
+                                        resolve();
+                                    }
+                                });
+                            });
+                            
+                            this.scene.menuManager.showDialog(`${getPokemonDisplayName(evo.pokemon)} a bien évolué !`);
+                            await this.scene.wait(1000);
+                        }
+                    }
+                } else {
+                    console.log('[BattleTurnManager] Pas de gains XP ou perdant');
                 }
                 
                 await this.scene.returnToSceneWithTransition();
@@ -114,7 +232,7 @@ export default class BattleTurnManager {
                 
                 this.scene.menuManager.hideDialog();
                 setTimeout(() => {
-                    this.scene.menuManager.showDialog(`Que va faire ${this.scene.battleState.playerActive.name} ?`);
+                    this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
                 }, 500);
                 this.scene.turnInProgress = false;
             }
@@ -137,8 +255,8 @@ export default class BattleTurnManager {
         if (result.playerAction) {
             if (result.playerAction.missed) {
                 // AFFICHER MESSAGE DE RATÉ
-                const opponentName = this.scene.battleState.opponentActive.name;
-                this.scene.menuManager.showDialog(`${this.scene.battleState.playerActive.name} rate ${opponentName} adverse !`);
+                const opponentName = getPokemonDisplayName(this.scene.battleState.opponentActive);
+                this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.battleState.playerActive)} rate ${opponentName} adverse !`);
                 await this.scene.wait(1500);
             } else {
                 // Attaque réussie
@@ -167,7 +285,7 @@ export default class BattleTurnManager {
                     
                     // MESSAGE K.O. AVANT ANIMATION
                     if (result.opponentHP <= 0) {
-                        const opponentName = this.scene.battleState.opponentActive.name;
+                        const opponentName = getPokemonDisplayName(this.scene.battleState.opponentActive);
                         this.scene.menuManager.showDialog(`Le ${opponentName} adverse est K.O. !`);
                         await this.scene.wait(1200);
                         await this.scene.animManager.animateKO(this.scene.opponentSprite, 'opponentContainer', true);
@@ -181,14 +299,14 @@ export default class BattleTurnManager {
         if (result.opponentAction && result.opponentHP > 0) {
             if (result.opponentAction.missed) {
                 // AFFICHER MESSAGE DE RATÉ
-                const playerName = this.scene.battleState.playerActive.name;
-                this.scene.menuManager.showDialog(`${this.scene.battleState.opponentActive.name} rate ${playerName} !`);
+                const playerName = getPokemonDisplayName(this.scene.battleState.playerActive);
+                this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.battleState.opponentActive)} rate ${playerName} !`);
                 await this.scene.wait(1500);
             } else {
                 // Attaque réussie
                 const opponentMove = this.scene.battleState.opponentActive.moveset[0];
                 const moveNameFR = await this.scene.getMoveName(opponentMove?.name || 'Charge');
-                this.scene.menuManager.showDialog(`${this.scene.battleState.opponentActive.name} utilise ${moveNameFR} !`);
+                this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.battleState.opponentActive)} utilise ${moveNameFR} !`);
                 await this.scene.wait(800);
                 
                 await this.scene.animManager.animateAttack(this.scene.opponentSprite, this.scene.playerSprite, result.opponentAction);
@@ -203,7 +321,7 @@ export default class BattleTurnManager {
                     
                     // MESSAGE K.O. AVANT ANIMATION
                     if (result.playerHP <= 0) {
-                        const playerName = this.scene.battleState.playerActive.name;
+                        const playerName = getPokemonDisplayName(this.scene.battleState.playerActive);
                         this.scene.menuManager.showDialog(`${playerName} est K.O. !`);
                         await this.scene.wait(1200);
                         await this.scene.animManager.animateKO(this.scene.playerSprite, 'playerContainer', false);
@@ -242,7 +360,7 @@ export default class BattleTurnManager {
         ];
 
         const moveNameFR = await this.scene.getMoveName(opponentMove.name);
-        this.scene.menuManager.showDialog(`${this.scene.battleState.opponentActive.name} utilise ${moveNameFR} !`);
+        this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.battleState.opponentActive)} utilise ${moveNameFR} !`);
         await this.scene.wait(800);
 
         const attacker = this.scene.battleState.opponentActive;
@@ -297,7 +415,7 @@ export default class BattleTurnManager {
 
         if (this.scene.battleState.playerActive.currentHP <= 0) {
             await this.scene.animManager.animateKO(this.scene.playerSprite, 'playerContainer', false);
-            this.scene.menuManager.showDialog(`${this.scene.battleState.playerActive.name} est K.O. !`);
+            this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.battleState.playerActive)} est K.O. !`);
             await this.scene.wait(1500);
             
             const alivePokemon = this.scene.battleState.playerTeam.filter(p => p.currentHP > 0);
@@ -325,6 +443,9 @@ export default class BattleTurnManager {
         const newPokemon = this.scene.battleState.playerTeam[newIndex];
         const oldPokemon = this.scene.battleState.playerActive;
         
+        // 🆕 Détecter si c'est un remplacement après K.O. (pas de tour adverse)
+        const isForcedSwitch = oldPokemon.currentHP <= 0;
+        
         if (!newPokemon) {
             console.error('[BattleTurnManager] Nouveau Pokémon introuvable');
             this.scene.turnInProgress = false;
@@ -334,24 +455,49 @@ export default class BattleTurnManager {
         const oldName = oldPokemon?.nickname || oldPokemon?.name || 'Pokémon';
         const newName = newPokemon?.nickname || newPokemon?.name || 'Pokémon';
         
-        this.scene.menuManager.showDialog(`Reviens, ${oldName} !`);
-        await this.scene.wait(1000);
+        // Message de rappel seulement si pas K.O.
+        if (!isForcedSwitch) {
+            this.scene.menuManager.showDialog(`Reviens, ${oldName} !`);
+            await this.scene.wait(1000);
+        } else {
+            this.scene.menuManager.showDialog(`À toi, ${newName} !`);
+        }
         
-        if (this.scene.playerSprite) {
-            await new Promise(resolve => {
-                this.scene.tweens.add({
-                    targets: this.scene.playerSprite,
-                    alpha: 0,
-                    scaleX: 3.0,
-                    scaleY: 3.0,
-                    duration: 500,
-                    onComplete: () => {
-                        if (this.scene.playerSprite) this.scene.playerSprite.destroy();
-                        if (this.scene.playerShadow) this.scene.playerShadow.destroy();
-                        resolve();
-                    }
+        // 🔧 FIXE: Animation de sortie compatible GIF et PNG
+        if (this.scene.playerSpriteData) {
+            if (this.scene.playerSpriteData.type === 'phaser' && this.scene.playerSprite) {
+                await new Promise(resolve => {
+                    this.scene.tweens.add({
+                        targets: this.scene.playerSprite,
+                        alpha: 0,
+                        scaleX: 3.0,
+                        scaleY: 3.0,
+                        duration: 500,
+                        onComplete: resolve
+                    });
                 });
-            });
+            } else if (this.scene.playerSpriteData.type === 'gif' && this.scene.playerGifContainer) {
+                // Animation CSS pour le GIF
+                this.scene.playerGifContainer.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                this.scene.playerGifContainer.style.opacity = '0';
+                this.scene.playerGifContainer.style.transform = 'translate(-50%, -50%) scale(3)'; // Garder le centrage
+                await this.scene.wait(500);
+            }
+            
+            // Nettoyage propre via le manager
+            this.scene.spriteManager.destroySprite(this.scene.playerSpriteData);
+            this.scene.playerSprite = null;
+            this.scene.playerGifContainer = null;
+            this.scene.playerSpriteData = null;
+        } else if (this.scene.playerSprite) {
+            // Fallback ancien système
+            this.scene.playerSprite.destroy();
+            this.scene.playerSprite = null;
+        }
+
+        if (this.scene.playerShadow) {
+            this.scene.playerShadow.destroy();
+            this.scene.playerShadow = null;
         }
         
         // Notifier serveur
@@ -400,17 +546,23 @@ export default class BattleTurnManager {
         await this.scene.wait(800);
         
         await this.recreatePlayerSpriteAndUI(newPokemon);
-        await this.opponentTurn();
+        
+        // 🆕 Si switch forcé (K.O.), l'adversaire n'attaque pas (nouveau tour)
+        if (!isForcedSwitch) {
+            await this.opponentTurn();
+        }
         
         this.scene.turnInProgress = false;
         this.scene.menuManager.hideDialog();
+        this.scene.menuManager.showMainMenu();
     }
 
     /**
      * Recrée sprite et UI après switch
      */
     async recreatePlayerSpriteAndUI(pokemon) {
-        await this.scene.spriteManager.recreatePlayerSprite(pokemon);
+        // 🔧 FIXE: Utiliser createOrUpdatePlayerSprite pour supporter les GIFs
+        await this.scene.spriteManager.createOrUpdatePlayerSprite(pokemon, true);
         await this.updateCompletePlayerUI(pokemon);
     }
 
@@ -418,8 +570,10 @@ export default class BattleTurnManager {
      * Met à jour l'UI complète du joueur
      */
     async updateCompletePlayerUI(pokemon) {
-        // Simplifié - deléguer à uiManager si besoin
         console.log('[BattleTurnManager] Update UI pour:', pokemon.name);
+        if (this.scene.uiManager) {
+            await this.scene.uiManager.updateCompletePlayerUI(pokemon);
+        }
     }
 
     /**
@@ -439,12 +593,12 @@ export default class BattleTurnManager {
                     this.scene.scene.stop('CaptureScene');
                     
                     if (result.captured) {
-                        this.scene.menuManager.showDialog(`${result.pokemon.name} a été capturé !`);
+                        this.scene.menuManager.showDialog(`${getPokemonDisplayName(result.pokemon)} a été capturé !`);
                         await this.scene.wait(2000);
                         await this.scene.returnToSceneWithTransition();
                     } else {
                         this.scene.showBattleUI();
-                        this.scene.menuManager.showDialog(`${this.scene.opponentPokemon.name} s'est échappé !`);
+                        this.scene.menuManager.showDialog(`${getPokemonDisplayName(this.scene.opponentPokemon)} s'est échappé !`);
                         await this.scene.wait(1500);
                         await this.opponentTurn();
                         this.scene.turnInProgress = false;

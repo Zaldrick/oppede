@@ -12,10 +12,12 @@
 const { ObjectId } = require('mongodb');
 const PokemonBattleLogicManager = require('./PokemonBattleLogicManager');
 const spriteCacheManager = require('./SpriteCacheManager');
+const PokemonEvolutionManager = require('./PokemonEvolutionManager');
 
 class PokemonBattleManager {
     constructor(databaseManager) {
         this.databaseManager = databaseManager;
+        this.evolutionManager = new PokemonEvolutionManager(databaseManager);
         this.activeBattles = new Map(); // battleId -> PokemonBattleLogicManager instance
         console.log('[BattleManager] Initialisé');
     }
@@ -51,17 +53,21 @@ class PokemonBattleManager {
                     return res.status(400).json({ error: 'Aucun Pokémon dans l\'équipe' });
                 }
 
-                // Enrichir avec données d'espèce
+                // Enrichir avec données d'espèce et calculer stats
                 for (const pokemon of playerTeam) {
                     const speciesData = await this.getSpeciesData(pokemon.species_id);
                     pokemon.speciesData = speciesData;
+                    pokemon.stats = this.calculateStats(pokemon, speciesData);
                 }
 
                 let opponentTeam;
 
                 if (battleType === 'wild') {
                     // Générer un Pokémon sauvage
-                    opponentTeam = [await this.generateWildPokemon()];
+                    const wildMon = await this.generateWildPokemon();
+                    // Recalculer stats proprement pour wildMon
+                    wildMon.stats = this.calculateStats(wildMon, wildMon.speciesData);
+                    opponentTeam = [wildMon];
                 } else {
                     // Combat PvP: charger l'équipe adverse
                     if (!opponentId) {
@@ -75,6 +81,7 @@ class PokemonBattleManager {
                     for (const pokemon of opponentTeam) {
                         const speciesData = await this.getSpeciesData(pokemon.species_id);
                         pokemon.speciesData = speciesData;
+                        pokemon.stats = this.calculateStats(pokemon, speciesData);
                     }
                 }
 
@@ -110,11 +117,13 @@ class PokemonBattleManager {
                     playerTeam: playerTeam.map(p => ({
                         _id: p._id,
                         species_id: p.species_id,
-                        name: p.nickname || p.speciesData?.name,
-                        level: p.level,
+                        name: p.nickname || p.speciesData?.name_fr || p.speciesData?.name,
+                        // Normalize level from experience to avoid mismatch issues
+                        level: (p.experience !== undefined && p.experience !== null) ? this.calculateLevel(p.experience) : (p.level || 1),
                         experience: p.experience, // 🆕 ESSENTIEL pour calcul XP bar
                         currentHP: p.currentHP,
-                        maxHP: p.maxHP,
+                        maxHP: p.stats.maxHP, // Utiliser la stat calculée
+                        stats: p.stats, // 🆕 Envoyer les stats complètes
                         types: p.speciesData?.types,
                         moveset: p.moveset || [],
                         sprites: p.speciesData?.sprites
@@ -122,11 +131,12 @@ class PokemonBattleManager {
                     opponentTeam: opponentTeam.map(p => ({
                         _id: p._id || 'wild',
                         species_id: p.species_id,
-                        name: p.nickname || p.speciesData?.name,
-                        level: p.level,
+                        name: p.nickname || p.speciesData?.name_fr || p.speciesData?.name,
+                        level: (p.experience !== undefined && p.experience !== null) ? this.calculateLevel(p.experience) : (p.level || 1),
                         experience: p.experience || 0, // 🆕 Pour Pokémon sauvages
                         currentHP: p.currentHP,
-                        maxHP: p.maxHP,
+                        maxHP: p.stats.maxHP, // Utiliser la stat calculée
+                        stats: p.stats, // 🆕 Envoyer les stats complètes
                         types: p.speciesData?.types,
                         moveset: p.moveset || [],
                         sprites: p.speciesData?.sprites
@@ -163,7 +173,7 @@ class PokemonBattleManager {
                 const playerId = battleDoc.player_id.toString();
 
                 // Récupérer l'instance de combat
-                const battleLogic = this.activeBattles.get(battleId);
+                const battleLogic = this.activeBattles.get(battleId) || this.activeBattles.get(battleId.toString());
                 if (!battleLogic) {
                     return res.status(404).json({ error: 'Combat introuvable en mémoire' });
                 }
@@ -419,7 +429,7 @@ class PokemonBattleManager {
                 console.log('[Battle] Tentative de capture avec', ballType);
 
                 // Récupérer l'état du combat
-                const battleLogic = this.activeBattles.get(battleId);
+                const battleLogic = this.activeBattles.get(battleId) || this.activeBattles.get(battleId.toString());
                 if (!battleLogic) {
                     return res.status(404).json({ error: 'Combat introuvable' });
                 }
@@ -483,7 +493,7 @@ class PokemonBattleManager {
                 console.log(`[Battle] Switch Pokémon dans combat ${battleId} vers index ${newIndex}`);
 
                 // Récupérer l'instance de combat
-                const battleLogic = this.activeBattles.get(battleId);
+                const battleLogic = this.activeBattles.get(battleId) || this.activeBattles.get(battleId.toString());
                 if (!battleLogic) {
                     return res.status(404).json({ error: 'Combat introuvable en mémoire' });
                 }
@@ -560,7 +570,7 @@ class PokemonBattleManager {
                 const battlesCollection = db.collection('battles');
 
                 // Récupérer l'état du combat
-                const battleLogic = this.activeBattles.get(battleId);
+                const battleLogic = this.activeBattles.get(battleId) || this.activeBattles.get(battleId.toString());
                 if (battleLogic) {
                     const battleState = battleLogic.getBattleState();
                     
@@ -627,10 +637,12 @@ class PokemonBattleManager {
             if (!cachedSprites) {
                 spriteCacheManager.setSprites(speciesId, sprites);
             }
-
+            const nameFr = (this.translationManager && typeof this.translationManager.getPokemonNameFR === 'function') ? await this.translationManager.getPokemonNameFR(speciesId) : null;
             return {
                 name: data.name,
+                name_fr: nameFr || null,
                 capture_rate: captureRate, // 🆕 Taux de capture correct
+                base_experience: data.base_experience || 50, // 🆕 XP de base pour calcul gains XP
                 types: data.types.map(t => t.type.name),
                 sprites,
                 stats: {
@@ -753,38 +765,49 @@ class PokemonBattleManager {
                 console.log('[Battle] Pokémon vaincu:', defeatedPokemon.nickname || defeatedPokemon.speciesData?.name, 'Lvl', defeatedPokemon.level);
                 
                 // Récupérer le BattleLogicManager pour avoir les vrais participants
-                console.log('[Battle] Recherche BattleLogic avec clé:', battleId);
-                console.log('[Battle] Clés disponibles dans activeBattles:', Array.from(this.activeBattles.keys()));
+                // console.log('[Battle] Recherche BattleLogic avec clé:', battleId);
                 
                 // 🔧 FIXE: Déclarer participants avant le bloc pour qu'il soit accessible partout
                 let participants = [];
                 
                 // 🔧 FIXE: Récupérer les participants via BattleLogic (track tous les Pokémon utilisés)
-                const battleLogic = this.activeBattles.get(battleId);
+                const battleLogic = this.activeBattles.get(battleId) || this.activeBattles.get(battleId.toString());
                 
                 if (!battleLogic) {
-                    console.error('[Battle] ⚠️ BattleLogic non trouvé! Fallback sur Pokémon actif uniquement');
+                    // console.error('[Battle] ⚠️ BattleLogic non trouvé! Fallback sur Pokémon actif uniquement');
                     // Fallback: seulement le Pokémon actif
-                    const activePokemon = battleState.player_team.find(p => 
-                        p._id && p._id.toString() === battleState.player_active_index.toString()
-                    ) || battleState.player_team[0];
+                    // Correct fallback: activePokemon is at player_active_index (it's an index, not an ID)
+                    const activePokemon = battleState.player_team[battleState.player_active_index] || battleState.player_team[0];
                     
                     participants = [activePokemon].filter(p => p && p.currentHP > 0);
                     xpGains = new PokemonBattleLogicManager().calculateExperienceGain(defeatedPokemon, participants, playerId);
                 } else {
                     // Récupérer les IDs des participants depuis BattleLogic
                     const participantIds = battleLogic.getParticipants();
-                    console.log('[Battle] Participants trackés:', participantIds);
+                    console.log(`[Battle] Debug: participantIds from BattleLogic: ${JSON.stringify(participantIds)}`);
+                    // console.log('[Battle] Participants trackés:', participantIds);
                     
                     // Filtrer l'équipe pour ne garder que les participants
-                    participants = battleState.player_team.filter(p => 
-                        p._id && participantIds.includes(p._id.toString())
-                    );
+                    participants = battleState.player_team.filter(p => {
+                        const hasId = !!p._id;
+                        const idStr = hasId ? p._id.toString() : null;
+                        const included = idStr ? participantIds.includes(idStr) : false;
+                        return hasId && included;
+                    });
+                    console.log(`[Battle] Debug: participants resolved from battleState: ${participants.map(p => ({id: p._id ? p._id.toString() : null, name: p.nickname || p.speciesData?.name, currentHP: p.currentHP}))}`);
+                    // Fallback: If participant tracking failed (empty array), fall back to active Pokémon
+                    if (!participants || participants.length === 0) {
+                        console.warn('[Battle] ⚠️ Aucun participant tracké ! Utilisation fallback: Pokémon actif');
+                        const activePokemon = battleState.player_team[battleState.player_active_index] || battleState.player_team[0];
+                        participants = [activePokemon].filter(p => p && p.currentHP > 0);
+                    }
+                    console.log(`[Battle] Debug: participants resolved from battleState: ${participants.map(p => ({id: p._id ? p._id.toString() : null, name: p.nickname || p.speciesData?.name, currentHP: p.currentHP}))}`);
                     
-                    console.log(`[Battle] Distribution XP à ${participants.length} Pokémon:`, participants.map(p => p.nickname || p.speciesData?.name));
+                    // console.log(`[Battle] Distribution XP à ${participants.length} Pokémon:`, participants.map(p => p.nickname || p.speciesData?.name));
                     
                     // Calculer XP pour tous les participants
                     xpGains = battleLogic.calculateExperienceGain(defeatedPokemon, participants, playerId);
+                    console.log(`[Battle] Debug: XP results raw (before DB updates): ${JSON.stringify(xpGains)}`);
                 }
                 
                 // Mettre à jour la DB (seulement l'XP, pas le level !)
@@ -816,23 +839,72 @@ class PokemonBattleManager {
                     if (pokemon) {
                         pokemon.level = newLevel;
                         pokemon.experience = newXP;
-                    }
-                    
-                    // 📚 TODO: Si level up, vérifier nouveaux moves disponibles
-                    // Désactivé temporairement car getAvailableMovesAtLevel n'existe pas encore
-                    xpResult.newMovesAvailable = [];
-                    /* 
-                    if (xpResult.leveledUp) {
-                        const pokemon = participants.find(p => p._id.toString() === xpResult.pokemonId.toString());
-                        if (pokemon) {
-                            const newMoves = await this.databaseManager.getAvailableMovesAtLevel(
-                                pokemon.species_id, 
-                                newLevel
+                        
+                        // 🆕 Recalculer MaxHP si niveau gagné
+                        if (xpResult.leveledUp && pokemon.speciesData && pokemon.speciesData.stats) {
+                            const baseHP = pokemon.speciesData.stats.hp || 45;
+                            const ivHP = pokemon.ivs?.hp || 0;
+                            const evHP = pokemon.evs?.hp || 0;
+                            
+                            // Formule HP
+                            const newMaxHP = Math.floor(((2 * baseHP + ivHP + Math.floor(evHP / 4)) * newLevel) / 100) + newLevel + 10;
+                            
+                            // Mettre à jour en BDD
+                            await pokemonCollection.updateOne(
+                                { _id: pokemonId },
+                                { $set: { maxHP: newMaxHP } }
                             );
-                            xpResult.newMovesAvailable = newMoves;
+                            
+                            // Mettre à jour l'objet en mémoire
+                            pokemon.maxHP = newMaxHP;
+                            // Soigner le gain de PV (optionnel, mais sympa)
+                            // pokemon.currentHP += (newMaxHP - oldMaxHP);
+                            
+                            console.log(`  → Level Up! MaxHP: ${newMaxHP} (Base: ${baseHP})`);
                         }
                     }
-                    */
+                    
+                    // 📚 Vérifier nouveaux moves disponibles
+                    if (xpResult.leveledUp) {
+                        // Vérifier pour chaque niveau gagné (au cas où +2 niveaux d'un coup)
+                        xpResult.newMovesAvailable = [];
+                        
+                        for (let lvl = oldLevel + 1; lvl <= newLevel; lvl++) {
+                            // Use the PokemonDatabaseManager if available, otherwise fallback to databaseManager (deprecated)
+                            const movesAtLevel = this.pokemonDatabaseManager
+                                ? await this.pokemonDatabaseManager.getAvailableMovesAtLevel(pokemon.species_id, lvl)
+                                : await this.databaseManager.getAvailableMovesAtLevel(pokemon.species_id, lvl);
+                            if (movesAtLevel && movesAtLevel.length > 0) {
+                                xpResult.newMovesAvailable.push(...movesAtLevel);
+                            }
+                        }
+                    } else {
+                        xpResult.newMovesAvailable = [];
+                    }
+                    
+                    // 🧬 Vérifier l'évolution
+                    // 🔧 FIXE: Vérifier l'évolution MÊME SI pas de level up (cas où le Pokémon a déjà le niveau requis mais n'a pas évolué)
+                    // On vérifie si le niveau actuel est suffisant pour évoluer
+                    const pokemonForEvo = participants.find(p => p._id.toString() === xpResult.pokemonId.toString());
+                    if (pokemonForEvo) {
+                        // Mettre à jour le niveau temporairement pour la vérification
+                        const tempPokemon = { ...pokemonForEvo, level: newLevel };
+                        console.log(`[Battle] Vérification évolution pour ${pokemonForEvo.nickname} (Lvl ${newLevel})`);
+                        
+                        // On passe 'level-up' comme trigger, même si le niveau n'a pas changé ce tour-ci,
+                        // car on veut vérifier si le niveau actuel permet l'évolution
+                        const evolutionCheck = await this.evolutionManager.checkEvolution(tempPokemon, 'level-up', newLevel);
+                        
+                        // 🆕 DEBUG: Toujours renvoyer le résultat du check au client pour comprendre ce qui se passe
+                        xpResult.evolutionCheckDebug = evolutionCheck;
+
+                        if (evolutionCheck.canEvolve) {
+                            console.log(`[Battle] 🧬 Évolution disponible pour ${pokemonForEvo.nickname}: ${evolutionCheck.targetSpeciesName}`);
+                            xpResult.evolution = evolutionCheck;
+                        } else {
+                            console.log(`[Battle] Pas d'évolution pour ${pokemonForEvo.nickname} (Raison: ${evolutionCheck.error || 'Conditions non remplies'})`);
+                        }
+                    }
                     
                     console.log(`  - ${xpResult.pokemonName}: ${xpResult.currentXP} → ${newXP} XP${xpResult.leveledUp ? ` (Niv. ${newLevel}!)` : ''}`);
                     if (xpResult.newMovesAvailable && xpResult.newMovesAvailable.length > 0) {
@@ -1006,6 +1078,90 @@ class PokemonBattleManager {
             console.error('[PokemonBattleManager] Erreur attemptCapture:', error);
             throw error;
         }
+    }
+
+    /**
+     * Calcule les statistiques réelles d'un Pokémon
+     */
+    calculateStats(pokemon, speciesData) {
+        let level = pokemon.level;
+        
+        // Si niveau manquant ou invalide, essayer de calculer depuis l'XP
+        if (!level || isNaN(level)) {
+            if (pokemon.experience) {
+                level = this.calculateLevel(pokemon.experience);
+            } else {
+                level = 1;
+            }
+        }
+        
+        // S'assurer que c'est un nombre
+        level = parseInt(level);
+        
+        const ivs = pokemon.ivs || { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 };
+        const evs = pokemon.evs || { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 };
+        const nature = pokemon.nature || 'Hardy'; // TODO: Implémenter les multiplicateurs de nature
+        
+        const stats = {};
+        const statNames = ['hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed'];
+        
+        // Mapping noms API -> noms internes
+        const apiToInternal = {
+            'hp': 'hp',
+            'attack': 'attack',
+            'defense': 'defense',
+            'special-attack': 'sp_attack',
+            'special-defense': 'sp_defense',
+            'speed': 'speed'
+        };
+
+        // Récupérer les base stats depuis speciesData
+        const baseStats = {};
+        if (speciesData) {
+            if (Array.isArray(speciesData.stats)) {
+                // Format PokeAPI array
+                speciesData.stats.forEach(s => {
+                    const name = apiToInternal[s.stat.name];
+                    if (name) baseStats[name] = s.base_stat;
+                });
+            } else if (speciesData.stats) {
+                // Format interne object
+                Object.assign(baseStats, speciesData.stats);
+            }
+        }
+
+        // Calcul HP
+        // Formule: ((2 * Base + IV + (EV/4)) * Level / 100) + Level + 10
+        const hpBase = baseStats.hp || 45;
+        const hpIV = ivs.hp || 0;
+        const hpEV = evs.hp || 0;
+        stats.maxHP = Math.floor(((2 * hpBase + hpIV + Math.floor(hpEV / 4)) * level) / 100) + level + 10;
+        stats.hp = stats.maxHP; // Alias pour compatibilité
+
+        // Calcul autres stats
+        // Formule: (((2 * Base + IV + (EV/4)) * Level / 100) + 5) * Nature
+        const otherStats = ['attack', 'defense', 'sp_attack', 'sp_defense', 'speed'];
+        otherStats.forEach(stat => {
+            const base = baseStats[stat] || 50;
+            const iv = ivs[stat] || 0;
+            const ev = evs[stat] || 0;
+            
+            let val = Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + 5;
+            
+            // TODO: Appliquer nature
+            
+            stats[stat] = val;
+        });
+        
+        // Debug pour comprendre pourquoi 39/12
+        if (stats.maxHP < pokemon.currentHP) {
+            console.warn(`[Stats] Incohérence HP pour ${pokemon.nickname || 'Pokemon'}: Current ${pokemon.currentHP} > Max ${stats.maxHP}`);
+            console.warn(`[Stats] Debug: Level=${level} (DB=${pokemon.level}), BaseHP=${hpBase}, IV=${hpIV}, EV=${hpEV}`);
+            // Force update level in object for display
+            pokemon.level = level;
+        }
+
+        return stats;
     }
 }
 

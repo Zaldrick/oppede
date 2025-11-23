@@ -5,6 +5,7 @@
  */
 
 import PokemonAPIManager from './PokemonAPIManager';
+import { calculateAllStats } from '../utils/pokemonStats';
 
 class PokemonManager {
     constructor(socket) {
@@ -279,6 +280,7 @@ class PokemonManager {
 
     /**
      * Calcule les stats d'un Pokémon selon les formules Pokémon
+     * Utilise l'utilitaire partagé pour garantir la cohérence avec le backend
      */
     calculateStats(pokemon, species, nature) {
         if (!pokemon || !species) return null;
@@ -286,34 +288,14 @@ class PokemonManager {
         const level = pokemon.level || 1;
         const ivs = pokemon.ivs || {};
         const evs = pokemon.evs || {};
+        const natureToUse = nature || pokemon.nature || 'hardy';
 
-        // Multiplicateur nature
-        const natures = {
-            timid: { increase: 'speed', decrease: 'attack' },
-            bold: { increase: 'defense', decrease: 'attack' },
-            hardy: { increase: null, decrease: null },
-            // ... ajouter les 25 natures au besoin
-        };
+        // 🆕 Support pour les deux formats de species (frontend avec baseStats, backend avec stats)
+        // Backend envoie parfois 'stats' au lieu de 'baseStats' dans l'objet species
+        const baseStats = species.baseStats || species.stats || { hp: 45, attack: 45, defense: 45, sp_attack: 45, sp_defense: 45, speed: 45 };
 
-        const natureData = natures[nature] || natures.hardy;
-
-        // Formule HP : ((2 * base + IV + EV/4) * level/100 + level + 5)
-        const hp = Math.floor((2 * species.baseStats.hp + (ivs.hp || 0) + (evs.hp || 0) / 4) * level / 100 + level + 5);
-
-        // Formule autres stats
-        const calculateStat = (base, iv, ev, stat) => {
-            const multiplier = stat === natureData.increase ? 1.1 : (stat === natureData.decrease ? 0.9 : 1.0);
-            return Math.floor(((2 * base + (iv || 0) + (ev || 0) / 4) * level / 100 + 5) * multiplier);
-        };
-
-        return {
-            hp,
-            attack: calculateStat(species.baseStats.attack, ivs.attack, evs.attack, 'attack'),
-            defense: calculateStat(species.baseStats.defense, ivs.defense, evs.defense, 'defense'),
-            sp_attack: calculateStat(species.baseStats.sp_attack, ivs.sp_attack, evs.sp_attack, 'sp_attack'),
-            sp_defense: calculateStat(species.baseStats.sp_defense, ivs.sp_defense, evs.sp_defense, 'sp_defense'),
-            speed: calculateStat(species.baseStats.speed, ivs.speed, evs.speed, 'speed')
-        };
+        // Utiliser l'utilitaire partagé
+        return calculateAllStats(baseStats, level, ivs, evs, natureToUse);
     }
 
     /**

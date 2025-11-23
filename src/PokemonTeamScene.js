@@ -11,6 +11,7 @@
 import Phaser from 'phaser';
 import PokemonManager from './managers/PokemonManager';
 import { getTypeFrench } from './utils/pokemonNames';
+import getPokemonDisplayName from './utils/getDisplayName';
 import SpriteLoader from './utils/spriteLoader';
 
 export class PokemonTeamScene extends Phaser.Scene {
@@ -227,6 +228,36 @@ export class PokemonTeamScene extends Phaser.Scene {
             const team = await this.pokemonManager.getTeam(this.currentPlayer);
             if (loadingText) loadingText.destroy();
 
+            // 🆕 Si en combat, mettre à jour avec les PV actuels du battleState
+            if (this.inBattle && this.battleState && this.battleState.playerTeam) {
+                console.log('[PokemonTeam] Mise à jour des stats depuis battleState');
+                
+                team.forEach(pokemon => {
+                    // Trouver le Pokémon correspondant dans le state du combat
+                    const battlePokemon = this.battleState.playerTeam.find(p => 
+                        p._id.toString() === pokemon._id.toString()
+                    );
+                    
+                    if (battlePokemon) {
+                        // Mettre à jour les stats vitales pour l'affichage
+                        pokemon.currentHP = battlePokemon.currentHP;
+                        if (battlePokemon.stats) {
+                            if (!pokemon.stats) pokemon.stats = {};
+                            pokemon.stats.maxHP = battlePokemon.stats.maxHP;
+                        }
+                        pokemon.level = battlePokemon.level;
+                        pokemon.experience = battlePokemon.experience;
+                        // Mettre à jour le surnom et le nom FR si présent dans le state du combat
+                        if (battlePokemon.nickname) pokemon.nickname = battlePokemon.nickname;
+                        if (battlePokemon.species_name_fr) pokemon.species_name_fr = battlePokemon.species_name_fr;
+                        if (battlePokemon.species_name) pokemon.species_name = battlePokemon.species_name;
+                        
+                        const maxHP = pokemon.stats ? pokemon.stats.maxHP : 1;
+                        console.log(`  -> ${getPokemonDisplayName(pokemon) || 'Pokemon'}: ${pokemon.currentHP}/${maxHP} PV`);
+                    }
+                });
+            }
+
             // FILTRER: Seulement les Pokémon avec position entre 1 et 6
             const activeTeam = team
                 .filter(p => p.position >= 1 && p.position <= 6)
@@ -339,14 +370,14 @@ export class PokemonTeamScene extends Phaser.Scene {
         container.add(card);
 
         // Afficher le sprite du Pokémon (MENU sprite: Gen VII)
-        if (pokemon.speciesData?.sprites?.menu) {
+                if (pokemon.speciesData?.sprites?.menu) {
             try {
                 const sprite = await SpriteLoader.displaySprite(
                     this,
                     -width * 0.28,
                     0,
                     pokemon.speciesData.sprites.menu,
-                    pokemon.speciesData?.name?.substring(0, 2) || '?',
+                    getPokemonDisplayName(pokemon).substring(0, 2) || '?',
                     width / 160 // Scale proportionnel
                 );
                 if (sprite) container.add(sprite);
@@ -363,8 +394,8 @@ export class PokemonTeamScene extends Phaser.Scene {
         }).setOrigin(0.5);
         container.add(badge);
 
-        // Nom français (gros) - utiliser le nom de l'espèce
-        const frenchName = pokemon.speciesData?.name || pokemon.nickname;
+        // Nom (gros) - préférer surnom, puis nom FR, puis nom EN
+        const frenchName = getPokemonDisplayName(pokemon);
         const nameText = this.add.text(-width * 0.1, -height * 0.25, frenchName, {
             fontSize: `${minDim * 0.035}px`,
             fill: '#FFFFFF',
@@ -382,7 +413,8 @@ export class PokemonTeamScene extends Phaser.Scene {
 
         // HP actuel/Max
         const currentHP = pokemon.currentHP || 0;
-        const maxHP = pokemon.maxHP || 20;
+        // 🔧 FIXE: Utiliser stats calculées
+        const maxHP = pokemon.stats ? pokemon.stats.maxHP : 20;
         const hpPercent = (currentHP / maxHP) * 100;
         const hpColor = hpPercent > 50 ? '#00FF00' : (hpPercent > 25 ? '#FFFF00' : '#FF0000');
         
@@ -546,7 +578,7 @@ export class PokemonTeamScene extends Phaser.Scene {
      * Va à la scène de détails
      */
     goToDetail(pokemon) {
-        console.log(`[PokemonTeam] Accès détails: ${pokemon.nickname}`);
+        console.log(`[PokemonTeam] Accès détails: ${getPokemonDisplayName(pokemon)}`);
         
         if (this.optionsMenu) {
             this.optionsMenu.destroy();
@@ -568,7 +600,7 @@ export class PokemonTeamScene extends Phaser.Scene {
      * Entraîne un Pokémon (simulation)
      */
     async trainPokemon(pokemon) {
-        console.log(`[PokemonTeam] Entraînement: ${pokemon.nickname}`);
+        console.log(`[PokemonTeam] Entraînement: ${getPokemonDisplayName(pokemon)}`);
 
         // Augmenter l'expérience et vérifier montée de niveau
         const newExperience = pokemon.experience + 100;
@@ -591,7 +623,7 @@ export class PokemonTeamScene extends Phaser.Scene {
      * Place le Pokémon en position 0 (avant)
      */
     async moveTofrontPosition(pokemon, currentIndex) {
-        console.log(`[PokemonTeam] Déplacement en avant: ${pokemon.nickname}`);
+        console.log(`[PokemonTeam] Déplacement en avant: ${getPokemonDisplayName(pokemon)}`);
 
         const team = await this.pokemonManager.getTeam(this.currentPlayer);
         
@@ -909,7 +941,8 @@ export class PokemonTeamScene extends Phaser.Scene {
             if (data.success) {
                 const pokemon = data.pokemon;
                 const moves = pokemon.moveset.map(m => m.name).join(', ');
-                alert(`✅ ${pokemon.nickname} (ID ${id}) créé !\n\nNiveau: ${pokemon.level}\nHP: ${pokemon.maxHP}\nMoves: ${moves || 'aucun'}`);
+                const maxHP = pokemon.stats ? pokemon.stats.maxHP : '?';
+                alert(`✅ ${getPokemonDisplayName(pokemon)} (ID ${id}) créé !\n\nNiveau: ${pokemon.level}\nHP: ${maxHP}\nMoves: ${moves || 'aucun'}`);
                 
                 // Recharger la scène
                 this.scene.restart({ playerId: this.currentPlayer });

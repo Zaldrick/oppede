@@ -5,6 +5,8 @@
  * Code extrait de PokemonBattleScene.js pour respecter l'architecture modulaire
  */
 
+import getPokemonDisplayName from '../utils/getDisplayName';
+
 export default class BattleUIManager {
     constructor(scene) {
         this.scene = scene;
@@ -69,7 +71,7 @@ export default class BattleUIManager {
         }).setOrigin(0.5).setAlpha(0);
 
         // Nom du Pokémon
-        const nameText = this.scene.add.text(boxX + boxWidth * 0.08, boxY + boxHeight * 0.25, opponent.name.toUpperCase(), {
+        const nameText = this.scene.add.text(boxX + boxWidth * 0.08, boxY + boxHeight * 0.25, getPokemonDisplayName(opponent).toUpperCase(), {
             fontSize: `${Math.min(width, height) * 0.028}px`,
             fill: '#2C3E50',
             fontStyle: 'bold',
@@ -182,7 +184,7 @@ export default class BattleUIManager {
         }
         
         console.log('[BattleUIManager] Player data:', {
-            name: player.name,
+            name: getPokemonDisplayName(player),
             level: player.level,
             experience: player.experience
         });
@@ -210,7 +212,7 @@ export default class BattleUIManager {
         }).setOrigin(0.5).setAlpha(0).setDepth(3);
 
         // Nom du Pokémon
-        const nameText = this.scene.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.25, player.name.toUpperCase(), {
+        const nameText = this.scene.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.25, getPokemonDisplayName(player).toUpperCase(), {
             fontSize: `${Math.min(width, height) * 0.028}px`,
             fill: '#2C3E50',
             fontStyle: 'bold',

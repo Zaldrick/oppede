@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import MusicManager from './MusicManager';
+import SoundManager from './utils/SoundManager';
 import { loadCardImages } from "./utils/loadCardImages.js";
 import ConfigManager from './managers/ConfigManager.js';
 export class TripleTriadGameScene extends Phaser.Scene {
@@ -144,6 +145,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
                     { font: "bold 40px Arial", fill: "#ff0", stroke: "#000", strokeThickness: 6 }
                 ).setOrigin(0.5).setAlpha(0);
 
+                try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
                 MusicManager.play(this, 'tripleTriadMusic', { loop: true, volume: 0.5 });
                 this.tweens.add({
                     targets: duelText,
@@ -722,7 +724,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
                                 this.playerCards[this.draggedCardIdx].played = true;
                                 this.lastPlayedCard = card;
                                 this.board[row][col] = card;
-                                if (this.sound) this.sound.play('card_place', { volume: 1 });
+                                try { if (this.soundManager) this.soundManager.playMoveSound('card_place', { volume: 1 }); else if (this.sound) this.sound.play('card_place', { volume: 1 }); } catch (e) { }
                                 this.activePlayer = 1;
                                 this.draggedCardIdx = null;
 
@@ -775,7 +777,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
             .setOrigin(0.5)
             .setDepth(1000);
 
-        if (this.sound) this.sound.play('card_place', { volume: 1 });
+                try { if (this.soundManager) this.soundManager.playMoveSound('card_place', { volume: 1 }); else if (this.sound) this.sound.play('card_place', { volume: 1 }); } catch (e) { }
 
         this.tweens.add({
             targets: img,
@@ -850,7 +852,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
                     cellRect.setStrokeStyle(7, borderColor);
                     cellRect.setAlpha(1);
                 }
-                if (this.sound) this.sound.play('card_capture', { volume: 1 });
+                try { if (this.soundManager) this.soundManager.playMoveSound('card_capture', { volume: 1 }); else if (this.sound) this.sound.play('card_capture', { volume: 1 }); } catch (e) { }
 
                 // --- Effet flash ---
                 const flashColor = (newOwner === "player" || newOwner === this.playerId) ? 0x3399ff : 0xff3333;
@@ -1096,7 +1098,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const spins = 5 + Math.floor(Math.random() * 2); // 3 ou 4 tours complets
         const totalAngle = 360 * spins + targetAngle;
         // --- Joue le son pendant la rotation ---
-        if (this.sound) this.sound.play('tripleTriadArrow', { volume: 1 });
+        try { if (this.soundManager) this.soundManager.playMoveSound('tripleTriadArrow', { volume: 1 }); else if (this.sound) this.sound.play('tripleTriadArrow', { volume: 1 }); } catch (e) { }
         this.tweens.add({
             targets: graphics,
             angle: totalAngle,
@@ -1364,7 +1366,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
             if (cardToPlay) {
                 this.board[row][col] = cardToPlay;
                 cardToPlay.played = true;
-                if (this.sound) this.sound.play('card_place', { volume: 1 });
+                try { if (this.soundManager) this.soundManager.playMoveSound('card_place', { volume: 1 }); else if (this.sound) this.sound.play('card_place', { volume: 1 }); } catch (e) { }
                 this.activePlayer = 1;
                 this.redrawAll();
             }

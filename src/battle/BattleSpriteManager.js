@@ -10,6 +10,7 @@
  */
 
 import SpriteLoader from '../utils/spriteLoader';
+import getPokemonDisplayName from '../utils/getDisplayName';
 
 export default class BattleSpriteManager {
     constructor(scene) {
@@ -81,7 +82,7 @@ export default class BattleSpriteManager {
                     opponentSpriteX,
                     opponentSpriteY,
                     opponent.sprites.frontCombat,
-                    opponent.name.substring(0, 2),
+                    getPokemonDisplayName(opponent).substring(0, 2),
                     2.5,
                     5, // depth
                     this.scene.useAnimatedSprites // Option globale
@@ -114,6 +115,17 @@ export default class BattleSpriteManager {
                 shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
                 shadow.setDepth(0);
                 this.scene.opponentShadow = shadow;
+
+                // Play cry sound after the fade-in animation (if any)
+                try {
+                    await this.fadeInSprite(result, shadow, 500);
+                    if (this.scene && this.scene.soundManager) {
+                        try { this.scene.soundManager.playPokemonCry(opponent.species_id, opponent.sprites && opponent.speciesData ? opponent.speciesData.name : opponent.species_name); } catch (e) { /* ignore */ }
+                    }
+                } catch (e) {
+                    // If fadeInSprite threw (shouldn't normally), still attempt the cry
+                    try { if (this.scene && this.scene.soundManager) this.scene.soundManager.playPokemonCry(opponent.species_id, opponent.sprites && opponent.speciesData ? opponent.speciesData.name : opponent.species_name); } catch (err) {}
+                }
                 
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur sprite adversaire:', error);
@@ -137,7 +149,7 @@ export default class BattleSpriteManager {
                     playerSpriteX,
                     playerSpriteY,
                     player.sprites.backCombat,
-                    player.name.substring(0, 2),
+                    getPokemonDisplayName(player).substring(0, 2),
                     3,
                     1, // depth
                     this.scene.useAnimatedSprites // Option globale
@@ -181,50 +193,8 @@ export default class BattleSpriteManager {
      * Recrée le sprite joueur après switch
      */
     async recreatePlayerSprite(pokemon) {
-        const { width, height } = this.scene.scale;
-        const playerSpriteX = width * 0.22;
-        const playerSpriteY = height * 0.45;
-        
-        if (pokemon.sprites && pokemon.sprites.backCombat) {
-            try {
-                const spriteKey = pokemon.nickname?.substring(0, 2) || pokemon.name?.substring(0, 2) || 'PK';
-                const sprite = await SpriteLoader.displaySprite(
-                    this.scene,
-                    playerSpriteX,
-                    playerSpriteY,
-                    pokemon.sprites.backCombat,
-                    spriteKey,
-                    3
-                );
-                
-                if (sprite) {
-                    this.scene.playerSprite = sprite;
-                    sprite.setAlpha(0);
-                    sprite.setDepth(1);
-                    
-                    const shadow = this.scene.add.graphics();
-                    shadow.fillStyle(0x000000, 0.6);
-                    const shadowOffsetY = sprite.displayHeight * 0.45;
-                    shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowOffsetY, sprite.displayWidth * 0.85, sprite.displayHeight * 0.15);
-                    shadow.setDepth(0);
-                    this.scene.playerShadow = shadow;
-                    shadow.setAlpha(0);
-                    
-                    // Animation entrée
-                    await new Promise(resolve => {
-                        this.scene.tweens.add({
-                            targets: [sprite, shadow],
-                            alpha: 1,
-                            duration: 500,
-                            ease: 'Power2',
-                            onComplete: resolve
-                        });
-                    });
-                }
-            } catch (error) {
-                console.error('[BattleSpriteManager] Erreur création sprite:', error);
-            }
-        }
+        // 🔧 FIXE: Rediriger vers la méthode générique qui supporte les GIFs
+        return this.createOrUpdatePlayerSprite(pokemon, true);
     }
 
     /**
@@ -252,7 +222,7 @@ export default class BattleSpriteManager {
                     playerSpriteX,
                     playerSpriteY,
                     pokemon.sprites.backCombat,
-                    pokemon.nickname?.substring(0, 2) || pokemon.name?.substring(0, 2) || 'PK',
+                    pokemon.nickname?.substring(0, 2) || getPokemonDisplayName(pokemon).substring(0, 2) || 'PK',
                     3,
                     1, // depth
                     this.scene.useAnimatedSprites // Option globale
@@ -280,9 +250,16 @@ export default class BattleSpriteManager {
                 this.scene.playerShadow = shadow;
                 shadow.setAlpha(animate ? 0 : 1);
                 
-                // Animation entrée si demandé
+                // Animation entrée si demandé (et play cry at the end)
                 if (animate) {
-                    await this.fadeInSprite(result, shadow, 500);
+                    try {
+                        await this.fadeInSprite(result, shadow, 500);
+                        if (this.scene && this.scene.soundManager) {
+                            try { this.scene.soundManager.playPokemonCry(pokemon.species_id, pokemon.sprites && pokemon.speciesData ? pokemon.speciesData.name : pokemon.species_name); } catch (e) { /* ignore */ }
+                        }
+                    } catch (e) {
+                        try { if (this.scene && this.scene.soundManager) this.scene.soundManager.playPokemonCry(pokemon.species_id, pokemon.sprites && pokemon.speciesData ? pokemon.speciesData.name : pokemon.species_name); } catch (err) {}
+                    }
                 }
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur création sprite joueur:', error);

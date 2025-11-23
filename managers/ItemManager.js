@@ -10,8 +10,10 @@
 const { ObjectId } = require('mongodb');
 
 class ItemManager {
-    constructor(databaseManager) {
+    constructor(databaseManager, evolutionManager, pokemonDatabaseManager) {
         this.databaseManager = databaseManager;
+        this.evolutionManager = evolutionManager;
+        this.pokemonDatabaseManager = pokemonDatabaseManager;
         this.inventoryCollection = null;
         this.itemsCollection = null;
         console.log('[ItemManager] Initialisé');
@@ -63,7 +65,10 @@ class ItemManager {
             { item_id: 'ultra-ball', name: 'Ultra Ball', name_fr: 'Hyper Ball', type: 'pokeball', effect: 'capture', value: 2.0, price: 1200, usage_context: ['Battle'], image: 'pokeball2.png' },
 
             // Objets tenus
-            { item_id: 'lucky-egg', name: 'Lucky Egg', name_fr: 'Œuf Chance', type: 'held', effect: 'exp-boost', value: 1.5, price: 5000, usage_context: ['Menu'] }
+            { item_id: 'lucky-egg', name: 'Lucky Egg', name_fr: 'Œuf Chance', type: 'held', effect: 'exp-boost', value: 1.5, price: 5000, usage_context: ['Menu'] },
+
+            // Objets spéciaux
+            { item_id: 'rare-candy', name: 'Rare Candy', name_fr: 'Super Bonbon', type: 'consumable', effect: 'level-up', value: 1, price: 10000, usage_context: ['Menu'], image: 'rarecandy.png' }
         ];
 
         const operations = baseItems.map(item => ({
@@ -290,6 +295,66 @@ class ItemManager {
                 );
                 result.statusCured = true;
                 result.message = `${pokemon.nickname || pokemon.species_name} est complètement guéri !`;
+                break;
+
+            case 'level-up':
+                if (pokemon.level >= 100) {
+                    throw new Error('Ce Pokémon est déjà au niveau maximum !');
+                }
+
+                const newLevel = pokemon.level + 1;
+                
+                // Calculer la nouvelle XP (minimum requis pour le nouveau niveau)
+                // Formule simplifiée medium-slow: 1.2*L^3 - 15*L^2 + 100*L - 140
+                // On utilise une méthode du PokemonDatabaseManager si possible, sinon formule locale
+                let newXP;
+                if (this.pokemonDatabaseManager && this.pokemonDatabaseManager.calculateXPFromLevel) {
+                    newXP = this.pokemonDatabaseManager.calculateXPFromLevel(newLevel);
+                } else {
+                    newXP = Math.floor(1.2 * Math.pow(newLevel, 3) - 15 * Math.pow(newLevel, 2) + 100 * newLevel - 140);
+                }
+
+                // Recalculer les stats
+                let newStats = {};
+                if (this.pokemonDatabaseManager) {
+                    newStats = await this.pokemonDatabaseManager.calculateStats(pokemon.species_id, newLevel, pokemon.ivs, pokemon.evs, pokemon.nature);
+                } else {
+                    // Fallback (ne devrait pas arriver si bien initialisé)
+                    newStats = {
+                        maxHP: Math.floor(((2 * pokemon.stats.hp + pokemon.ivs.hp + (pokemon.evs.hp/4)) * newLevel) / 100) + newLevel + 10
+                    };
+                }
+
+                // Mise à jour BDD
+                await pokemonCollection.updateOne(
+                    { _id: new ObjectId(targetPokemonId) },
+                    { 
+                        $set: { 
+                            level: newLevel,
+                            experience: newXP,
+                            maxHP: newStats.maxHP,
+                            attack: newStats.attack,
+                            defense: newStats.defense,
+                            sp_attack: newStats.sp_attack,
+                            sp_defense: newStats.sp_defense,
+                            speed: newStats.speed,
+                            currentHP: Math.min(pokemon.currentHP + (newStats.maxHP - pokemon.maxHP), newStats.maxHP) // Augmenter HP actuels de la différence
+                        } 
+                    }
+                );
+
+                result.leveledUp = true;
+                result.newLevel = newLevel;
+                result.message = `${pokemon.nickname || pokemon.species_name} monte au niveau ${newLevel} !`;
+
+                // Vérifier évolution
+                if (this.evolutionManager) {
+                    const evolutionCheck = await this.evolutionManager.checkEvolution({ ...pokemon, level: newLevel }, 'level-up', newLevel);
+                    if (evolutionCheck.canEvolve) {
+                        result.evolution = evolutionCheck;
+                        result.message += ` Il évolue !`;
+                    }
+                }
                 break;
 
             default:

@@ -22,6 +22,7 @@ const PhotoManager = require('./managers/PhotoManager');
 const SocketManager = require('./managers/SocketManager');
 const PokemonDatabaseManager = require('./managers/PokemonDatabaseManager');
 const PokemonBattleManager = require('./managers/PokemonBattleManager');
+const PokemonEvolutionManager = require('./managers/PokemonEvolutionManager'); // 🆕 Import EvolutionManager
 const TranslationManager = require('./managers/TranslationManager');
 const ItemManager = require('./managers/ItemManager'); // 🆕 Import ItemManager
 
@@ -140,14 +141,37 @@ class Server {
             // PokemonBattleManager - système de combat
             this.managers.pokemonBattleManager = new PokemonBattleManager(this.managers.databaseManager);
             console.log('✅ PokemonBattleManager initialisé');
+            // Exposer TranslationManager aux managers nécessitant les traductions FR
+            if (this.managers.translationManager) {
+                this.managers.pokemonBattleManager.translationManager = this.managers.translationManager;
+                this.managers.pokemonDatabaseManager.translationManager = this.managers.translationManager;
+            }
+            // Rendre PokemonDatabaseManager accessible au manager de combat pour utilitaires
+            this.managers.pokemonBattleManager.pokemonDatabaseManager = this.managers.pokemonDatabaseManager;
+
+            // PokemonEvolutionManager - gestion évolutions
+            this.managers.pokemonEvolutionManager = new PokemonEvolutionManager(this.managers.databaseManager);
+            console.log('✅ PokemonEvolutionManager initialisé');
 
             // TranslationManager - traductions FR Pokémon/Moves
             this.managers.translationManager = new TranslationManager(this.managers.databaseManager);
             await this.managers.translationManager.initialize();
             console.log('✅ TranslationManager initialisé');
 
+            // Ré-declarer références de TranslationManager sur les managers déjà créés
+            if (this.managers.pokemonBattleManager) {
+                this.managers.pokemonBattleManager.translationManager = this.managers.translationManager;
+            }
+            if (this.managers.pokemonDatabaseManager) {
+                this.managers.pokemonDatabaseManager.translationManager = this.managers.translationManager;
+            }
+
             // ItemManager - gestion des objets et seeding
-            this.managers.itemManager = new ItemManager(this.managers.databaseManager);
+            this.managers.itemManager = new ItemManager(
+                this.managers.databaseManager, 
+                this.managers.pokemonEvolutionManager,
+                this.managers.pokemonDatabaseManager
+            );
             await this.managers.itemManager.initialize();
             console.log('✅ ItemManager initialisé');
 
@@ -186,6 +210,9 @@ class Server {
 
         // Routes Combat Pokémon
         this.managers.pokemonBattleManager.setupRoutes(this.app);
+
+        // Routes Évolution Pokémon
+        this.managers.pokemonEvolutionManager.setupRoutes(this.app);
 
         // Routes Traductions
         this.managers.translationManager.setupRoutes(this.app);

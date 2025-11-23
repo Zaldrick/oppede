@@ -99,7 +99,7 @@ export class SpriteLoader {
      * @param {number} scale - Échelle (défaut 1)
      * @returns {Promise<Phaser.GameObjects.Image|Phaser.GameObjects.Text>}
      */
-    static async displaySprite(scene, x, y, spriteUrl, fallbackText = '?', scale = 1) {
+    static async displaySprite(scene, x, y, spriteUrl, fallbackText = '?', scale = 1, options = {}) {
         if (!spriteUrl) {
             // Pas d'URL, afficher texte
             return scene.add.text(x, y, fallbackText, {
@@ -117,9 +117,22 @@ export class SpriteLoader {
 
         if (loaded) {
             try {
-                return scene.add.image(x, y, key)
+                const image = scene.add.image(x, y, key)
                     .setScale(scale)
                     .setOrigin(0.5);
+
+                // Optionnel: jouer le cri si demandé et si SoundManager présent
+                try {
+                    if (options && options.playCry && scene && scene.soundManager) {
+                        const speciesId = options.speciesId || (options.pokemon && options.pokemon.species_id) || (scene && scene.pokemon && scene.pokemon.species_id);
+                        const speciesName = options.speciesName || (options.pokemon && options.pokemon.species_name) || (scene && scene.pokemon && scene.pokemon.species_name);
+                        if (speciesId) {
+                            scene.soundManager.playPokemonCry(speciesId, speciesName).catch(() => {});
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+
+                return image;
             } catch (e) {
                 console.error('[SpriteLoader] Erreur création image:', e);
                 return scene.add.text(x, y, fallbackText, {
@@ -321,7 +334,7 @@ export class SpriteLoader {
      * @param {boolean} useAnimated - Force l'utilisation de GIF (défaut: auto-detect)
      * @returns {Promise<Object>} - { type: 'phaser'|'gif', sprite: ..., container: ..., x, y, scale, depth }
      */
-    static async displaySpriteAuto(scene, x, y, spriteUrl, fallbackText, scale, depth, useAnimated = null) {
+    static async displaySpriteAuto(scene, x, y, spriteUrl, fallbackText, scale, depth, useAnimated = null, options = {}) {
         const shouldUseGif = useAnimated !== null ? useAnimated : this.isAnimatedGif(spriteUrl);
         
         if (shouldUseGif && this.isAnimatedGif(spriteUrl)) {
@@ -345,7 +358,7 @@ export class SpriteLoader {
             };
         } else {
             // Sprite statique (existant)
-            const sprite = await this.displaySprite(scene, x, y, spriteUrl, fallbackText, scale);
+            const sprite = await this.displaySprite(scene, x, y, spriteUrl, fallbackText, scale, options);
             
             if (sprite && sprite.setDepth) {
                 sprite.setDepth(depth);

@@ -11,7 +11,9 @@
 import Phaser from 'phaser';
 import PokemonManager from './managers/PokemonManager';
 import SpriteLoader from './utils/spriteLoader';
+import SoundManager from './utils/SoundManager';
 import MoveDetailModal from './MoveDetailModal';
+import getPokemonDisplayName from './utils/getDisplayName';
 
 export class PokemonDetailScene extends Phaser.Scene {
     constructor() {
@@ -30,6 +32,10 @@ export class PokemonDetailScene extends Phaser.Scene {
         this.returnScene = data?.returnScene || 'PokemonTeamScene';
         this.inBattle = data?.inBattle || false; // 🆕 FLAG combat
         this.battleState = data?.battleState || null; // 🆕 State combat
+        
+        // 🆕 Réinitialiser les données de la scène précédente
+        this.stats = null;
+        this.species = null;
     }
 
     async create() {
@@ -42,6 +48,9 @@ export class PokemonDetailScene extends Phaser.Scene {
 
         // Initialiser le modal des moves
         this.moveModal = new MoveDetailModal(this);
+
+        // Initialiser le SoundManager local pour lire les cries et SFX
+        try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
 
         // Fond
         this.add.rectangle(
@@ -70,8 +79,13 @@ export class PokemonDetailScene extends Phaser.Scene {
                 }
             }
             
-            // Calculer les stats si on a species
-            if (!this.stats && this.species) {
+            // 🆕 Priorité aux stats déjà calculées par le backend
+            if (this.pokemon.stats) {
+                this.stats = this.pokemon.stats;
+                console.log('[PokemonDetail] Stats utilisées depuis le backend:', this.stats);
+            }
+            // Sinon, calculer les stats si on a species
+            else if (!this.stats && this.species) {
                 console.log('[PokemonDetail] Calcul des stats avec nature:', this.pokemon.nature || 'hardy');
                 this.stats = this.pokemonManager.calculateStats(
                     this.pokemon, 
@@ -136,7 +150,7 @@ export class PokemonDetailScene extends Phaser.Scene {
         this.add.text(
             centerX,
             height * 0.05,
-            this.pokemon.nickname,
+            getPokemonDisplayName(this.pokemon),
             {
                 fontSize: `${Math.min(width, height) * 0.08}px`,
                 fill: '#FFD700',
@@ -229,7 +243,7 @@ export class PokemonDetailScene extends Phaser.Scene {
             spriteUrl = this.species.sprites.front;
         }
         
-        console.log('[PokemonDetail] Sprite URL:', spriteUrl, 'pour Pokemon:', this.pokemon.nickname || this.pokemon.name);
+        console.log('[PokemonDetail] Sprite URL:', spriteUrl, 'pour Pokemon:', getPokemonDisplayName(this.pokemon));
         
         if (spriteUrl) {
             try {
@@ -238,9 +252,18 @@ export class PokemonDetailScene extends Phaser.Scene {
                     x,
                     y,
                     spriteUrl,
-                    this.pokemon.nickname?.substring(0, 2) || '?',
+                    getPokemonDisplayName(this.pokemon)?.substring(0, 2) || '?',
                     3.0
                 );
+
+                // Après que le sprite soit affiché, jouer le cri du Pokémon si possible
+                try {
+                    const speciesId = this.pokemon.species_id || (this.species && this.species.id);
+                    const speciesName = (this.species && this.species.name) || this.pokemon.species_name || this.pokemon.species;
+                    if (this.soundManager && speciesId) {
+                        this.soundManager.playPokemonCry(speciesId, speciesName).catch(() => {});
+                    }
+                } catch (e) { /* ignore */ }
             } catch (e) {
                 console.error('[PokemonDetail] Erreur chargement sprite:', e);
             }
@@ -278,7 +301,7 @@ export class PokemonDetailScene extends Phaser.Scene {
 
         // Afficher les stats
         const statsList = [
-            { name: 'HP', value: this.stats.hp },
+            { name: 'HP', value: this.stats.maxHP || this.stats.hp },
             { name: 'ATT', value: this.stats.attack },
             { name: 'DÉF', value: this.stats.defense },
             { name: 'SPATT', value: this.stats.sp_attack },
@@ -297,7 +320,8 @@ export class PokemonDetailScene extends Phaser.Scene {
             });
 
             // Valeur stat
-            this.add.text(x + boxWidth * 0.3, statY, stat.value.toString(), {
+            const valueStr = (stat.value !== undefined && stat.value !== null) ? stat.value.toString() : '?';
+            this.add.text(x + boxWidth * 0.3, statY, valueStr, {
                 fontSize: `${Math.min(screenWidth, screenHeight) * 0.05}px`,
                 fill: '#00FF00'
             }).setOrigin(1, 0);
@@ -363,7 +387,8 @@ export class PokemonDetailScene extends Phaser.Scene {
 
         // HP
         const currentHP = this.pokemon.currentHP || 0;
-        const maxHP = this.pokemon.maxHP || 1;
+        // 🔧 FIXE: Utiliser les stats calculées
+        const maxHP = (this.stats && (this.stats.maxHP || this.stats.hp)) ? (this.stats.maxHP || this.stats.hp) : 1;
         const hpPercent = (currentHP / maxHP) * 100;
         const hpColor = hpPercent > 50 ? '#00FF00' : (hpPercent > 25 ? '#FFFF00' : '#FF0000');
         
@@ -586,7 +611,7 @@ export class PokemonDetailScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         button.on('pointerdown', () => {
-            console.log('[PokemonDetail] Envoi au combat:', this.pokemon.nickname);
+            console.log('[PokemonDetail] Envoi au combat:', getPokemonDisplayName(this.pokemon));
             
             // Récupérer BattleScene avant de stopper les scènes
             const battleScene = this.scene.get('PokemonBattleScene');
@@ -597,7 +622,7 @@ export class PokemonDetailScene extends Phaser.Scene {
             );
             
             console.log('[PokemonDetail] Switch - Pokemon ID:', this.pokemon._id, 'Index trouvé:', teamIndex);
-            console.log('[PokemonDetail] PlayerTeam:', this.battleState.playerTeam.map((p, i) => ({ index: i, name: p.name, id: p._id })));
+            console.log('[PokemonDetail] PlayerTeam:', this.battleState.playerTeam.map((p, i) => ({ index: i, name: getPokemonDisplayName(p), id: p._id })));
             
             // Stopper les scènes de menu
             this.scene.stop('PokemonDetailScene');

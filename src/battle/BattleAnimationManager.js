@@ -1,3 +1,5 @@
+import { getTypeEffectiveness, getEffectivenessMessage } from '../utils/typeEffectiveness';
+import getPokemonDisplayName from '../utils/getDisplayName';
 /**
  * BattleAnimationManager.js
  * Gère toutes les animations visuelles du combat
@@ -220,9 +222,9 @@ export default class BattleAnimationManager {
         await this.scene.wait(200);
         
         const opponent = this.scene.battleState.opponentActive;
-        this.scene.menuManager.showDialog(`Un ${opponent.name} sauvage apparaît !`);
+        this.scene.menuManager.showDialog(`Un ${getPokemonDisplayName(opponent)} sauvage apparaît !`);
         await this.scene.wait(1500);
-        this.scene.menuManager.showDialog(`Que va faire ${this.scene.battleState.playerActive.name} ?`);
+        this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
     }
 
     /**
@@ -312,6 +314,13 @@ export default class BattleAnimationManager {
         const targetY = realDefender.y * 0.3 + realAttacker.y * 0.7;
         const startX = realAttacker.x;
         const startY = realAttacker.y;
+
+        // Play move sound (try to lazy-load if needed)
+        if (this.scene && this.scene.soundManager && actionData && actionData.move) {
+            try { this.scene.soundManager.playMoveSound(actionData.move, { volume: 0.6 }); } catch (e) { /* ignore */ }
+        } else if (this.scene && this.scene.soundManager && actionData && actionData.critical) {
+            try { this.scene.soundManager.playMoveSound('critical', { volume: 0.8 }); } catch (e) { /* ignore */ }
+        }
 
         await new Promise(resolve => {
             // Animation pour Sprite Phaser
@@ -410,6 +419,16 @@ export default class BattleAnimationManager {
                     onComplete: () => flash.destroy()
                 });
             }
+
+            // Play an impact sound if available (try move impact variant, fallback to generic)
+            if (this.scene && this.scene.soundManager) {
+                const impactName = actionData && actionData.move ? `${actionData.move}-impact` : 'hit';
+                try { this.scene.soundManager.playMoveSound(impactName, { volume: 0.5 }); } catch (e) { /* ignore */ }
+            }
+            // Play critical sound if it was a critical hit
+            if (actionData && actionData.critical && this.scene && this.scene.soundManager) {
+                try { this.scene.soundManager.playMoveSound('critical', { volume: 0.8 }); } catch (e) { /* ignore */ }
+            }
         }
         resolve();
     }
@@ -495,6 +514,15 @@ export default class BattleAnimationManager {
         const uiElements = isOpponent ? this.scene.opponentUIElements : this.scene.playerUIElements;
 
         await new Promise(resolve => {
+            // Play faint sound BEFORE starting the KO animation so audio cues precede the visual
+            const faintName = (isOpponent ? this.scene.battleState.opponentActive?.nickname : this.scene.battleState.playerActive?.nickname) || 'pokemon';
+            console.debug(`[BattleAnimationManager] Playing KO (faint) sound for ${faintName} before animation`);
+            if (this.scene && this.scene.soundManager) {
+                try { this.scene.soundManager.playMoveSound('faint', { volume: 0.9 }); } catch (e) { /* ignore */ }
+            } else {
+                try { if (this.scene && this.scene.sound) this.scene.sound.play('faint', { volume: 0.9 }); } catch (e) { /* ignore */ }
+            }
+
             if (!isGif) {
                 // Animation Phaser Sprite
                 this.scene.tweens.add({
@@ -555,7 +583,7 @@ export default class BattleAnimationManager {
      * @param {number} oldLevel - Niveau avant le gain (optionnel, sinon utilise player.level)
      */
     async animateXPGain(xpGained, oldXP = null, oldLevel = null) {
-        console.log('[BattleAnimationManager] Gain XP:', xpGained);
+        // console.log('[BattleAnimationManager] Gain XP:', xpGained);
 
         const player = this.scene.battleState.playerActive;
         const startXP = oldXP !== null ? oldXP : (player.experience || 0);
@@ -563,7 +591,7 @@ export default class BattleAnimationManager {
         const newXP = startXP + xpGained;
         const newLevel = this.scene.calculateLevelFromXP(newXP);
 
-        console.log('[BattleAnimationManager] XP:', { startXP, newXP, startLevel, newLevel });
+        // console.log('[BattleAnimationManager] XP:', { startXP, newXP, startLevel, newLevel });
 
         // Pas de level-up : animation simple
         if (newLevel === startLevel) {
@@ -597,7 +625,7 @@ export default class BattleAnimationManager {
             await this.scene.wait(300);
 
             // 5. Message de level-up
-            this.scene.menuManager.showDialog(`${player.name} passe niveau ${currentLevel} !`);
+            this.scene.menuManager.showDialog(`${getPokemonDisplayName(player)} passe niveau ${currentLevel} !`);
             await this.scene.wait(1500);
 
             // 6. Vider la barre (reset à 0%)
@@ -688,6 +716,11 @@ export default class BattleAnimationManager {
             this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
             
             await this.scene.wait(flash.duration);
+        }
+
+        // Play LevelUp sound
+        if (this.scene && this.scene.soundManager) {
+            try { this.scene.soundManager.playMoveSound('levelUp', { volume: 0.9 }); } catch (e) { /* ignore */ }
         }
     }
 }

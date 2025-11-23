@@ -128,9 +128,29 @@ export class MapManager {
     PlayerService.updatePlayerData({ mapId });
 
     await this.loadWorldEvents();
+    
+    // Vérification de sécurité : si la scène a été détruite ou n'est plus active
+    if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) {
+        console.warn("Scene destroyed or inactive during map load, aborting.");
+        return;
+    }
+
+    // Vérification des caméras
+    if (!this.scene.cameras || !this.scene.cameras.main) {
+        console.warn("Cameras not available, aborting.");
+        return;
+    }
+
     this.createTeleportZones();
-    this.scene.cameras.main.fadeIn(500, 0, 0, 0);
-    this.scene.cameras.main.startFollow(player, true, 0.1, 0.1);
+    
+    try {
+        this.scene.cameras.main.fadeIn(500, 0, 0, 0);
+        if (player) {
+            this.scene.cameras.main.startFollow(player, true, 0.1, 0.1);
+        }
+    } catch (err) {
+        console.warn("Error updating camera:", err);
+    }
 
     // Envoi de la position par socket
     if (this.scene.socket && this.scene.myId) {
@@ -147,6 +167,8 @@ export class MapManager {
     }
 
     async loadWorldEvents() {
+        if (!this.map) return;
+
         const eventsLayer = this.map.getObjectLayer("events");
         if (!eventsLayer) {
             console.warn("Pas de couche 'events' dans la map !");
@@ -160,6 +182,10 @@ export class MapManager {
         } catch (e) {
             console.error("Erreur lors du chargement des worldEvents :", e);
         }
+
+        // Vérification de sécurité après l'appel asynchrone
+        // Si la map a été détruite pendant le fetch (changement de scène), on arrête tout
+        if (!this.map) return;
 
         this.activeEvents = [];
 
@@ -204,6 +230,8 @@ export class MapManager {
 
 
     createBoosterVendor() {
+        if (!this.map) return;
+
         // Position du PNJ vendeur sur la carte map3 (Oppède) - ajustez selon votre carte
         const vendorX = 50 * 48 + 24;  // Ajustez la colonne selon votre carte
         const vendorY = 7 * 48 + 24;   // Ajustez la ligne selon votre carte
@@ -263,7 +291,7 @@ export class MapManager {
 
         vendor.bubble = bubble;
 
-        console.log(`🛒 Marchand de boosters créé à la position (${vendorX}, ${vendorY}) sur ${this.map.key}`);
+        console.log(`🛒 Marchand de boosters créé à la position (${vendorX}, ${vendorY}) sur ${this.map?.key || 'unknown'}`);
     }
 
 
@@ -349,7 +377,7 @@ export class MapManager {
 
       this.scene.physics.world.enable(teleportZone);
       this.scene.physics.add.overlap(player, teleportZone, () => {
-        this.scene.sound.play("teleportSound", { volume: 0.3});
+        try { if (this.scene.soundManager) this.scene.soundManager.playMoveSound('teleport', { volume: 0.3 }); else this.scene.sound.play("teleportSound", { volume: 0.3 }); } catch (e) { /* ignore */ }
         this.changeMap(point.targetMap, point.targetX, point.targetY);
       });
     });
@@ -402,6 +430,12 @@ export class MapManager {
 
     this.scene.addItemToInventory({ nom: eventData.properties.loot, quantite: 1 });
     eventData.state.opened = true;
+    // Play SFX for item obtained
+    try {
+      if (this.scene && this.scene.soundManager) {
+        this.scene.soundManager.playMoveSound('item_get', { volume: 0.85 });
+      }
+    } catch (e) { /* ignore */ }
   }
 
   compareTilemaps() {

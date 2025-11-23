@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import ConfigManager from "./managers/ConfigManager.js";
+import SoundManager from './utils/SoundManager';
 import ItemActionManager, { ITEM_CONTEXTS } from "./managers/ItemActionManager.js";
 
 export class InventoryScene extends Phaser.Scene {
@@ -48,6 +49,8 @@ export class InventoryScene extends Phaser.Scene {
         this.drawInventory();
 
         this.setupInventoryEventListeners();
+        // Local SoundManager for SFX in inventory
+        try { this.soundManager = new (require('./utils/SoundManager').default)(this); } catch (e) { this.soundManager = null; }
         
         // Gestion du nettoyage
         this.events.on('shutdown', () => this.destroyDom());
@@ -235,6 +238,8 @@ export class InventoryScene extends Phaser.Scene {
             this.drawInventory();
             this.updateGlobalInventoryCache();
             this.displayMessage(`${data.cards.length} cartes ajoutées !`);
+            // Play item get sound
+            try { if (this.soundManager) this.soundManager.playMoveSound('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
         }
     }
 
@@ -248,6 +253,7 @@ export class InventoryScene extends Phaser.Scene {
         if (Array.isArray(cards)) {
             await this.addCardsToInventory(cards);
             this.updateGlobalInventoryCache();
+            try { if (this.soundManager) this.soundManager.playMoveSound('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
         }
     }
 
@@ -625,7 +631,7 @@ export class InventoryScene extends Phaser.Scene {
         
         if (!playerId || !itemId) return;
 
-        if (this.sound) this.sound.play("poubelle");
+        try { if (this.soundManager) this.soundManager.playMoveSound('poubelle', { volume: 0.8 }); else if (this.sound) this.sound.play("poubelle"); } catch (e) { /* ignore */ }
 
         // Optimiste update
         const idx = this.inventory.findIndex(c => (c.item_id || c._id) === itemId);

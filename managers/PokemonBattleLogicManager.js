@@ -1,14 +1,4 @@
-/**
- * PokemonBattleLogicManager.js
- * Gestion de la logique de combat Pokémon (calculs purs, pas d'I/O)
- * 
- * Responsabilités:
- * - Calcul des dégâts
- * - Ordre des tours (vitesse)
- * - Efficacité des types
- * - Génération d'actions IA
- * - Vérification fin de combat
- */
+const { calculateStat, calculateMaxHP } = require('../utils/pokemonStats');
 
 // Table d'efficacité des types (copie serveur pour éviter import ES6)
 function getTypeEffectiveness(attackType, defenseTypes) {
@@ -50,6 +40,12 @@ class PokemonBattleLogicManager {
     constructor() {
         this.battleState = null;
         this.participants = new Set(); // 🆕 Tracker les Pokémon qui ont participé
+    }
+
+    // Utilitaire pour récupérer le nom à afficher (préférence FR)
+    getDisplayName(pokemon) {
+        if (!pokemon) return 'Unknown';
+        return pokemon.nickname || pokemon.speciesData?.name_fr || pokemon.speciesData?.name || pokemon.species_name_fr || pokemon.species_name || (pokemon._id ? pokemon._id.toString() : 'Pokemon');
     }
 
     /**
@@ -121,7 +117,7 @@ class PokemonBattleLogicManager {
         };
 
         this.addToBattleLog('Le combat commence!');
-        this.addToBattleLog(`${playerActive.nickname || playerActive.speciesData?.name} affronte ${opponentActive.nickname || opponentActive.speciesData?.name}!`);
+        this.addToBattleLog(`${this.getDisplayName(playerActive)} affronte ${this.getDisplayName(opponentActive)}!`);
 
         return this.battleState;
     }
@@ -160,70 +156,40 @@ class PokemonBattleLogicManager {
      * @returns {number}
      */
     calculateStat(pokemon, statName) {
-        const base = pokemon.stats?.[statName] || 50;
+        // 🆕 Si les stats sont déjà calculées dans l'objet (via PokemonBattleManager), les utiliser directement
+        if (pokemon.stats && pokemon.stats[statName] && typeof pokemon.stats[statName] === 'number' && pokemon.stats[statName] > 0) {
+            // Vérifier si c'est une stat calculée (valeur > 5) ou une base stat (valeur brute)
+            // Pour être sûr, on recalcule si on a un doute, mais si PokemonBattleManager a fait son job, c'est bon.
+            // Le problème est que pokemon.stats contient parfois les Base Stats (si speciesData) et parfois les Calculated Stats.
+            
+            // Si on a maxHP dans stats, c'est probablement un objet de stats calculées
+            if (pokemon.stats.maxHP) {
+                return pokemon.stats[statName];
+            }
+        }
+
+        // Fallback: Recalcul complet (comme avant)
+        let base = 50;
+        
+        if (pokemon.speciesData && pokemon.speciesData.stats) {
+            // speciesData.stats est toujours Base Stats
+            base = pokemon.speciesData.stats[statName];
+        } else if (pokemon.stats) {
+            base = pokemon.stats[statName];
+        }
+
         const iv = pokemon.ivs?.[statName] || 15;
         const ev = pokemon.evs?.[statName] || 0;
-        const level = pokemon.level || 5;
+        
+        // 🔧 FIXE: S'assurer que le niveau est valide
+        let level = pokemon.level;
+        if (!level || isNaN(level)) level = 1;
 
         if (statName === 'hp') {
-            // Formule HP spéciale : HP = floor(((2 × Base + IV + floor(EV/4)) × Level / 100) + Level + 10)
-            return Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + level + 10;
+            return calculateMaxHP(base, level, iv, ev);
         } else {
-            // Formule stats normales : Stat = floor(((2 × Base + IV + floor(EV/4)) × Level / 100) + 5)
-            const stat = Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100) + 5;
-            
-            // Appliquer bonus/malus de nature (+10% / -10%)
-            const nature = pokemon.nature || 'hardy';
-            const natureModifier = this.getNatureModifier(nature, statName);
-            
-            return Math.floor(stat * natureModifier);
+            return calculateStat(statName, base, level, iv, ev, pokemon.nature);
         }
-    }
-
-    /**
-     * Retourne le modificateur de nature pour une stat donnée
-     * @param {string} nature - Nature du Pokémon
-     * @param {string} statName - Nom de la stat (attack, defense, sp_attack, sp_defense, speed)
-     * @returns {number} - 1.1 (bonus), 0.9 (malus), ou 1.0 (neutre)
-     */
-    getNatureModifier(nature, statName) {
-        const natureTable = {
-            // Natures neutres (5)
-            hardy: {}, bashful: {}, docile: {}, quirky: {}, serious: {},
-            
-            // Attack+ (4)
-            lonely: { attack: 1.1, defense: 0.9 },
-            brave: { attack: 1.1, speed: 0.9 },
-            adamant: { attack: 1.1, sp_attack: 0.9 },
-            naughty: { attack: 1.1, sp_defense: 0.9 },
-            
-            // Defense+ (4)
-            bold: { defense: 1.1, attack: 0.9 },
-            relaxed: { defense: 1.1, speed: 0.9 },
-            impish: { defense: 1.1, sp_attack: 0.9 },
-            lax: { defense: 1.1, sp_defense: 0.9 },
-            
-            // Speed+ (4)
-            timid: { speed: 1.1, attack: 0.9 },
-            hasty: { speed: 1.1, defense: 0.9 },
-            jolly: { speed: 1.1, sp_attack: 0.9 },
-            naive: { speed: 1.1, sp_defense: 0.9 },
-            
-            // Sp.Attack+ (4)
-            modest: { sp_attack: 1.1, attack: 0.9 },
-            mild: { sp_attack: 1.1, defense: 0.9 },
-            quiet: { sp_attack: 1.1, speed: 0.9 },
-            rash: { sp_attack: 1.1, sp_defense: 0.9 },
-            
-            // Sp.Defense+ (4)
-            calm: { sp_defense: 1.1, attack: 0.9 },
-            gentle: { sp_defense: 1.1, defense: 0.9 },
-            sassy: { sp_defense: 1.1, speed: 0.9 },
-            careful: { sp_defense: 1.1, sp_attack: 0.9 }
-        };
-
-        const natureMods = natureTable[nature.toLowerCase()] || {};
-        return natureMods[statName] || 1.0;
     }
 
     /**
@@ -236,7 +202,7 @@ class PokemonBattleLogicManager {
      */
     processTurn(attacker, defender, move, attackerSide) {
         // 🆕 VÉRIFIER SI L'ATTAQUANT EST K.O. AVANT D'AGIR
-        if (attacker.currentHP <= 0) {
+            if (attacker.currentHP <= 0) {
             return {
                 attacker: attacker.nickname || attacker.speciesData?.name,
                 defender: defender.nickname || defender.speciesData?.name,
@@ -247,7 +213,7 @@ class PokemonBattleLogicManager {
                 missed: true,
                 defenderHP: defender.currentHP,
                 defenderKO: false,
-                message: `${attacker.nickname || attacker.speciesData?.name} est K.O. et ne peut pas attaquer!`,
+                message: `${this.getDisplayName(attacker)} est K.O. et ne peut pas attaquer!`,
                 statusEffects: null
             };
         }
@@ -258,8 +224,8 @@ class PokemonBattleLogicManager {
         }
         
         const result = {
-            attacker: attacker.nickname || attacker.speciesData?.name,
-            defender: defender.nickname || defender.speciesData?.name,
+            attacker: this.getDisplayName(attacker),
+            defender: this.getDisplayName(defender),
             move: move.name,
             damage: 0,
             effectiveness: 1.0,
@@ -307,7 +273,7 @@ class PokemonBattleLogicManager {
             }
 
             // Message
-            result.message = `${result.attacker} utilise ${move.name}!`;
+            result.message = `${this.getDisplayName(attacker)} utilise ${move.name}!`;
             this.addToBattleLog(result.message);
 
             if (result.critical) {
@@ -322,15 +288,15 @@ class PokemonBattleLogicManager {
                 this.addToBattleLog("Ça n'a aucun effet...");
             }
 
-            this.addToBattleLog(`${result.defender} perd ${result.damage} PV!`);
+            this.addToBattleLog(`${this.getDisplayName(defender)} perd ${result.damage} PV!`);
 
             if (result.defenderKO) {
-                this.addToBattleLog(`${result.defender} est K.O.!`);
+                this.addToBattleLog(`${this.getDisplayName(defender)} est K.O.!`);
             }
 
         } else {
             // Move de statut (pas de dégâts)
-            result.message = `${result.attacker} utilise ${move.name}!`;
+            result.message = `${this.getDisplayName(attacker)} utilise ${move.name}!`;
             this.addToBattleLog(result.message);
             
             // TODO: Appliquer effets de statut (paralysie, poison, etc.)
@@ -531,10 +497,13 @@ class PokemonBattleLogicManager {
      */
     calculateExperienceGain(defeatedPokemon, participants, currentTrainerId) {
         const baseXP = defeatedPokemon.speciesData?.base_experience || 100;
+        console.log(`[BattleLogic] Debug: defeatedPokemon id:${defeatedPokemon._id || defeatedPokemon.species_id} baseXP:${baseXP} level:${defeatedPokemon.level}`);
+        console.log(`[BattleLogic] Debug: received participants: ${JSON.stringify(participants.map(p => ({ id: p._id ? p._id.toString() : null, name: p.nickname || p.species_name, currentHP: p.currentHP, level: p.level })))} );`);
         const level = defeatedPokemon.level;
         
         // 🆕 Filtrer les Pokémon K.O. - ils ne gagnent pas d'XP
         const aliveParticipants = participants.filter(p => p.currentHP > 0);
+        console.log(`[BattleLogic] Debug: aliveParticipants count:${aliveParticipants.length}`);
         const participantCount = aliveParticipants.length;
         
         console.log(`[BattleLogic] Calcul XP pour ${aliveParticipants.length}/${participants.length} participants vivants`);
@@ -548,7 +517,7 @@ class PokemonBattleLogicManager {
 
             // Facteur Lucky Egg (e)
             const hasLuckyEgg = pokemon.heldItem === 'lucky-egg';
-            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 4.0;
+            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 9.0;
 
             // Calcul de base
             let xpGained = Math.floor((tradedMultiplier * baseXP * level) / (7 * participantCount));
@@ -569,6 +538,7 @@ class PokemonBattleLogicManager {
             console.log(`  - ${pokemon.nickname || pokemon.species_name}: +${xpGained} XP (traded: ${isTraded}, lucky egg: ${hasLuckyEgg})`);
         }
 
+        console.log('[BattleLogic] Debug: final xpResults:', xpResults);
         return xpResults;
     }
 
@@ -591,7 +561,7 @@ class PokemonBattleLogicManager {
                 // Poison: 1/8 HP de dégâts par tour
                 result.damage = Math.max(1, Math.floor(pokemon.maxHP / 8));
                 pokemon.currentHP = Math.max(0, pokemon.currentHP - result.damage);
-                result.message = `${pokemon.nickname || pokemon.species_name} souffre du poison! (-${result.damage} PV)`;
+                result.message = `${this.getDisplayName(pokemon)} souffre du poison! (-${result.damage} PV)`;
                 this.addToBattleLog(result.message);
                 break;
 
@@ -599,7 +569,7 @@ class PokemonBattleLogicManager {
                 // Brûlure: 1/16 HP de dégâts par tour + attaque réduite
                 result.damage = Math.max(1, Math.floor(pokemon.maxHP / 16));
                 pokemon.currentHP = Math.max(0, pokemon.currentHP - result.damage);
-                result.message = `${pokemon.nickname || pokemon.species_name} souffre de sa brûlure! (-${result.damage} PV)`;
+                result.message = `${this.getDisplayName(pokemon)} souffre de sa brûlure! (-${result.damage} PV)`;
                 this.addToBattleLog(result.message);
                 break;
 
@@ -607,7 +577,7 @@ class PokemonBattleLogicManager {
                 // Paralysie: 25% de chance de ne pas agir
                 if (Math.random() < 0.25) {
                     result.canAct = false;
-                    result.message = `${pokemon.nickname || pokemon.species_name} est paralysé! Il ne peut pas attaquer!`;
+                    result.message = `${this.getDisplayName(pokemon)} est paralysé! Il ne peut pas attaquer!`;
                     this.addToBattleLog(result.message);
                 }
                 break;
@@ -617,7 +587,7 @@ class PokemonBattleLogicManager {
                 if (pokemon.statusCondition.turns > 0) {
                     pokemon.statusCondition.turns--;
                     result.canAct = false;
-                    result.message = `${pokemon.nickname || pokemon.species_name} dort profondément...`;
+                    result.message = `${this.getDisplayName(pokemon)} dort profondément...`;
                     this.addToBattleLog(result.message);
 
                     if (pokemon.statusCondition.turns === 0) {
@@ -634,11 +604,11 @@ class PokemonBattleLogicManager {
                 // Gel: ne peut pas agir, 20% de chance de dégel
                 if (Math.random() < 0.20) {
                     pokemon.statusCondition.type = null;
-                    result.message = `${pokemon.nickname || pokemon.species_name} a dégelé!`;
+                    result.message = `${this.getDisplayName(pokemon)} a dégelé!`;
                     this.addToBattleLog(result.message);
                 } else {
                     result.canAct = false;
-                    result.message = `${pokemon.nickname || pokemon.species_name} est gelé! Il ne peut pas attaquer!`;
+                    result.message = `${this.getDisplayName(pokemon)} est gelé! Il ne peut pas attaquer!`;
                     this.addToBattleLog(result.message);
                 }
                 break;
@@ -686,7 +656,7 @@ class PokemonBattleLogicManager {
      * @returns {Object} - { captured: boolean, shakes: number }
      */
     calculateCapture(pokemon, ballRate = 1.0) {
-        console.log('[Capture] Calcul pour', pokemon.species_name, 'avec ball rate', ballRate);
+        console.log('[Capture] Calcul pour', this.getDisplayName(pokemon), 'avec ball rate', ballRate);
 
         // Formule Gen 3-4:
         // a = ((3 × MaxHP - 2 × CurrentHP) × CatchRate × BallRate) / (3 × MaxHP) × StatusBonus

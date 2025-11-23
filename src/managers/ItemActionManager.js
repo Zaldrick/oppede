@@ -165,6 +165,14 @@ class ItemActionManager {
             console.log("Ouverture sélecteur équipe pour soin");
             // TODO: Implémenter la sélection de Pokémon hors combat
             this.scene.displayMessage("Utilisation de soin hors combat à venir !");
+            try {
+                if (this.scene && this.scene.soundManager) {
+                    this.scene.soundManager.playMoveSound('pokecenter_heal', { volume: 0.85 });
+                } else if (this.scene && this.scene.sound) {
+                    // fallback to audio key if any exists
+                    this.scene.sound.play("PokeCenter_Heal", { volume: 0.85 });
+                }
+            } catch (e) { /* ignore */ }
             return true;
         }
     }
