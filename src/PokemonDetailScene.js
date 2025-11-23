@@ -259,11 +259,12 @@ export class PokemonDetailScene extends Phaser.Scene {
                 // Après que le sprite soit affiché, jouer le cri du Pokémon si possible
                 try {
                     const speciesId = this.pokemon.species_id || (this.species && this.species.id);
-                    const speciesName = (this.species && this.species.name) || this.pokemon.species_name || this.pokemon.species;
                     if (this.soundManager && speciesId) {
-                        this.soundManager.playPokemonCry(speciesId, speciesName).catch(() => {});
+                        console.debug(`[PokemonDetailScene] Requesting cry for ${speciesId}`);
+                        const played = await this.soundManager.playPokemonCry(speciesId);
+                        console.debug(`[PokemonDetailScene] Cry played=${played} for ${speciesId}`);
                     }
-                } catch (e) { /* ignore */ }
+                } catch (e) { console.warn('[PokemonDetailScene] Error playing cry', e); }
             } catch (e) {
                 console.error('[PokemonDetail] Erreur chargement sprite:', e);
             }

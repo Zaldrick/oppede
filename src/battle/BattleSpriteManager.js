@@ -120,11 +120,23 @@ export default class BattleSpriteManager {
                 try {
                     await this.fadeInSprite(result, shadow, 500);
                     if (this.scene && this.scene.soundManager) {
-                        try { this.scene.soundManager.playPokemonCry(opponent.species_id, opponent.sprites && opponent.speciesData ? opponent.speciesData.name : opponent.species_name); } catch (e) { /* ignore */ }
+                        try {
+                            if (this.scene && this.scene.soundManager) {
+                                console.debug(`[BattleSpriteManager] Requesting opponent cry for ${opponent.species_id}`);
+                                const played = await this.scene.soundManager.playPokemonCry(opponent.species_id);
+                                console.debug(`[BattleSpriteManager] Opponent cry played=${played} for ${opponent.species_id}`);
+                            }
+                        } catch (e) { console.warn('[BattleSpriteManager] Error playing opponent cry', e); }
                     }
                 } catch (e) {
                     // If fadeInSprite threw (shouldn't normally), still attempt the cry
-                    try { if (this.scene && this.scene.soundManager) this.scene.soundManager.playPokemonCry(opponent.species_id, opponent.sprites && opponent.speciesData ? opponent.speciesData.name : opponent.species_name); } catch (err) {}
+                    try { 
+                        if (this.scene && this.scene.soundManager) {
+                            console.debug(`[BattleSpriteManager] Requesting opponent cry (fade) for ${opponent.species_id}`);
+                            const played = await this.scene.soundManager.playPokemonCry(opponent.species_id);
+                            console.debug(`[BattleSpriteManager] Opponent cry (fade) played=${played} for ${opponent.species_id}`);
+                        }
+                    } catch (err) { console.warn('[BattleSpriteManager] Error playing opponent cry (fade)', err); }
                 }
                 
             } catch (error) {
@@ -255,10 +267,22 @@ export default class BattleSpriteManager {
                     try {
                         await this.fadeInSprite(result, shadow, 500);
                         if (this.scene && this.scene.soundManager) {
-                            try { this.scene.soundManager.playPokemonCry(pokemon.species_id, pokemon.sprites && pokemon.speciesData ? pokemon.speciesData.name : pokemon.species_name); } catch (e) { /* ignore */ }
+                            try { 
+                                if (this.scene && this.scene.soundManager) {
+                                    console.debug(`[BattleSpriteManager] Requesting player cry for ${pokemon.species_id}`);
+                                    const played = await this.scene.soundManager.playPokemonCry(pokemon.species_id);
+                                    console.debug(`[BattleSpriteManager] Player cry played=${played} for ${pokemon.species_id}`);
+                                }
+                            } catch (e) { console.warn('[BattleSpriteManager] Error playing player cry', e); }
                         }
                     } catch (e) {
-                        try { if (this.scene && this.scene.soundManager) this.scene.soundManager.playPokemonCry(pokemon.species_id, pokemon.sprites && pokemon.speciesData ? pokemon.speciesData.name : pokemon.species_name); } catch (err) {}
+                        try { 
+                            if (this.scene && this.scene.soundManager) {
+                                console.debug(`[BattleSpriteManager] Requesting player cry (fade) for ${pokemon.species_id}`);
+                                const played = await this.scene.soundManager.playPokemonCry(pokemon.species_id);
+                                console.debug(`[BattleSpriteManager] Player cry (fade) played=${played} for ${pokemon.species_id}`);
+                            }
+                        } catch (err) { console.warn('[BattleSpriteManager] Error playing player cry (fade)', err); }
                     }
                 }
             } catch (error) {

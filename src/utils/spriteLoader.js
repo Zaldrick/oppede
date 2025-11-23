@@ -125,9 +125,14 @@ export class SpriteLoader {
                 try {
                     if (options && options.playCry && scene && scene.soundManager) {
                         const speciesId = options.speciesId || (options.pokemon && options.pokemon.species_id) || (scene && scene.pokemon && scene.pokemon.species_id);
-                        const speciesName = options.speciesName || (options.pokemon && options.pokemon.species_name) || (scene && scene.pokemon && scene.pokemon.species_name);
                         if (speciesId) {
-                            scene.soundManager.playPokemonCry(speciesId, speciesName).catch(() => {});
+                            try {
+                                console.debug(`[SpriteLoader] Requesting cry for ${speciesId} (displaySprite)`);
+                                const played = await scene.soundManager.playPokemonCry(speciesId);
+                                console.debug(`[SpriteLoader] Cry played=${played} for ${speciesId} (displaySprite)`);
+                            } catch (e) {
+                                console.warn('[SpriteLoader] Error playing cry', e);
+                            }
                         }
                     }
                 } catch (e) { /* ignore */ }

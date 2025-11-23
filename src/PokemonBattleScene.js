@@ -103,7 +103,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             try { MusicManager.pause(); } catch (e) { /* ignore */ }
             const musicTrack = this.battleType === 'trainer' ? 'battle-trainer' : 'battle-wild';
             // Kick off the music (no await) to avoid blocking the animation
-            this.soundManager.playMusic(musicTrack, { volume: 0.45, loop: true }).catch(() => {});
+            this.soundManager.playMusic(musicTrack, { volume: 0.3, loop: true }).catch(() => {});
         } catch (e) {
             // If SoundManager construction fails, ignore to avoid blocking the transition
             console.warn('[BattleScene] SoundManager not initialized before transition', e);
@@ -149,6 +149,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.events.on('shutdown', () => {
             console.log('[BattleScene] Scene shutdown - Nettoyage complet');
             this.cleanupBattle();
+            try { if (typeof window !== 'undefined' && window.debugPlayCryBattle) delete window.debugPlayCryBattle; } catch (e) {}
         });
         
         this.uiManager = new BattleUIManager(this);
@@ -207,6 +208,7 @@ export class PokemonBattleScene extends Phaser.Scene {
 
             // Sound manager (lazy-loads audio assets for moves)
             // Note: already instantiated before the entry transition to start music early
+            try { if (typeof window !== 'undefined' && this.soundManager) { window.debugPlayCryBattle = async (id) => { try { console.log('[BattleScene] debugPlayCryBattle', id); const r = await this.soundManager.playPokemonCry(id); console.log('[BattleScene] debugPlayCryBattle result', r); } catch (e) { console.warn('[BattleScene] debugPlayCryBattle error', e); } } } } catch (e) {}
 
             // CRÉER LE FOND MAINTENANT (il sera sous le spiral)
             this.createBackground(width, height);
@@ -362,19 +364,19 @@ export class PokemonBattleScene extends Phaser.Scene {
         
         // Ciel avec plusieurs nuances
         graphics.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xB0E0E6, 0xB0E0E6, 1, 1, 1, 1);
-        graphics.fillRect(0, 0, width, height * 0.45);
+        graphics.fillRect(0, 0, width, height * 0.25);
         
         // Transition horizon
         graphics.fillGradientStyle(0xB0E0E6, 0xB0E0E6, 0xF5DEB3, 0xF5DEB3, 1, 1, 1, 1);
-        graphics.fillRect(0, height * 0.45, width, height * 0.08);
+        graphics.fillRect(0, height * 0.25, width, height * 0.08);
         
         // Sol (beige/sable avec dégradé)
         graphics.fillGradientStyle(0xF5DEB3, 0xF5DEB3, 0xDAA520, 0xDAA520, 1, 1, 1, 1);
-        graphics.fillRect(0, height * 0.53, width, height * 0.47);
+        graphics.fillRect(0, height * 0.33, width, height * 0.67);
         
         // Ligne d'horizon brillante
         graphics.lineStyle(2, 0xFFFFFF, 0.4);
-        graphics.lineBetween(0, height * 0.50, width, height * 0.50);
+        graphics.lineBetween(0, height * 0.25, width, height * 0.25);
     }
 
     /**
@@ -1165,7 +1167,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             
             // Play victory music if available
             try {
-                await this.soundManager.playMusic('victory-wild', { volume: 0.6, loop: false });
+                await this.soundManager.playMusic('victory-wild', { volume: 0.4, loop: false });
             } catch (e) { /* ignore */ }
 
             this.cleanupBattle();

@@ -111,10 +111,13 @@ export class PokemonEvolutionScene extends Phaser.Scene {
         try {
             if (this.soundManager) {
                 const speciesId = this.pokemon.species_id || (this.pokemon.speciesData && this.pokemon.speciesData.id);
-                const speciesName = (this.pokemon.speciesData && this.pokemon.speciesData.name) || this.pokemon.species_name || this.pokemon.nickname || '';
-                if (speciesId) await this.soundManager.playPokemonCry(speciesId, speciesName, { volume: 0.9 });
+                if (speciesId) {
+                    console.debug(`[PokemonEvolutionScene] Requesting evolution cry for ${speciesId}`);
+                    const played = await this.soundManager.playPokemonCry(speciesId, null, { volume: 0.9 });
+                    console.debug(`[PokemonEvolutionScene] Evolution cry played=${played} for ${speciesId}`);
+                }
             }
-        } catch (e) { /* ignore */ }
+        } catch (e) { console.warn('[PokemonEvolutionScene] Error playing evolution cry', e); }
         // Play evolution startup SFX (generic)
         try { if (this.soundManager) await this.soundManager.playMoveSound('evolution_startup', { volume: 0.9 }); } catch (e) { /* ignore */ }
         

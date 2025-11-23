@@ -10,8 +10,8 @@ export default class SoundManager {
         this.loaded = new Set();
         this.loading = new Map(); // key -> Promise
 
-        // Supported extensions to try when loading a sound file
-        this.extensions = ['mp3', 'ogg', 'wav'];
+        // Supported extensions to try when loading a sound file (prefer wav where possible)
+        this.extensions = ['wav', 'mp3', 'ogg'];
 
         // Base path for move sounds and sfx
         this.movePath = '/assets/sounds/moves/';
@@ -22,6 +22,13 @@ export default class SoundManager {
         // Path for cries
         this.criesPath = '/assets/sounds/cries/';
         this.currentMusicKey = null;
+        // manifest cache for cry files
+        this.criesManifest = null; // array of filenames or null if not loaded
+        // Optional behaviour toggles
+        this.config = {
+            // If true, fallback to name-based search (EN) when manifest not found (default false)
+            nameFallback: false
+        };
 
         // Generic fallback keys and mapping to existing asset names
         // The repo uses many filenames with spaces and different casing (e.g. "Hit Normal Damage.mp3").
@@ -56,46 +63,201 @@ export default class SoundManager {
         Object.assign(this.specialMappings, eventMappings);
     }
 
-    // Play a Pokemon cry by species id and species name (tries to find a file starting with the padded id)
+    // Public: enable name-based fallback (EN) for missing manifest cases
+    enableNameFallback() {
+        this.config.nameFallback = true;
+    }
+
+    disableNameFallback() {
+        this.config.nameFallback = false;
+    }
+
+    // Play a Pokemon cry by species id (expects files like "008 - Wartortle.wav")
     async playPokemonCry(speciesId, speciesName, { volume = 1.0, rate = 1.0, loop = false } = {}) {
         if (!speciesId || !this.scene || !this.scene.sound) return false;
+
         const pad3 = String(speciesId).padStart(3, '0');
         const baseKey = `cry_${pad3}`;
-
-        // Build candidate names using the species name if provided
-        const candidates = [];
-        if (speciesName) {
-            const nameCandidates = this.buildCandidateNames(speciesName);
-            nameCandidates.forEach(n => candidates.push(n));
+        try {
+            const loadedMatch = Array.from(this.loaded || []).filter(k => k && k.indexOf(`cry_${pad3}_`) === 0);
+            const sceneSoundMatch = (this.scene && this.scene.sound && Array.isArray(this.scene.sound.sounds)) ? this.scene.sound.sounds.filter(s => s && s.key && s.key.indexOf(`cry_${pad3}_`) === 0).map(s => s.key) : [];
+            console.log(`[SoundManager] Request cry for ${pad3}. manifest=${Array.isArray(this.criesManifest) ? this.criesManifest.length : 'null'}, loadedMatch=${JSON.stringify(loadedMatch)}, sceneSoundMatch=${JSON.stringify(sceneSoundMatch)}`);
+        } catch (e) {
+            console.log(`[SoundManager] Request cry for ${pad3}. manifest=${Array.isArray(this.criesManifest) ? this.criesManifest.length : 'null'}`);
         }
-        // Also try plain id-only files like '007' if available
-        candidates.push(pad3);
-
-        // Prefer base id (007 - Name), then fallback to pad3X/Y if base not found
-        const prefixes = [pad3, `${pad3}X`, `${pad3}Y`];
-
-        // Try all combinations
-        for (const prefix of prefixes) {
-            for (const candidateName of candidates) {
-                for (const ext of this.extensions) {
-                    const filename = candidateName && candidateName !== pad3 ? `${prefix} - ${candidateName}` : prefix;
-                    const url = `${this.criesPath}${encodeURIComponent(filename)}.${ext}`;
-                    const key = `${baseKey}_${this.sanitizeName(filename)}`;
+        // Try to use the manifest if available to pick any file starting with the padded ID
+        try {
+                if (!this.criesManifest) {
                     try {
-                        await this.loadAudioForKey(key, url);
-                        // Play it and return
-                        this.scene.sound.play(key, { volume, rate, loop });
-                        console.debug(`[SoundManager] Playing cry ${key} for species ${speciesId} (${speciesName})`);
+                        const tryPaths = [`${this.criesPath}index.json`, `/public${this.criesPath}index.json`];
+                        let found = false;
+                        for (const p of tryPaths) {
+                            try {
+                                const resp = await fetch(p);
+                                const ct = resp.headers && resp.headers.get ? (resp.headers.get('content-type') || '') : '';
+                                console.log(`[SoundManager] Manifest fetch attempt ${p} status=${resp.status} content-type=${ct}`);
+                                if (!resp.ok) {
+                                    continue; // try next path
+                                }
+                                // Only accept if it's JSON; avoid parsing index.html
+                                if (!ct || !ct.toLowerCase().includes('application/json')) {
+                                    console.warn(`[SoundManager] Manifest response at ${p} is not JSON (content-type=${ct}), skipping`);
+                                    continue;
+                                }
+                                this.criesManifest = await resp.json();
+                                found = true;
+                                break;
+                            } catch (fetchErr) {
+                                console.warn('[SoundManager] Manifest fetch error for', p, fetchErr && fetchErr.message ? fetchErr.message : fetchErr);
+                                continue;
+                            }
+                        }
+                        if (!found) this.criesManifest = null;
+                    } catch (e) {
+                        // manifest not available
+                        this.criesManifest = null;
+                    }
+                }
+
+                if (this.criesManifest && Array.isArray(this.criesManifest)) {
+                const prefixes = [pad3, `${pad3}X`, `${pad3}Y`, `${pad3}M`];
+                let matchedFile = null;
+                for (const prefix of prefixes) {
+                    matchedFile = this.criesManifest.find(f => f && f.startsWith(prefix));
+                    if (matchedFile) break;
+                }
+                if (!matchedFile) {
+                    // final attempt: exact pad3 start
+                    matchedFile = this.criesManifest.find(f => f && f.startsWith(pad3));
+                }
+
+                if (matchedFile) {
+                    let url = `${this.criesPath}${encodeURIComponent(matchedFile)}`;
+                    const altUrl = `/public${this.criesPath}${encodeURIComponent(matchedFile)}`;
+                    // Use a unique playback key to guarantee independent playbacks
+                    const uniquePlayKey = `${baseKey}_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+                    console.log(`[SoundManager] Matched manifest file ${matchedFile} -> uniqueKey ${uniquePlayKey}`);
+                    try {
+                        console.log(`[SoundManager] Trying manifest URL: ${url}`);
+                        // Load under an ephemeral unique key to ensure we can play multiple times unpolluted by caching
+                        try {
+                            await this.loadAudioForKey(uniquePlayKey, url);
+                        } catch (e) {
+                            // try alternative public path
+                            console.log(`[SoundManager] Manifest file failed at ${url}. Trying alternate path ${altUrl}`, e && e.message ? e.message : e);
+                            await this.loadAudioForKey(uniquePlayKey, altUrl);
+                        }
+                        try {
+                            const inst = this.scene.sound.add(uniquePlayKey);
+                            inst.play({ volume, rate, loop });
+                            inst.once('complete', () => { try { inst.destroy(); } catch (err) {} });
+                        } catch (err) {
+                            // fallback to a non-ephemeral key if add fails
+                            try {
+                                await this.loadAudioForKey(key, url);
+                                const inst = this.scene.sound.add(key);
+                                inst.play({ volume, rate, loop });
+                                inst.once('complete', () => { try { inst.destroy(); } catch (err) {} });
+                            } catch (err2) {
+                                this.scene.sound.play(key, { volume, rate, loop });
+                            }
+                        }
+                        console.log(`[SoundManager] Playing cry ${uniquePlayKey} (mapped:${matchedFile}) for species ${speciesId} (from manifest: ${matchedFile})`);
                         return true;
                     } catch (e) {
-                        // try next
+                        // fallback to simpler attempts below if load fails
+                        console.warn('[SoundManager] Manifest entry present but failed to load:', url, e);
                     }
                 }
             }
+        } catch (e) {
+            console.warn('[SoundManager] Error attempting to use cries manifest:', e);
         }
 
-        console.debug(`[SoundManager] No cry found for species ${speciesId} (${speciesName})`);
-        return false;
+        // If manifest is not present, log a meaningful warning to help debugging
+            if (!this.criesManifest || !Array.isArray(this.criesManifest)) {
+            console.warn(`[SoundManager] No cries manifest available at ${this.criesPath}index.json. Run 'npm run generate:cry-manifest' or ensure static files are served. (Tried both ${this.criesPath}index.json and /public${this.criesPath}index.json)`);
+        }
+
+        // Fallback: Try a handful of deterministic filename patterns that start with the id (without using species name)
+        const candidatePrefixes = [pad3, `${pad3}X`, `${pad3}Y`, `${pad3}M`];
+        for (const prefix of candidatePrefixes) {
+                        // For move sounds prefer mp3 first (most assets are mp3), then ogg/wav
+                        const moveExtensions = ['mp3', 'ogg', 'wav'];
+                        for (const ext of moveExtensions) {
+                const filename = `${prefix}.${ext}`; // e.g., 008.mp3
+                const url = `${this.criesPath}${encodeURIComponent(filename)}`;
+                const altUrl = `/public${this.criesPath}${encodeURIComponent(filename)}`;
+                        console.log(`[SoundManager] Trying candidate URL: ${url}`);
+                const key = `${baseKey}_${this.sanitizeName(filename)}`;
+                    try {
+                        await this.loadAudioForKey(key, url);
+                        // If the normal key playback fails repeatedly, create unique ephemeral key to ensure successful playback
+                        try {
+                            const inst = this.scene.sound.add(key);
+                            inst.play({ volume, rate, loop });
+                            inst.once('complete', () => { try { inst.destroy(); } catch (err) {} });
+                        } catch (err) {
+                            // Fallback: create a unique ephemeral key to ensure playback works and does not rely on instance caching
+                            const uniqueKey = `${key}_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+                            try {
+                                await this.loadAudioForKey(uniqueKey, url);
+                                const uniqueInst = this.scene.sound.add(uniqueKey);
+                                uniqueInst.play({ volume, rate, loop });
+                                    uniqueInst.once('complete', () => {
+                                    try { uniqueInst.destroy(); } catch (e) {}
+                                    try { if (this.scene && this.scene.cache && this.scene.cache.audio) this.scene.cache.audio.remove(uniqueKey); } catch (err) {}
+                                    try { if (this.scene && this.scene.sound) this.scene.sound.removeByKey(uniqueKey); } catch (err) {}
+                                    try { this.loaded.delete(uniqueKey); } catch (err) {}
+                                });
+                            } catch (uerr) {
+                                // final fallback
+                                try { this.scene.sound.play(key, { volume, rate, loop }); } catch (e) {}
+                            }
+                        }
+                        console.log(`[SoundManager] Playing cry ${key} for species ${speciesId} (pattern fallback: ${filename})`);
+                        return true;
+                    } catch (e) {
+                        // continue - but log the error and try alternative path
+                        console.log(`[SoundManager] Candidate file failed at ${url}, trying alternative ${altUrl}`, e && e.message ? e.message : e);
+                        try {
+                            await this.loadAudioForKey(key, altUrl);
+                        } catch (e2) {
+                            // continue to next extension
+                        }
+                }
+            }
+        }
+        // As a LAST resort, if nameFallback is enabled, try to use the english species name
+        if (this.config && this.config.nameFallback && typeof speciesName === 'undefined' && this.pokemonManager) {
+            try {
+                const sp = await this.pokemonManager.getSpecies(speciesId);
+                if (sp && sp.name) {
+                    const nameCandidates = this.buildCandidateNames(sp.name);
+                    for (const nameCandidate of nameCandidates) {
+                        for (const ext of this.extensions) {
+                            const filename = `${pad3} - ${nameCandidate}.${ext}`;
+                            const url = `${this.criesPath}${encodeURIComponent(`${pad3} - ${nameCandidate}.${ext}`)}`;
+                            const uniqueKey = `cry_names_fallback_${pad3}_${Date.now()}_${Math.floor(Math.random()*10000)}`;
+                            try {
+                                await this.loadAudioForKey(uniqueKey, url);
+                                const inst = this.scene.sound.add(uniqueKey);
+                                inst.play({ volume, rate, loop });
+                                inst.once('complete', () => { try { inst.destroy(); } catch (err) {}; try { if (this.scene && this.scene.cache && this.scene.cache.audio) this.scene.cache.audio.remove(uniqueKey); } catch (err){}; try { this.loaded.delete(uniqueKey); } catch (err){} });
+                                console.log(`[SoundManager] Playing cry via EN name fallback ${uniqueKey} for species ${speciesId} (candidate: ${nameCandidate})`);
+                                return true;
+                            } catch (e) {
+                                // continue
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[SoundManager] EN name fallback failed:', e);
+            }
+        }
+
+        return false; // rien trouvé
     }
 
     // sanitize move name to file-friendly string
@@ -134,8 +296,8 @@ export default class SoundManager {
         const nospace = lower.replace(/\s+/g, '');
         const sanitized = this.sanitizeName(trimmed);
 
-        // Keep the original and titlecase forms as first candidates (matching repo files)
-        const candidates = [trimmed, title, titleUnderscore, titleHyphen, titleNoSpace, lower, hyphen, underscore, nospace, sanitized];
+        // Prefer the Title-case and hyphen variants first (asset filenames are often Title-case like 'Bite.mp3')
+        const candidates = [title, titleHyphen, titleUnderscore, trimmed, lower, hyphen, underscore, nospace, titleNoSpace, sanitized];
 
         // Remove duplicates while preserving order
         return [...new Set(candidates.filter(Boolean))];
@@ -152,6 +314,8 @@ export default class SoundManager {
                 if (fileKey === key) {
                     cleanup();
                     console.debug('[SoundManager] Loaded audio', key, url);
+                    // track loaded keys for faster subsequent checks
+                    try { this.loaded.add(key); } catch (e) {}
                     resolve(true);
                 }
             };
@@ -216,20 +380,28 @@ export default class SoundManager {
             const specialName = this.specialMappings[moveName?.toLowerCase()];
             const candidateNames = specialName ? [specialName] : this.buildCandidateNames(moveName);
 
-            // Try sfxPath first (for event sounds), then movePath
-            const basePaths = [this.sfxPath, this.movePath];
+            // Try movePath first (move sounds are in /moves), then sfxPath (event sounds)
+            const basePaths = [this.movePath, this.sfxPath];
             for (const candidate of candidateNames) {
                 for (const basePath of basePaths) {
-                    for (const ext of this.extensions) {
-                        const url = this.buildUrl(candidate, ext, basePath);
+                    // Support both explicit /assets... and /public/assets... served by express.
+                    // Many environments serve static files under `/public`; try it first to avoid 404->index.html
+                    const tryPaths = [`/public${basePath}`, basePath];
+                    for (const tryPath of tryPaths) {
+                        for (const ext of this.extensions) {
+                            const url = this.buildUrl(candidate, ext, tryPath);
+                            // debug: log the attempt
+                            console.debug(`[SoundManager] tryLoadMoveSound attempt key=${key} url=${url}`);
                         try {
                             await this.loadAudioForKey(key, url);
                             // Mark loaded
                             this.loaded.add(key);
+                            console.log(`[SoundManager] tryLoadMoveSound loaded key=${key} from ${url}`);
                             return key;
                         } catch (e) {
                             // try next extension
                         }
+                    }
                     }
                 }
             }
@@ -258,9 +430,11 @@ export default class SoundManager {
 
         const key = this.buildKey(requested);
 
+        console.debug(`[SoundManager] playMoveSound requested ${moveName} -> key ${key}`);
         try {
             // If loaded, play directly
             if (this.scene.sound.get(key)) {
+                console.debug(`[SoundManager] Playing preloaded move sound key=${key}`);
                 this.scene.sound.play(key, { volume, rate, loop });
                 return true;
             }

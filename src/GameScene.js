@@ -106,6 +106,13 @@ export class GameScene extends Phaser.Scene {
 
         // Local SFX manager
         try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
+        try {
+            if (typeof window !== 'undefined' && this.soundManager) {
+                window.debugPlayCry = async (id) => {
+                    try { console.log('[GameScene] debugPlayCry called', id); const res = await this.soundManager.playPokemonCry(id); console.log('[GameScene] debugPlayCry result', res); } catch (e) { console.warn('[GameScene] debugPlayCry error', e); }
+                };
+            }
+        } catch (e) {}
         this.scorePollingInterval = setInterval(async () => {
             const playerPseudo = this.registry.get("playerPseudo");
             if (playerPseudo) {
@@ -116,6 +123,7 @@ export class GameScene extends Phaser.Scene {
         }, 5000); // toutes les 5 secondes
         this.events.on('shutdown', () => {
             clearInterval(this.scorePollingInterval);
+            try { if (typeof window !== 'undefined' && window.debugPlayCry) delete window.debugPlayCry; } catch (e) {}
         });
     }
 

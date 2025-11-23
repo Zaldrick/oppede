@@ -49,12 +49,13 @@ class CaptureScene extends Phaser.Scene {
         const pokemonX = this.startPosition ? this.startPosition.x : width * 0.68; // Match BattleSpriteManager
         const pokemonY = this.startPosition ? this.startPosition.y : height * 0.26; // Match BattleSpriteManager
 
-        // Sprite du Pokémon (copie de la battle scene)
         let pokemonSprite;
         
         if (this.wildPokemon && this.wildPokemon.sprites && this.wildPokemon.sprites.frontCombat) {
              try {
                 // Utiliser SpriteLoader pour gérer GIF/PNG comme dans BattleScene
+                // No species fetch here: rely on id-based cry lookup
+
                 const result = await SpriteLoader.displaySpriteAuto(
                     this,
                     pokemonX,
@@ -64,7 +65,7 @@ class CaptureScene extends Phaser.Scene {
                     2.5,
                     1,
                     this.useAnimatedSprites, // 🆕 Utiliser la valeur passée
-                    { playCry: true, speciesId: this.wildPokemon.species_id, speciesName: this.wildPokemon.species_name || getPokemonDisplayName(this.wildPokemon) }
+                    { playCry: true, speciesId: this.wildPokemon.species_id }
                 );
                 
                 if (result.type === 'phaser') {
@@ -80,7 +81,7 @@ class CaptureScene extends Phaser.Scene {
                         setAlpha: (a) => result.gifContainer.style.opacity = a,
                         setVisible: (v) => result.gifContainer.style.display = v ? 'block' : 'none'
                     };
-                    // Hack pour tweening sur objet JS qui update le DOM
+                    // Hack pour tweening on DOM object
                     pokemonSprite.domElement = result.gifContainer;
                 }
             } catch (e) {
@@ -314,14 +315,18 @@ class CaptureScene extends Phaser.Scene {
         // Message supprimé à la demande de l'utilisateur
         await this.wait(500);
         // Play capture success sound (reuse battle's SoundManager if present)
-        try {
-            if (this.battleScene && this.battleScene.soundManager) {
-                this.battleScene.soundManager.playMoveSound('poke_caught', { volume: 0.9 });
-            } else {
-                const localSound = new SoundManager(this);
-                localSound.playMoveSound('poke_caught', { volume: 0.9 });
-            }
-        } catch (e) { /* ignore */ }
+            try {
+                // Log capture success sound
+                console.debug('[CaptureScene] Play capture success sfx');
+                if (this.battleScene && this.battleScene.soundManager) {
+                    this.battleScene.soundManager.playMoveSound('poke_caught', { volume: 0.9 });
+                } else if (this.soundManager) {
+                    this.soundManager.playMoveSound('poke_caught', { volume: 0.9 });
+                } else {
+                    const localSound = new SoundManager(this);
+                    localSound.playMoveSound('poke_caught', { volume: 0.9 });
+                }
+            } catch (e) { console.warn('[CaptureScene] Error playing capture success sfx', e); }
     }
 
     /**
