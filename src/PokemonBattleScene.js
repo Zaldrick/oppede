@@ -24,6 +24,7 @@ import BattleSpriteManager from './battle/BattleSpriteManager';
 import BattleTurnManager from './battle/BattleTurnManager';
 import getPokemonDisplayName from './utils/getDisplayName';
 import SoundManager from './utils/SoundManager';
+import MusicManager from './MusicManager';
 
 export class PokemonBattleScene extends Phaser.Scene {
     constructor() {

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { loadCardImages } from "./utils/loadCardImages.js"
-import { openBooster } from "./openBooster.js";    ;
+import { openBooster } from "./openBooster.js";
 import SoundManager from './utils/SoundManager';
 export class BoosterOpeningScene extends Phaser.Scene {
     constructor() {

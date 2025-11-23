@@ -1,3 +1,4 @@
+import MusicManager from '../MusicManager';
 /**
  * SoundManager
  * 
@@ -154,12 +155,14 @@ export default class SoundManager {
                         } catch (err) {
                             // fallback to a non-ephemeral key if add fails
                             try {
+                                const key = `${baseKey}_${this.sanitizeName(matchedFile)}`;
                                 await this.loadAudioForKey(key, url);
                                 const inst = this.scene.sound.add(key);
                                 inst.play({ volume, rate, loop });
                                 inst.once('complete', () => { try { inst.destroy(); } catch (err) {} });
                             } catch (err2) {
-                                this.scene.sound.play(key, { volume, rate, loop });
+                                // final fallback: try to play using the base key
+                                try { this.scene.sound.play(baseKey, { volume, rate, loop }); } catch (e) {}
                             }
                         }
                         console.log(`[SoundManager] Playing cry ${uniquePlayKey} (mapped:${matchedFile}) for species ${speciesId} (from manifest: ${matchedFile})`);

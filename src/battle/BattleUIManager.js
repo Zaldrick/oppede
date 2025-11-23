@@ -5,6 +5,7 @@
  * Code extrait de PokemonBattleScene.js pour respecter l'architecture modulaire
  */
 
+import Phaser from 'phaser';
 import getPokemonDisplayName from '../utils/getDisplayName';
 
 export default class BattleUIManager {
