@@ -62,8 +62,72 @@ export default class BattleSpriteManager {
                 } else {
                     setTimeout(resolve, duration);
                 }
+
             });
         }
+    }
+
+    /**
+     * Animate entrance of sprite either by sliding from off-screen or fade.
+     * Supports both Phaser (spriteData.type === 'phaser') and GIF (type === 'gif').
+     * @param {Object} spriteData
+     * @param {Phaser.GameObjects.Graphics} shadow
+     * @param {number} duration
+     * @param {'left'|'right'} fromSide - side the sprite will come from; 'left' slides in from left, 'right' from right.
+     */
+    async animateEntrance(spriteData, shadow, duration = 600, fromSide = 'left') {
+        if (!spriteData) return;
+
+        const scene = this.scene;
+        const width = scene.scale.width;
+        const margin = 40; // px
+
+        if (spriteData.type === 'phaser' && spriteData.sprite) {
+            const sprite = spriteData.sprite;
+            // Determine off-screen X
+            const spriteHalf = (sprite.displayWidth || 96) / 2;
+            const targetX = sprite.x;
+            const offscreenX = fromSide === 'left' ? -spriteHalf - margin : width + spriteHalf + margin;
+            // Set initial
+            sprite.x = offscreenX;
+            sprite.setAlpha(1);
+            return new Promise(resolve => {
+                scene.tweens.add({
+                    targets: sprite,
+                    x: targetX,
+                    duration,
+                    ease: 'Back.easeOut',
+                    onComplete: () => resolve(true)
+                });
+                if (shadow) {
+                    // Animate shadow alpha and keep it in sync
+                    scene.tweens.add({ targets: shadow, alpha: 1, duration });
+                }
+            });
+        } else if (spriteData.type === 'gif' && spriteData.gifContainer) {
+            const container = spriteData.gifContainer;
+            // Compute DOM positions
+            const gameCanvas = scene.game.canvas;
+            const canvasRect = gameCanvas.getBoundingClientRect();
+            const domWidth = canvasRect.width;
+            const domHeight = canvasRect.height;
+            const targetDomX = canvasRect.left + (spriteData.x / scene.scale.width) * domWidth - (spriteData.displayWidth / 2);
+            const targetDomY = canvasRect.top + (spriteData.y / scene.scale.height) * domHeight - (spriteData.displayHeight / 2);
+            const offDomX = fromSide === 'left' ? -spriteData.displayWidth - margin + canvasRect.left : canvasRect.left + canvasRect.width + margin;
+            // Apply initial state
+            container.style.left = `${offDomX}px`;
+            container.style.top = `${targetDomY}px`;
+            container.style.opacity = '1';
+            container.style.transition = `left ${duration}ms cubic-bezier(0.68, -0.55, 0.265, 1.55)`;
+            return new Promise(resolve => {
+                // Force reflow then set target
+                void container.offsetWidth;
+                container.style.left = `${targetDomX}px`;
+                setTimeout(() => resolve(true), duration + 20);
+            });
+        }
+        // fallback: no animation
+        return true;
     }
 
     /**
@@ -116,28 +180,7 @@ export default class BattleSpriteManager {
                 shadow.setDepth(0);
                 this.scene.opponentShadow = shadow;
 
-                // Play cry sound after the fade-in animation (if any)
-                try {
-                    await this.fadeInSprite(result, shadow, 500);
-                    if (this.scene && this.scene.soundManager) {
-                        try {
-                            if (this.scene && this.scene.soundManager) {
-                                console.debug(`[BattleSpriteManager] Requesting opponent cry for ${opponent.species_id}`);
-                                const played = await this.scene.soundManager.playPokemonCry(opponent.species_id);
-                                console.debug(`[BattleSpriteManager] Opponent cry played=${played} for ${opponent.species_id}`);
-                            }
-                        } catch (e) { console.warn('[BattleSpriteManager] Error playing opponent cry', e); }
-                    }
-                } catch (e) {
-                    // If fadeInSprite threw (shouldn't normally), still attempt the cry
-                    try { 
-                        if (this.scene && this.scene.soundManager) {
-                            console.debug(`[BattleSpriteManager] Requesting opponent cry (fade) for ${opponent.species_id}`);
-                            const played = await this.scene.soundManager.playPokemonCry(opponent.species_id);
-                            console.debug(`[BattleSpriteManager] Opponent cry (fade) played=${played} for ${opponent.species_id}`);
-                        }
-                    } catch (err) { console.warn('[BattleSpriteManager] Error playing opponent cry (fade)', err); }
-                }
+                // No animation or cry here; animations are handled by BattleAnimationManager to avoid duplicates.
                 
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur sprite adversaire:', error);
@@ -194,7 +237,7 @@ export default class BattleSpriteManager {
                 shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
                 shadow.setDepth(0);
                 this.scene.playerShadow = shadow;
-                
+                // Do not animate or play cry here; animations are centralized in BattleAnimationManager to avoid duplicates.
             } catch (error) {
                 console.error('[BattleSpriteManager] Erreur sprite joueur:', error);
             }
@@ -265,24 +308,24 @@ export default class BattleSpriteManager {
                 // Animation entrée si demandé (et play cry at the end)
                 if (animate) {
                     try {
-                        await this.fadeInSprite(result, shadow, 500);
-                        if (this.scene && this.scene.soundManager) {
-                            try { 
-                                if (this.scene && this.scene.soundManager) {
-                                    console.debug(`[BattleSpriteManager] Requesting player cry for ${pokemon.species_id}`);
-                                    const played = await this.scene.soundManager.playPokemonCry(pokemon.species_id);
-                                    console.debug(`[BattleSpriteManager] Player cry played=${played} for ${pokemon.species_id}`);
-                                }
-                            } catch (e) { console.warn('[BattleSpriteManager] Error playing player cry', e); }
-                        }
-                    } catch (e) {
-                        try { 
+                        // Play player cry just before the entrance animation for better sync; do not block on it
+                        try {
                             if (this.scene && this.scene.soundManager) {
-                                console.debug(`[BattleSpriteManager] Requesting player cry (fade) for ${pokemon.species_id}`);
-                                const played = await this.scene.soundManager.playPokemonCry(pokemon.species_id);
-                                console.debug(`[BattleSpriteManager] Player cry (fade) played=${played} for ${pokemon.species_id}`);
+                                console.debug(`[BattleSpriteManager] Requesting player cry (before animateEntrance) for ${pokemon.species_id}`);
+                                this.scene.soundManager.playPokemonCry(pokemon.species_id).catch(() => {});
                             }
-                        } catch (err) { console.warn('[BattleSpriteManager] Error playing player cry (fade)', err); }
+                        } catch (e) { /* ignore */ }
+
+                        // Slide the player sprite in from the left to match PNJ-style motion
+                        await this.animateEntrance(result, shadow, 500, 'left');
+                    } catch (e) {
+                        // If animateEntrance threw, attempt to play the cry anyway (non-blocking)
+                        try {
+                            if (this.scene && this.scene.soundManager) {
+                                console.debug(`[BattleSpriteManager] Requesting player cry (entrance failed) for ${pokemon.species_id}`);
+                                this.scene.soundManager.playPokemonCry(pokemon.species_id).catch(() => {});
+                            }
+                        } catch (err) { console.warn('[BattleSpriteManager] Error playing player cry (entrance failed)', err); }
                     }
                 }
             } catch (error) {

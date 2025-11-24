@@ -212,7 +212,6 @@ export class TripleTriadSelectScene extends Phaser.Scene {
         const detailImgY = detailZoneTop + detailZoneHeight / 2;
 
         const descX = width * 0.36;
-        const descY = detailZoneTop;
 
         const card = this.cards[this.focusedCardIdx];
         if (card) {

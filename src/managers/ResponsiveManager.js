@@ -2,10 +2,10 @@
  * ResponsiveManager - Gestionnaire des layouts responsives
  * 
  * Ce manager s'occupe de :
- * - Adapter les tailles selon l'écran
- * - Gérer les breakpoints mobile/desktop
+ * - Adapter les tailles selon l'ï¿½cran
+ * - Gï¿½rer les breakpoints mobile/desktop
  * - Calculer les layouts de grilles
- * - Optimiser pour différentes résolutions
+ * - Optimiser pour diffï¿½rentes rï¿½solutions
  */
 export class ResponsiveManager {
     constructor() {
@@ -16,7 +16,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Initialise le manager responsive pour une scène
+     * Initialise le manager responsive pour une scï¿½ne
      */
     initialize(scene) {
         this.scene = scene;
@@ -26,7 +26,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Met à jour les informations d'écran
+     * Met ï¿½ jour les informations d'ï¿½cran
      */
     updateScreenInfo() {
         const { width, height } = this.scene.scale;
@@ -41,12 +41,12 @@ export class ResponsiveManager {
             diagonal: Math.sqrt(width * width + height * height),
         };
 
-        // Détermine le breakpoint
+        // Dï¿½termine le breakpoint
         this.currentBreakpoint = this.getBreakpoint();
     }
 
     /**
-     * Détermine le breakpoint actuel
+     * Dï¿½termine le breakpoint actuel
      */
     getBreakpoint() {
         const { width } = this.screenInfo;
@@ -59,7 +59,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Configure un listener de resize throttlé
+     * Configure un listener de resize throttlï¿½
      */
     setupResizeListener() {
         if (!this.scene || !this.scene.scale) return;
@@ -74,13 +74,13 @@ export class ResponsiveManager {
     }
 
     /**
-     * Gère le redimensionnement
+     * Gï¿½re le redimensionnement
      */
     handleResize(gameSize) {
         const oldBreakpoint = this.currentBreakpoint;
         this.updateScreenInfo();
         
-        // Si le breakpoint a changé, émet un événement
+        // Si le breakpoint a changï¿½, ï¿½met un ï¿½vï¿½nement
         if (oldBreakpoint !== this.currentBreakpoint) {
             this.scene.events.emit('breakpoint-changed', {
                 old: oldBreakpoint,
@@ -89,24 +89,23 @@ export class ResponsiveManager {
             });
         }
 
-        // Émet toujours un événement de resize
+        // ï¿½met toujours un ï¿½vï¿½nement de resize
         this.scene.events.emit('responsive-resize', this.screenInfo);
     }
 
     /**
-     * Obtient la configuration responsive pour la scène courante
+     * Obtient la configuration responsive pour la scï¿½ne courante
      */
     getResponsiveConfig() {
-        const { width, height } = this.screenInfo;
         
         return {
             ...this.screenInfo,
             breakpoint: this.currentBreakpoint,
             
-            // Tailles de base adaptées
+            // Tailles de base adaptï¿½es
             baseUnit: this.getBaseUnit(),
             
-            // Facteurs d'échelle selon le breakpoint
+            // Facteurs d'ï¿½chelle selon le breakpoint
             scale: this.getScaleFactor(),
             
             // Grilles adaptatives
@@ -118,13 +117,13 @@ export class ResponsiveManager {
             // Typographie adaptive
             typography: this.getTypographyConfig(),
             
-            // Configuration UI adaptée
+            // Configuration UI adaptï¿½e
             ui: this.getUIConfig(),
         };
     }
 
     /**
-     * Calcule l'unité de base selon l'écran
+     * Calcule l'unitï¿½ de base selon l'ï¿½cran
      */
     getBaseUnit() {
         const { width, height } = this.screenInfo;
@@ -132,7 +131,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Obtient le facteur d'échelle selon le breakpoint
+     * Obtient le facteur d'ï¿½chelle selon le breakpoint
      */
     getScaleFactor() {
         const factors = {
@@ -146,14 +145,14 @@ export class ResponsiveManager {
     }
 
     /**
-     * Configuration de grille adaptée pour les cartes
+     * Configuration de grille adaptï¿½e pour les cartes
      */
     getGridConfig() {
         const { width, height, isPortrait } = this.screenInfo;
         const scale = this.getScaleFactor();
         
         // Adapte le nombre de colonnes selon la largeur et l'orientation
-        let cols = 4; // par défaut
+        let cols = 4; // par dï¿½faut
         if (isPortrait) {
             if (width < 480) cols = 2;
             else if (width < 768) cols = 3;
@@ -183,7 +182,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Configuration d'espacement adaptée
+     * Configuration d'espacement adaptï¿½e
      */
     getSpacingConfig() {
         const baseUnit = this.getBaseUnit();
@@ -200,7 +199,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Configuration typographique adaptée
+     * Configuration typographique adaptï¿½e
      */
     getTypographyConfig() {
         const { width, isPortrait } = this.screenInfo;
@@ -216,7 +215,7 @@ export class ResponsiveManager {
 
         const sizes = baseSizes[this.currentBreakpoint];
         
-        // Ajustement spécial pour les écrans très larges
+        // Ajustement spï¿½cial pour les ï¿½crans trï¿½s larges
         const maxScale = isPortrait ? 1.2 : 1.4;
         const finalScale = Math.min(scale, maxScale);
         
@@ -227,7 +226,7 @@ export class ResponsiveManager {
             caption: Math.round(sizes.caption * finalScale),
             button: Math.round(sizes.button * finalScale),
             
-            // Styles Phaser prêts à l'emploi
+            // Styles Phaser prï¿½ts ï¿½ l'emploi
             titleStyle: {
                 fontSize: `${Math.round(sizes.title * finalScale)}px`,
                 fontFamily: 'Arial',
@@ -262,7 +261,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Configuration UI adaptée
+     * Configuration UI adaptï¿½e
      */
     getUIConfig() {
         const { width, height, isPortrait } = this.screenInfo;
@@ -279,7 +278,7 @@ export class ResponsiveManager {
                 }
             },
             
-            // Zone de détail des cartes
+            // Zone de dï¿½tail des cartes
             detailZone: {
                 imageWidth: Math.min(150 * scale, width * 0.25),
                 imageHeight: Math.min(225 * scale, width * 0.25 * 1.5),
@@ -287,7 +286,7 @@ export class ResponsiveManager {
                 topMargin: height * 0.02,
             },
             
-            // Zone de sélection en bas
+            // Zone de sï¿½lection en bas
             selectionZone: {
                 height: Math.max(80, height * 0.12),
                 cardWidth: Math.min(50 * scale, (width - 60) / 5 * 0.8),
@@ -301,7 +300,7 @@ export class ResponsiveManager {
                 arrowSize: Math.max(20, width * 0.03),
             },
 
-            // Marges et paddings généraux
+            // Marges et paddings gï¿½nï¿½raux
             layout: {
                 padding: Math.max(16, Math.min(width, height) * 0.03),
                 sectionSpacing: Math.max(20, height * 0.03),
@@ -327,7 +326,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Vérifie si on est sur un breakpoint donné ou plus grand
+     * Vï¿½rifie si on est sur un breakpoint donnï¿½ ou plus grand
      */
     isBreakpointUp(breakpoint) {
         const order = ['xs', 'sm', 'md', 'lg', 'xl'];
@@ -337,7 +336,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Vérifie si on est sur un breakpoint donné ou plus petit
+     * Vï¿½rifie si on est sur un breakpoint donnï¿½ ou plus petit
      */
     isBreakpointDown(breakpoint) {
         const order = ['xs', 'sm', 'md', 'lg', 'xl'];
@@ -347,7 +346,7 @@ export class ResponsiveManager {
     }
 
     /**
-     * Applique des styles responsives à un objet Phaser
+     * Applique des styles responsives ï¿½ un objet Phaser
      */
     applyResponsiveStyle(gameObject, styles) {
         const currentStyle = styles[this.currentBreakpoint] || styles.default || {};
@@ -379,4 +378,5 @@ export class ResponsiveManager {
 }
 
 // Export singleton
-export default new ResponsiveManager();
+const responsiveManager = new ResponsiveManager();
+export default responsiveManager;

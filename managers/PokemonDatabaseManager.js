@@ -14,6 +14,24 @@ class PokemonDatabaseManager {
         this.pokemonPlayerCollection = null;
         this.evolutionManager = new PokemonEvolutionManager(databaseManager);
         this.speciesStatsCache = new Map(); // Cache pour les stats de base
+        // Cache des moves apprenables par espèce (scarlet-violet, level-up).
+        // Structure: Map<speciesId, { timestamp: number, moves: Array<{name, url, learnLevel, type, category, power, accuracy, pp, maxPP}> }>
+        this.learnableMovesCache = new Map();
+        // TTL en ms (par défaut: 24h)
+        this.learnableMovesCacheTTL = 24 * 60 * 60 * 1000;
+    }
+
+    /**
+     * Clear cached learnable moves for a specific species or all species
+     */
+    clearLearnableMovesCache(speciesId = null) {
+        if (!speciesId) {
+            this.learnableMovesCache.clear();
+            console.debug('[PokemonDB] Learnable moves cache cleared (all species)');
+            return;
+        }
+        this.learnableMovesCache.delete(speciesId);
+        console.debug('[PokemonDB] Learnable moves cache cleared for species', speciesId);
     }
 
     /**
@@ -165,9 +183,42 @@ class PokemonDatabaseManager {
                 }
 
                 const result = await this.learnMove(pokemonId, newMove, replaceIndex);
-                res.json({ success: true, moveset: result.moveset });
+                // Retourner moveset + move_learned
+                res.json({ success: true, moveset: result.moveset, move_learned: result.move_learned });
             } catch (error) {
                 console.error('Erreur apprentissage move:', error);
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        // 📝 Marquer qu'un move a été proposé à un Pokémon
+        // NOTE: Pour éviter que la même attaque soit reproposée, nous l'ajoutons
+            // dans l'historique `move_learned` (simple liste de noms) — serveur écrit cette liste uniquement.
+        // Mark a move as seen/offered for a pokemon.
+        // The write is server-side, but it's triggered by the client via this API; this is intended.
+        app.post('/api/pokemon/mark-move-seen', async (req, res) => {
+            try {
+                const { pokemonId, move } = req.body;
+                if (!pokemonId || !move) {
+                    return res.status(400).json({ success: false, error: 'pokemonId et move requis' });
+                }
+
+                const objectId = new ObjectId(pokemonId);
+                const pokemon = await this.pokemonPlayerCollection.findOne({ _id: objectId });
+                if (!pokemon) return res.status(404).json({ success: false, error: 'Pokémon non trouvé' });
+
+                const learnedMoves = pokemon.move_learned || [];
+                const normalized = learnedMoves.map(m => (typeof m === 'string' ? m : (m.name || m)));
+                if (!normalized.includes(move.name)) normalized.push(move.name);
+                // Save back as normalized string array
+                await this.pokemonPlayerCollection.updateOne(
+                    { _id: objectId },
+                    { $set: { move_learned: normalized, updatedAt: new Date() } }
+                );
+
+                res.json({ success: true, move_learned: normalized });
+            } catch (error) {
+                console.error('[Api.mark-move-seen] Erreur:', error);
                 res.status(500).json({ success: false, error: error.message });
             }
         });
@@ -257,6 +308,16 @@ class PokemonDatabaseManager {
                 // 4. Injecter maxHP et autres stats dans l'objet retourné (sans sauvegarder en DB)
                 pokemon.maxHP = stats.maxHP;
                 pokemon.stats = stats; // Pour le frontend qui pourrait en avoir besoin
+                // 6. expose move_learned si présent
+                if (!pokemon.move_learned) pokemon.move_learned = [];
+                // Defensive: filter any move names that correspond to a future learn level > current level
+                try {
+                    const allMoves = await this.getAllLearnableMoves(pokemon.species_id, pokemon.level);
+                    const allowedNames = new Set(allMoves.map(m => m.name));
+                    pokemon.move_learned = (pokemon.move_learned || []).filter(m => allowedNames.has(typeof m === 'string' ? m : (m.name || m)));
+                } catch (e) {
+                    // Non-blocking: on failure, we keep existing data
+                }
                 // 5. Traduction FR
                 try {
                     if (this.translationManager && typeof this.translationManager.getPokemonNameFR === 'function') {
@@ -307,6 +368,14 @@ class PokemonDatabaseManager {
                 // 4. Injecter maxHP et autres stats
                 pokemon.maxHP = stats.maxHP;
                 pokemon.stats = stats;
+                if (!pokemon.move_learned) pokemon.move_learned = [];
+                try {
+                    const allMoves = await this.getAllLearnableMoves(pokemon.species_id, pokemon.level);
+                    const allowedNames = new Set(allMoves.map(m => m.name));
+                    pokemon.move_learned = (pokemon.move_learned || []).filter(m => allowedNames.has(typeof m === 'string' ? m : (m.name || m)));
+                } catch (e) {
+                    // ignore; fallback keep the array as is
+                }
                 // 5. Traduction FR pour les détails
                 try {
                     if (this.translationManager && typeof this.translationManager.getPokemonNameFR === 'function') {
@@ -367,35 +436,34 @@ class PokemonDatabaseManager {
      */
     async getAllLearnableMoves(speciesId, level) {
         try {
+            // use the cached full list of learnable moves for the species if available
+            const now = Date.now();
+            const cacheEntry = this.learnableMovesCache.get(speciesId);
+            if (cacheEntry && (now - cacheEntry.timestamp) < this.learnableMovesCacheTTL) {
+                console.debug(`[PokemonDB] Cache hit for species ${speciesId}`);
+                // Return only moves up to requested level
+                return cacheEntry.moves.filter(m => m.learnLevel <= level).sort((a, b) => a.learnLevel - b.learnLevel);
+            }
+
+            // cache miss -> fetch species and populate cache
             const fetch = (await import('node-fetch')).default;
             const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
-            
             if (!response.ok) return [];
-            
             const data = await response.json();
-            const potentialMoves = [];
-            
-            for (const moveEntry of data.moves) {
-                // 1. Chercher spécifiquement dans scarlet-violet
-                const svDetail = moveEntry.version_group_details.find(detail => 
-                    detail.version_group.name === 'scarlet-violet' &&
-                    detail.move_learn_method.name === 'level-up' &&
-                    detail.level_learned_at <= level
-                );
 
+            const potentialMoves = [];
+            for (const moveEntry of data.moves) {
+                const svDetail = moveEntry.version_group_details.find(detail =>
+                    detail.version_group && detail.version_group.name === 'scarlet-violet' &&
+                    detail.move_learn_method && detail.move_learn_method.name === 'level-up'
+                );
                 if (svDetail) {
-                    potentialMoves.push({
-                        name: moveEntry.move.name,
-                        url: moveEntry.move.url,
-                        learnLevel: svDetail.level_learned_at
-                    });
+                    potentialMoves.push({ name: moveEntry.move.name, url: moveEntry.move.url, learnLevel: svDetail.level_learned_at });
                 }
             }
-            
-            // 2. Trier par niveau d'apprentissage (croissant)
-            potentialMoves.sort((a, b) => a.learnLevel - b.learnLevel);
 
-            // 3. Récupérer les détails des moves (en parallèle pour la vitesse)
+            // sort and fetch move details in parallel
+            potentialMoves.sort((a, b) => a.learnLevel - b.learnLevel);
             const movePromises = potentialMoves.map(async (move) => {
                 try {
                     const moveRes = await fetch(move.url);
@@ -415,10 +483,12 @@ class PokemonDatabaseManager {
                     return null;
                 }
             });
+            const resolvedMoves = (await Promise.all(movePromises)).filter(m => m !== null);
 
-            const resolvedMoves = await Promise.all(movePromises);
-            return resolvedMoves.filter(m => m !== null);
-            
+            // Save in cache
+            this.learnableMovesCache.set(speciesId, { timestamp: now, moves: resolvedMoves });
+            console.debug(`[PokemonDB] Cache set for species ${speciesId} with ${resolvedMoves.length} entries`);
+            return resolvedMoves.filter(m => m.learnLevel <= level).sort((a, b) => a.learnLevel - b.learnLevel);
         } catch (error) {
             console.error('Erreur getAllLearnableMoves:', error);
             return [];
@@ -538,7 +608,7 @@ class PokemonDatabaseManager {
      */
     async createDebugPokemon(playerId, speciesId) {
         try {
-            const debugLevel = 15; // Niveau demandé pour le debug
+            const debugLevel = 11; // Niveau demandé pour le debug
             
             // 1. Générer les données via la méthode centralisée
             const pokemonData = await this.generatePokemonData(speciesId, debugLevel, playerId);
@@ -636,13 +706,26 @@ class PokemonDatabaseManager {
                 throw new Error('4 moves déjà appris, replaceIndex requis');
             }
 
-            // Mettre à jour en DB
+            // Mettre à jour l'historique move_learned si on a effectivement appris le move
+            try {
+                const learnedMoves = pokemon.move_learned || [];
+                // Normalize existing entries if needed
+                    const normalized = learnedMoves.map(m => (typeof m === 'string' ? m : m.name));
+                if (!normalized.includes(newMove.name)) normalized.push(newMove.name);
+                // Write back normalized list
+                pokemon.move_learned = normalized;
+            } catch (e) {
+                console.warn('[LearnMove] Échec mise à jour learnedMoves:', e.message);
+            }
+            // Mettre à jour en DB (moveset et learnedMoves si présents)
+            const updateFields = { moveset: moveset, updatedAt: new Date() };
+            if (pokemon.move_learned) updateFields.move_learned = pokemon.move_learned;
             await this.pokemonPlayerCollection.updateOne(
                 { _id: new ObjectId(pokemonId) },
-                { $set: { moveset: moveset, updatedAt: new Date() } }
+                { $set: updateFields }
             );
 
-            return { moveset };
+            return { moveset, move_learned: pokemon.move_learned || [] };
         } catch (error) {
             console.error('[LearnMove] Erreur:', error);
             throw error;
@@ -755,8 +838,9 @@ class PokemonDatabaseManager {
 
         // 4. Générer Moveset (Scarlet/Violet logic)
         const learnedMoves = await this.getAllLearnableMoves(speciesId, level);
-        // Prendre les 4 derniers moves appris
+        // move_learned = historique de tout ce qu'il peut apprendre à ce niveau (liste de noms)
         const moveset = learnedMoves.slice(-4);
+        const move_learned_names = learnedMoves.map(m => m.name);
 
         // 5. Récupérer le nom de l'espèce et base_experience si possible (optionnel, pour le debug et XP)
         let speciesName = `Pokemon_${speciesId}`;
@@ -805,7 +889,9 @@ class PokemonDatabaseManager {
             evs,
             nature,
             moveset,
-            learnedMoves,
+            // Store the full list under move_learned for the pokemon
+            // Store the full list under move_learned as simple names (strings)
+            move_learned: move_learned_names,
             heldItem: null,
             statusCondition: { type: null, turns: 0 },
             custom: false,

@@ -8,7 +8,6 @@
  * - Afficher messages de dialogue
  */
 
-import SpriteLoader from '../utils/spriteLoader';
 
 export default class BattleMenuManager {
     constructor(scene) {

@@ -144,7 +144,7 @@ export class PokemonDetailScene extends Phaser.Scene {
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         const centerX = width * 0.5;
-        const centerY = height * 0.5;
+        // const centerY is not used; remove to satisfy linter
 
         // Titre: juste le nickname (5% du haut)
         this.add.text(
@@ -432,7 +432,7 @@ export class PokemonDetailScene extends Phaser.Scene {
      * Section Moves: Affiche les 4 moves en 2 lignes (2 par ligne)
      */
     async createMovesSection(x, y, screenWidth, screenHeight) {
-        const movesTitle = this.add.text(x, y, 'CAPACITÉS', {
+        this.add.text(x, y, 'CAPACITÉS', {
             fontSize: `${Math.min(screenWidth, screenHeight) * 0.06}px`,
             fill: '#FFD700',
             fontStyle: 'bold'
@@ -472,7 +472,7 @@ export class PokemonDetailScene extends Phaser.Scene {
             moveBox.setStrokeStyle(2, 0xFFFFFF);
             moveBox.setInteractive();
 
-            const moveText = this.add.text(moveX, moveY, moveName, {
+            this.add.text(moveX, moveY, moveName, {
                 fontSize: `${Math.min(screenWidth, screenHeight) * 0.03}px`,
                 fill: '#FFFFFF',
                 fontStyle: 'bold'

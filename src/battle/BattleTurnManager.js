@@ -76,6 +76,10 @@ export default class BattleTurnManager {
                         );
                         
                         if (pokemon) {
+                            // Sync server-side move_learned (offered moves) if provided
+                            if (gain.move_learned && Array.isArray(gain.move_learned)) {
+                                pokemon.move_learned = gain.move_learned;
+                            }
                             // 🔧 FIXE: Utiliser le bon nom (nickname > name > species name)
                             const pokemonName = getPokemonDisplayName(pokemon) || gain.pokemonName;
                             
@@ -99,45 +103,81 @@ export default class BattleTurnManager {
                                 if (leveledUp && gain.newMovesAvailable && gain.newMovesAvailable.length > 0) {
                                     console.log('[Battle] Nouveaux moves disponibles:', gain.newMovesAvailable);
                                     
-                                    for (const newMove of gain.newMovesAvailable) {
+                                    // Process moves sequentially by shifting them out of the array
+                                    while (gain.newMovesAvailable && gain.newMovesAvailable.length > 0) {
+                                        const newMove = gain.newMovesAvailable.shift();
                                         // Vérifier si le move est déjà connu
-                                        const alreadyKnown = pokemon.moveset && pokemon.moveset.some(m => m.name === newMove.name);
+                                        const knownMoveset = pokemon.moveset && pokemon.moveset.some(m => m.name === newMove.name);
+                                        const normalizedLearned = (pokemon.move_learned || []).map(m => (typeof m === 'string' ? m : (m.name || m)));
+                                        const alreadyKnown = knownMoveset || (normalizedLearned && normalizedLearned.includes(newMove.name));
                                         if (alreadyKnown) continue;
 
-                                        this.scene.menuManager.showDialog(`${pokemonName} veut apprendre ${newMove.name}...`);
+                                        const newMoveFR = await this.scene.getMoveName(newMove.name);
+                                        this.scene.menuManager.showDialog(`${pokemonName} veut apprendre ${newMoveFR}...`);
                                         await this.scene.wait(1000);
 
                                         await new Promise(resolve => {
+                                            // Masquer les GIFs et l'UI pendant le choix du move
+                                            SpriteLoader.hideAllGifs(this.scene);
                                             // Lancer la scène en parallèle (launch) et non remplacement (start)
-                                            this.scene.scene.launch('MoveLearnScene', {
-                                                pokemon: pokemon,
-                                                newMove: newMove,
-                                                onComplete: (learned, moveName) => {
-                                                    // Callback appelé quand la scène se ferme
-                                                    this.scene.scene.stop('MoveLearnScene');
-                                                    this.scene.scene.resume(this.scene.key); // Reprendre la scène de combat
-                                                    
-                                                    if (learned) {
-                                                        this.scene.menuManager.showDialog(`${pokemonName} a appris ${moveName} !`);
-                                                        
-                                                        // Mettre à jour le moveset localement pour enchaîner correctement
-                                                        if (!pokemon.moveset) pokemon.moveset = [];
-                                                        // Note: Si on a remplacé, on ne sait pas lequel sans recharger, 
-                                                        // mais pour la logique de boucle < 4 c'est suffisant
-                                                        if (pokemon.moveset.length < 4) {
-                                                            pokemon.moveset.push(newMove);
+                                            if (!this.scene.scene.isActive('MoveLearnScene')) {
+                                                this.scene.scene.launch('MoveLearnScene', {
+                                                    pokemon: pokemon,
+                                                    newMove: newMove,
+                                                    onComplete: (learned, moveName, updatedMoveset, updatedMoveLearned) => {
+                                                        console.log('[BattleTurnManager] MoveLearnScene onComplete:', { learned, moveName, updatedMovesetCount: updatedMoveset ? updatedMoveset.length : null });
+                                                        // Callback appelé quand la scène se ferme
+                                                        this.scene.scene.stop('MoveLearnScene');
+                                                        this.scene.scene.resume(this.scene.key); // Reprendre la scène de combat
+
+                                                        // Réafficher les GIFs
+                                                        SpriteLoader.showAllGifs(this.scene);
+
+                                                        if (learned) {
+                                                            // FR name is passed as moveName
+                                                            this.scene.menuManager.showDialog(`${pokemonName} a appris ${moveName} !`);
+
+                                                            // Si le backend retourne le moveset mis à jour, l'utiliser
+                                                            if (updatedMoveset && Array.isArray(updatedMoveset)) {
+                                                                pokemon.moveset = updatedMoveset;
+                                                                // Mettre à jour l'UI si c'est le Pokémon actif
+                                                                if (this.scene.battleState.playerActive && (this.scene.battleState.playerActive._id === pokemon._id || this.scene.battleState.playerActive._id.toString() === pokemon._id.toString())) {
+                                                                    this.scene.updatePlayerUI(pokemon);
+                                                                }
+                                                            } else {
+                                                                // Fallback: si moins de 4 moves, push
+                                                                if (!pokemon.moveset) pokemon.moveset = [];
+                                                                if (pokemon.moveset.length < 4) {
+                                                                    pokemon.moveset.push(newMove);
+                                                                    if (this.scene.battleState.playerActive && (this.scene.battleState.playerActive._id === pokemon._id || this.scene.battleState.playerActive._id.toString() === pokemon._id.toString())) {
+                                                                        this.scene.updatePlayerUI(pokemon);
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            // Mettre à jour le historique move_learned si renvoyé
+                                                            if (updatedMoveLearned && Array.isArray(updatedMoveLearned)) {
+                                                                pokemon.move_learned = updatedMoveLearned;
+                                                            }
                                                         } else {
-                                                            // On marque juste qu'on a appris pour éviter de le reproposer
-                                                            // (même si alreadyKnown le gère)
+                                                            // Update move_learned if provided (user ignored)
+                                                            if (updatedMoveLearned && Array.isArray(updatedMoveLearned)) {
+                                                                pokemon.move_learned = updatedMoveLearned;
+                                                            }
+                                                            this.scene.menuManager.showDialog(`${pokemonName} n'a pas appris ${moveName}.`);
                                                         }
-                                                    } else {
-                                                        this.scene.menuManager.showDialog(`${pokemonName} n'a pas appris ${newMove.name}.`);
+
+                                                        // Petit délai pour lire le message
+                                                        setTimeout(resolve, 1500);
                                                     }
-                                                    
-                                                    // Petit délai pour lire le message
-                                                    setTimeout(resolve, 1500);
-                                                }
-                                            });
+                                                });
+                                            } else {
+                                                console.warn('[BattleTurnManager] MoveLearnScene déjà active, skipping launch');
+                                                // Réafficher les gifs si nous avions caché
+                                                SpriteLoader.showAllGifs(this.scene);
+                                                setTimeout(resolve, 10);
+                                                return;
+                                            }
                                             
                                             // Mettre en pause la scène de combat
                                             this.scene.scene.pause(this.scene.key);

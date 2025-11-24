@@ -875,8 +875,38 @@ class PokemonBattleManager {
                                 ? await this.pokemonDatabaseManager.getAvailableMovesAtLevel(pokemon.species_id, lvl)
                                 : await this.databaseManager.getAvailableMovesAtLevel(pokemon.species_id, lvl);
                             if (movesAtLevel && movesAtLevel.length > 0) {
-                                xpResult.newMovesAvailable.push(...movesAtLevel);
+                                    xpResult.newMovesAvailable.push(...movesAtLevel);
+                                }
+                        }
+                        // Filtrer les moves déjà 'offered' (comme ignorés précédemment) et dedupe
+                        try {
+                            const existingPokemon = await pokemonCollection.findOne({ _id: new ObjectId(xpResult.pokemonId) });
+                            let learnedMoves = existingPokemon && existingPokemon.move_learned ? existingPokemon.move_learned.map(m => (typeof m === 'string' ? m : (m.name || m))) : [];
+                            // Defensive: remove any moves that correspond to learn levels higher than the current pokemon level
+                            try {
+                                const allowedMoves = this.pokemonDatabaseManager
+                                    ? await this.pokemonDatabaseManager.getAllLearnableMoves(existingPokemon.species_id, existingPokemon.level)
+                                    : await this.databaseManager.getAllLearnableMoves(existingPokemon.species_id, existingPokemon.level);
+                                const allowedNames = new Set(allowedMoves.map(m => m.name));
+                                learnedMoves = learnedMoves.filter(n => allowedNames.has(n));
+                            } catch (err) {
+                                // ignore any fetch issue; fallback to raw learnedMoves
                             }
+                            if (learnedMoves.length > 0) {
+                                const learnedSet = new Set(learnedMoves);
+                                xpResult.newMovesAvailable = xpResult.newMovesAvailable.filter(m => !learnedSet.has(m.name));
+                            }
+                            // Dedupe by name to avoid multiple identical entries (e.g. moves repeated across versions)
+                            const seenNames = new Set();
+                            xpResult.newMovesAvailable = xpResult.newMovesAvailable.filter(m => {
+                                if (!m || !m.name) return false;
+                                if (seenNames.has(m.name)) return false;
+                                seenNames.add(m.name);
+                                return true;
+                            });
+                            // Do NOT persist offered moves here; persistence occurs on client action via the mark/learn endpoints.
+                        } catch (err) {
+                            console.warn('[Battle] Échec filtration learnedMoves:', err.message);
                         }
                     } else {
                         xpResult.newMovesAvailable = [];

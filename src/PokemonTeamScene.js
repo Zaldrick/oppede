@@ -123,7 +123,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         button.setInteractive({ useHandCursor: true });
 
         // Texte bouton
-        const text = this.add.text(x, y, '⚔️ Combat Sauvage', {
+        this.add.text(x, y, '⚔️ Combat Sauvage', {
             fontSize: `${Math.min(width, height) * 0.032}px`,
             fill: '#FFFFFF',
             fontWeight: 'bold'
@@ -812,7 +812,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         const deleteButton = this.add.rectangle(x, y1, buttonWidth, buttonHeight, 0x95A5A6);
         deleteButton.setInteractive({ useHandCursor: true });
 
-        const deleteText = this.add.text(x, y1, '🗑️ Supprimer Tous', {
+        this.add.text(x, y1, '🗑️ Supprimer Tous', {
             fontSize: `${Math.min(width, height) * 0.028}px`,
             fill: '#FFFFFF',
             fontWeight: 'bold'
@@ -834,7 +834,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         const addButton = this.add.rectangle(x, y2, buttonWidth, buttonHeight, 0x3498DB);
         addButton.setInteractive({ useHandCursor: true });
 
-        const addText = this.add.text(x, y2, '➕ Ajouter Pokémon', {
+        this.add.text(x, y2, '➕ Ajouter Pokémon', {
             fontSize: `${Math.min(width, height) * 0.028}px`,
             fill: '#FFFFFF',
             fontWeight: 'bold'

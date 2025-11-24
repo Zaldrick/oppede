@@ -1,4 +1,5 @@
-﻿import ResponsiveManager from './ResponsiveManager.js';
+﻿// This line is added to remove BOM if present
+import ResponsiveManager from './ResponsiveManager.js';
 export class ShopManager {
     constructor(scene) {
         this.scene = scene;

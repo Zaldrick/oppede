@@ -128,8 +128,7 @@ formatDayToISO(day) {
         return new Date().toISOString().slice(0, 10);
     }
     const [d, m] = day.split("/");
-    const year = new Date().getFullYear();
-    return `${year}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    return `${new Date().getFullYear()}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 createUploadButton(width, height) {
@@ -272,13 +271,7 @@ const taggedPlayers = checked.map(cb => cb.value);
     document.querySelectorAll('#photo-tags-list input[type="checkbox"]').forEach(cb => cb.checked = false);
 }
 
-async fetchPhotosForDay(day) {
-
-    const res = await fetch(`${API_URL}/api/photos?date=${encodeURIComponent(this.formatDayToISO(day))}`);
-    const data = await res.json();
-    this.photos = data.photos || [];
-    this.displayPhotos();
-}
+// NOTE: fetchPhotosForDay already defined earlier; avoid duplicate definitions
 
 
 displayPhotos() {
@@ -303,7 +296,7 @@ displayPhotos() {
             if (!p.dateTaken) return false;
             if (!p.filename) return false;
             if (!p.url || p.url.startsWith('blob:')) return false;
-            const [year, month, day] = p.dateTaken.split("-");
+            const [, month, day] = p.dateTaken.split("-");
             const dayMonth = `${day}/${month}`;
             return dayMonth === this.selectedDay;
         })

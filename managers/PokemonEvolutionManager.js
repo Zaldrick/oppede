@@ -270,14 +270,14 @@ class PokemonEvolutionManager {
             const newLearnableMoves = await this.getAllLearnableMoves(targetSpeciesId, level);
             
             // Fusionner avec l'historique existant
-            const existingLearnedMoves = pokemon.learnedMoves || [];
-            const existingMoveNames = new Set(existingLearnedMoves.map(m => m.name));
+            const existingLearnedMoves = (pokemon.move_learned || []).map(m => (typeof m === 'string' ? m : (m.name || m)));
+            const existingMoveNames = new Set(existingLearnedMoves);
             
             const movesToLearn = [];
             for (const move of newLearnableMoves) {
                 if (!existingMoveNames.has(move.name)) {
                     movesToLearn.push(move);
-                    existingLearnedMoves.push(move); // Ajouter à l'historique
+                    existingLearnedMoves.push(move.name); // Ajouter à l'historique (string name)
                 }
             }
 
@@ -308,7 +308,7 @@ class PokemonEvolutionManager {
                 level: level,
                 currentHP: newCurrentHP,
                 updatedAt: new Date(),
-                learnedMoves: existingLearnedMoves
+                move_learned: existingLearnedMoves
             };
 
             if (movesetUpdated) {

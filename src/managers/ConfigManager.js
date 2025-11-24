@@ -561,4 +561,5 @@ class ConfigManager {
 }
 
 // Export singleton
-export default new ConfigManager();
+const configManager = new ConfigManager();
+export default configManager;

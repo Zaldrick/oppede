@@ -50,7 +50,7 @@ export class InventoryScene extends Phaser.Scene {
 
         this.setupInventoryEventListeners();
         // Local SoundManager for SFX in inventory
-        try { this.soundManager = new (require('./utils/SoundManager').default)(this); } catch (e) { this.soundManager = null; }
+        try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
         
         // Gestion du nettoyage
         this.events.on('shutdown', () => this.destroyDom());

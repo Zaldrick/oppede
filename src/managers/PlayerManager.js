@@ -71,7 +71,7 @@ export class PlayerManager {
   handleMovement(cursors, joystick, socket, myId) {
     if (!this.player || !this.player.body || !cursors) return;
 
-    const gridSize = 8;
+    // const gridSize = 8; // unused — removed to avoid lint warning
     let newAnim = "";
     let keyboardActive = false;
     const speed = this.isSpeedBoosted ? 300 : 180;

@@ -92,14 +92,13 @@ export class QuizGameScene extends Phaser.Scene {
         const { width, height } = this.sys.game.canvas;
         
         // Calculs adaptatifs pour mobile
-        const baseSize = Math.min(width, height);
-        const titleSize = Math.min(baseSize * 0.1, 60);
+        // const baseSize = Math.min(width, height); // not used
         const subtitleSize = Math.min(baseSize * 0.06, 32);
         const textSize = Math.min(baseSize * 0.04, 24);
 
         // Fond avec dégradé et effets
-        const bgMain = this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e, 0.95);
-        const bgOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x667eea, 0.1);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x1a1a2e, 0.95);
+        this.add.rectangle(width / 2, height / 2, width, height, 0x667eea, 0.1);
 
         // Particules d'arrière-plan
         for (let i = 0; i < 15; i++) {
@@ -687,19 +686,19 @@ export class QuizGameScene extends Phaser.Scene {
         const isCorrect = this.selectedAnswer === data.correctAnswer;
         const hasAnswered = this.selectedAnswer >= 0;
 
-        let resultText, resultColor, resultIcon;
+        let resultText, resultColor;
         if (!hasAnswered) {
             resultText = "⏰ TEMPS ÉCOULÉ !";
             resultColor = "#9ca3af";
-            resultIcon = "⏰";
+            
         } else if (isCorrect) {
             resultText = "🎉 BRAVO ! CORRECT !";
             resultColor = "#ffffff";
-            resultIcon = "🎉";
+            
         } else {
             resultText = "💥 OUPS ! INCORRECT !";
             resultColor = "#ffffff";
-            resultIcon = "💥";
+            
         }
 
         // Titre principal avec effet plus visible
@@ -960,7 +959,7 @@ export class QuizGameScene extends Phaser.Scene {
                 });
 
                 // ✅ CRÉATION DIRECTE DU TEXTE SANS CONTAINER
-                const podiumText = this.add.text(width / 2, y,
+                this.add.text(width / 2, y,
                     `${player.medal} ${player.name}: ${player.score} points`, {
                     font: `${isCurrentPlayer ? 'bold' : ''} ${Math.max(textSize * (index === 0 ? 1.3 : index === 1 ? 1.1 : 1), 16)}px Arial`,
                     fill: isCurrentPlayer ? "#fbbf24" : index === 0 ? "#ffd700" : index === 1 ? "#c0c0c0" : "#cd7f32",
@@ -976,7 +975,7 @@ export class QuizGameScene extends Phaser.Scene {
             console.error('[Quiz] ❌ ÉCHEC TOTAL: Aucun joueur à afficher');
 
             // ✅ MESSAGE D'ERREUR AUSSI CRÉÉ DIRECTEMENT
-            const errorText = this.add.text(width / 2, height * 0.45,
+            this.add.text(width / 2, height * 0.45,
                 "❌ Erreur: Aucune donnée de classement", {
                 font: `${textSize}px Arial`,
                 fill: "#ff6b6b",

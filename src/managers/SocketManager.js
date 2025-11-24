@@ -1,4 +1,5 @@
-﻿export class SocketManager {
+﻿// Socket manager
+export class SocketManager {
     constructor(scene) {
         this.scene = scene;
         this.socket = null;

@@ -13,8 +13,7 @@
 
 import Phaser from 'phaser';
 import PokemonBattleManager from './managers/PokemonBattleManager';
-import SpriteLoader from './utils/spriteLoader';
-import { getTypeEffectiveness, getEffectivenessMessage } from './utils/typeEffectiveness';
+// SpriteLoader and typeEffectiveness utilities are dynamically required where needed
 
 // Battle Managers (refactoring modulaire)
 import BattleUIManager from './battle/BattleUIManager';
@@ -241,20 +240,21 @@ export class PokemonBattleScene extends Phaser.Scene {
             const errorMessage = error.message || 'Erreur inconnue';
             
             // Créer un overlay sombre
-            const overlay = this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0);
+            this.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0);
             
             // Message d'erreur stylé
-            const errorBox = this.add.rectangle(width * 0.5, height * 0.5, width * 0.8, height * 0.4, 0x2C3E50);
+            const errorBox = this.add.rectangle(width * 0.5, height * 0.5, width * 0.8, height * 0.4, 0x2C3E50)
+                .setOrigin(0.5);
             errorBox.setStrokeStyle(4, 0xE74C3C);
             
-            const errorTitle = this.add.text(width * 0.5, height * 0.38, '⚠️ Impossible de lancer le combat', {
+            this.add.text(width * 0.5, height * 0.38, '⚠️ Impossible de lancer le combat', {
                 fontSize: `${Math.min(width, height) * 0.05}px`,
                 fill: '#E74C3C',
                 fontWeight: 'bold',
                 fontFamily: 'Arial'
             }).setOrigin(0.5);
             
-            const errorText = this.add.text(width * 0.5, height * 0.5, errorMessage, {
+            this.add.text(width * 0.5, height * 0.5, errorMessage, {
                 fontSize: `${Math.min(width, height) * 0.04}px`,
                 fill: '#FFFFFF',
                 fontFamily: 'Arial',
@@ -262,7 +262,7 @@ export class PokemonBattleScene extends Phaser.Scene {
                 wordWrap: { width: width * 0.7 }
             }).setOrigin(0.5);
             
-            const hintText = this.add.text(width * 0.5, height * 0.6, '💡 Astuce: Utilisez les boutons debug pour créer des Pokémon', {
+            this.add.text(width * 0.5, height * 0.6, '💡 Astuce: Utilisez les boutons debug pour créer des Pokémon', {
                 fontSize: `${Math.min(width, height) * 0.032}px`,
                 fill: '#95A5A6',
                 fontFamily: 'Arial',
@@ -1199,7 +1199,6 @@ export class PokemonBattleScene extends Phaser.Scene {
             // Masquer le sprite adverse pour éviter le doublon avec CaptureScene
             if (this.opponentSprite) this.opponentSprite.setVisible(false);
             // Masquer le GIF si présent
-            const SpriteLoader = require('./utils/spriteLoader').default;
             if (this.opponentGifContainer) {
                 this.opponentGifContainer.style.opacity = '0';
             }
@@ -1313,7 +1312,6 @@ export class PokemonBattleScene extends Phaser.Scene {
         }
         
         // Nettoyer le GIF si existant
-        const SpriteLoader = require('./utils/spriteLoader').default;
         if (this.playerGifContainer) {
             this.playerGifContainer.remove();
             this.playerGifContainer = null;
@@ -1664,7 +1662,6 @@ export class PokemonBattleScene extends Phaser.Scene {
         console.log('[BattleScene] Cleanup...');
         
         // Nettoyer les GIFs DOM
-        const SpriteLoader = require('./utils/spriteLoader').default;
         if (this.playerGifContainer) {
             this.playerGifContainer.remove();
             this.playerGifContainer = null;

@@ -36,7 +36,17 @@
     "generate:cry-manifest": "node ./scripts/generate-cry-manifest.js",
     "prestart": "npm run generate:cry-manifest",
     "prebuild": "npm run generate:cry-manifest"
+    ,"migrate:learnedMoves": "node ./scripts/migrate_learnedMoves_to_move_learned.js",
+    "test:movelearn": "node ./scripts/test_move_learn_flow.js",
+    "migrate:cleanup:move_learned": "node ./scripts/cleanup_move_learned_future_moves.js",
+    "test:cleanupMoveLearned": "node ./scripts/test_cleanup_move_learned_future_moves.js",
+    "test:carapuceBite": "node ./scripts/test_carapuce_bite_flow.js",
+    "test:cache:learnableMoves": "node ./scripts/test_cache_learnable_moves.js"
   },
+  
+    "devDependencies": {
+      "node-fetch": "^3.3.2"
+    },
   "eslintConfig": {
     "extends": [
       "react-app",

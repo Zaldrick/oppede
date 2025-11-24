@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import io from 'socket.io-client';
 import PlayerService from './services/PlayerService';
 import MusicManager from './MusicManager';
 import SoundManager from './utils/SoundManager';
@@ -12,8 +11,7 @@ import { SocketManager } from './managers/SocketManager';
 import { UIManager } from './managers/UIManager';
 import { ShopManager } from './managers/ShopManager';
 // ✅ NOUVEAUX IMPORTS - Menus Triple Triad
-import { TripleTriadAIConfigScene } from './TripleTriadAIConfigScene.js';
-import { TripleTriadPvPConfigScene } from './TripleTriadPvPConfigScene.js';
+// Note: socket.io-client usage is handled by backend; avoid client import here to fix linter
 
 export class GameScene extends Phaser.Scene {
     constructor() {

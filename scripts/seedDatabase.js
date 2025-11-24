@@ -810,8 +810,18 @@ async function seedDatabase() {
                 quantité: 10,
             },
             {
-                player_id: insertedPlayers.insertedIds[3],
+                player_id: insertedPlayers.insertedIds[14],
                 item_id: insertedItems.insertedIds[5], // Poké Ball
+                quantité: 10,
+            },
+                        {
+                player_id: insertedPlayers.insertedIds[14],
+                item_id: insertedItems.insertedIds[6], // Poké Ball
+                quantité: 10,
+            },
+                       {
+                player_id: insertedPlayers.insertedIds[3],
+                item_id: insertedItems.insertedIds[5], // Super Ball
                 quantité: 10,
             },
             {

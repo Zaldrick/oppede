@@ -180,9 +180,11 @@ export function isImmune(attackType, defenseTypes) {
     return getTypeEffectiveness(attackType, defenseTypes) === 0;
 }
 
-export default {
+const typeEffectiveness = {
     TYPE_CHART,
     getTypeEffectiveness,
     getEffectivenessMessage,
     isImmune
 };
+
+export default typeEffectiveness;

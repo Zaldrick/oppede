@@ -267,7 +267,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
     }
 
     displayError(message) {
-        const errorText = this.add.text(
+        this.add.text(
             this.cameras.main.centerX,
             this.cameras.main.centerY,
             message,
@@ -427,12 +427,12 @@ export class BoosterOpeningScene extends Phaser.Scene {
         this.revealStack.forEach(obj => obj.destroy && obj.destroy());
         this.revealStack = [];
 
-        const recapBg = this.add.rectangle(
+        this.add.rectangle(
             this.cameras.main.centerX,
             this.cameras.main.centerY,
             420, 340, 0x222222, 0.95
         );
-        const recapText = this.add.text(
+        this.add.text(
             this.cameras.main.centerX,
             this.cameras.main.centerY - 120,
             "Cartes obtenues :",

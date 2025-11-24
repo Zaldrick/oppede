@@ -74,7 +74,7 @@ export default class SoundManager {
     }
 
     // Play a Pokemon cry by species id (expects files like "008 - Wartortle.wav")
-    async playPokemonCry(speciesId, speciesName, { volume = 1.0, rate = 1.0, loop = false } = {}) {
+    async playPokemonCry(speciesId, speciesName, { volume = 0.6, rate = 1.0, loop = false } = {}) {
         if (!speciesId || !this.scene || !this.scene.sound) return false;
 
         const pad3 = String(speciesId).padStart(3, '0');
@@ -240,7 +240,7 @@ export default class SoundManager {
                     for (const nameCandidate of nameCandidates) {
                         for (const ext of this.extensions) {
                             const filename = `${pad3} - ${nameCandidate}.${ext}`;
-                            const url = `${this.criesPath}${encodeURIComponent(`${pad3} - ${nameCandidate}.${ext}`)}`;
+                            const url = `${this.criesPath}${encodeURIComponent(filename)}`;
                             const uniqueKey = `cry_names_fallback_${pad3}_${Date.now()}_${Math.floor(Math.random()*10000)}`;
                             try {
                                 await this.loadAudioForKey(uniqueKey, url);
@@ -498,7 +498,6 @@ export default class SoundManager {
                         this.currentMusicKey = key;
                         return true;
                     }
-                    return true;
                 } catch (e) {
                     // try next
                 }

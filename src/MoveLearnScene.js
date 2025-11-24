@@ -5,7 +5,7 @@
  * Affiche:
  * - Le nouveau move disponible avec stats complètes
  * - Les 4 moves actuels (ou moins) avec comparaison
- * - Options: Apprendre (remplacer) ou Ignorer
+        console.log('[MoveLearn] Move ignoré (pas d\'appel API)');
  */
 
 import Phaser from 'phaser';
@@ -20,16 +20,18 @@ class MoveLearnScene extends Phaser.Scene {
         this.pokemon = data.pokemon; // Pokémon qui apprend
         this.newMove = data.newMove; // Nouveau move disponible
         this.onComplete = data.onComplete; // Callback après choix
+        this.isProcessing = false;
+        this.translationsCache = {};
     }
 
-    create() {
+    async create() {
         const { width, height } = this.scale;
 
         // Background semi-transparent
-        this.add.rectangle(0, 0, width, height, 0x000000, 0.85).setOrigin(0);
+        this.add.rectangle(0, 0, width, height, 0x000000, 0.95).setOrigin(0);
 
         // Titre
-        const title = this.add.text(width * 0.5, height * 0.08, 
+        this.add.text(width * 0.5, height * 0.08, 
             `${getPokemonDisplayName(this.pokemon) || this.pokemon.species_name} peut apprendre une nouvelle attaque !`, {
             fontSize: `${Math.min(width, height) * 0.045}px`,
             fill: '#FFFFFF',
@@ -39,14 +41,17 @@ class MoveLearnScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         // Nouvelle attaque (en haut, encadré vert)
-        this.createMoveCard(this.newMove, width * 0.5, height * 0.20, width * 0.9, height * 0.15, 0x2ECC71, true);
+        await this.createMoveCard(this.newMove, width * 0.5, height * 0.20, width * 0.9, height * 0.15, 0x2ECC71, true);
+
+        // NOTE: Client-side marking of offered moves has been removed — server handles persistence.
+        // We do not call /api/pokemon/mark-move-seen from the client anymore to prevent client writes.
 
         // Attaques actuelles
         const currentY = height * 0.40;
         const cardHeight = height * 0.12;
         const spacing = height * 0.02;
 
-        this.add.text(width * 0.5, currentY - height * 0.03, 'Attaques actuelles:', {
+        this.add.text(width * 0.5, height * 0.32, 'Remplacer par :', {
             fontSize: `${Math.min(width, height) * 0.04}px`,
             fill: '#ECF0F1',
             fontStyle: 'bold'
@@ -59,20 +64,21 @@ class MoveLearnScene extends Phaser.Scene {
             this.createLearnButton(width * 0.5, height * 0.85, () => this.learnMove(null));
         } else {
             // 4 moves déjà appris, afficher pour comparaison
-            moveset.forEach((move, index) => {
+            for (let index = 0; index < moveset.length; index++) {
+                const move = moveset[index];
                 const yPos = currentY + index * (cardHeight + spacing);
-                this.createMoveCard(move, width * 0.5, yPos, width * 0.88, cardHeight, 0x34495E, false, index);
-            });
+                await this.createMoveCard(move, width * 0.5, yPos, width * 0.88, cardHeight, 0x34495E, false, index);
+            }
         }
 
         // Bouton Ignorer
-        this.createIgnoreButton(width * 0.5, height * 0.93);
+        this.createIgnoreButton(width * 0.5, height * 0.91);
     }
 
     /**
      * Crée une carte d'attaque avec stats détaillées
      */
-    createMoveCard(move, x, y, cardWidth, cardHeight, color, isNew, moveIndex = null) {
+    async createMoveCard(move, x, y, cardWidth, cardHeight, color, isNew, moveIndex = null) {
         const { width, height } = this.scale;
 
         // Conteneur
@@ -80,7 +86,7 @@ class MoveLearnScene extends Phaser.Scene {
 
         // Fond
         const card = this.add.graphics();
-        card.fillStyle(color, 0.9);
+        card.fillStyle(color, 1);
         card.fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 10);
         card.lineStyle(3, 0xFFFFFF, 0.8);
         card.strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 10);
@@ -93,7 +99,7 @@ class MoveLearnScene extends Phaser.Scene {
             badge.fillRoundedRect(-cardWidth / 2 + 10, -cardHeight / 2 + 10, 60, 25, 5);
             container.add(badge);
             
-            const badgeText = this.add.text(-cardWidth / 2 + 40, -cardHeight / 2 + 22, 'NEW', {
+            const badgeText = this.add.text(-cardWidth / 2 + 40, -cardHeight / 2 + 22, 'NOUVEAU', {
                 fontSize: '14px',
                 fill: '#FFFFFF',
                 fontStyle: 'bold'
@@ -102,8 +108,9 @@ class MoveLearnScene extends Phaser.Scene {
         }
 
         // Nom de l'attaque (gauche, en gras)
+        const moveNameFR = await this.getMoveName(move.name);
         const nameText = this.add.text(-cardWidth / 2 + (isNew ? 80 : 20), -cardHeight / 2 + 20, 
-            move.name.toUpperCase(), {
+            (moveNameFR || move.name).toUpperCase(), {
             fontSize: `${Math.min(width, height) * 0.04}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold'
@@ -134,16 +141,17 @@ class MoveLearnScene extends Phaser.Scene {
         const categoryText = this.add.text(-cardWidth / 2 + 20, -cardHeight / 2 + 50, 
             `${categoryIcon} ${categoryLabel}`, {
             fontSize: `${Math.min(width, height) * 0.032}px`,
-            fill: '#BDC3C7'
+            fill: '#ffffffff'
+            , fontStyle: 'bold'
         }).setOrigin(0, 0);
         container.add(categoryText);
 
         // Stats (puissance, précision, PP)
-        const statsY = -cardHeight / 2 + cardHeight * 0.7;
+        const statsY = -cardHeight / 2 + cardHeight*0.7;
         
         // Puissance
-        const powerText = this.add.text(-cardWidth / 2 + 20, statsY, 
-            `PWR: ${move.power || '-'}`, {
+            const powerText = this.add.text(-cardWidth / 2 + 20, statsY, 
+                `💪 ${move.power || '-'}`, {
             fontSize: `${Math.min(width, height) * 0.035}px`,
             fill: move.power > 0 ? '#E74C3C' : '#95A5A6',
             fontStyle: 'bold'
@@ -151,8 +159,8 @@ class MoveLearnScene extends Phaser.Scene {
         container.add(powerText);
 
         // Précision
-        const accText = this.add.text(-cardWidth / 2 + cardWidth * 0.35, statsY, 
-            `ACC: ${move.accuracy || 100}%`, {
+            const accText = this.add.text(-cardWidth / 2 + cardWidth * 0.35, statsY, 
+                `🎯 ${move.accuracy || 100}%`, {
             fontSize: `${Math.min(width, height) * 0.035}px`,
             fill: '#3498DB',
             fontStyle: 'bold'
@@ -177,7 +185,7 @@ class MoveLearnScene extends Phaser.Scene {
 
             card.on('pointerover', () => {
                 card.clear();
-                card.fillStyle(0x1ABC9C, 0.9);
+                card.fillStyle(0x1ABC9C, 1);
                 card.fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 10);
                 card.lineStyle(4, 0xFFFFFF, 1);
                 card.strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 10);
@@ -185,7 +193,7 @@ class MoveLearnScene extends Phaser.Scene {
 
             card.on('pointerout', () => {
                 card.clear();
-                card.fillStyle(color, 0.9);
+                card.fillStyle(color, 1);
                 card.fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 10);
                 card.lineStyle(3, 0xFFFFFF, 0.8);
                 card.strokeRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 10);
@@ -222,7 +230,7 @@ class MoveLearnScene extends Phaser.Scene {
         const button = this.add.rectangle(x, y, btnWidth, btnHeight, 0x2ECC71);
         button.setInteractive();
 
-        const text = this.add.text(x, y, '✓ APPRENDRE', {
+        this.add.text(x, y, '✓ APPRENDRE', {
             fontSize: `${Math.min(width, height) * 0.045}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold'
@@ -230,7 +238,7 @@ class MoveLearnScene extends Phaser.Scene {
 
         button.on('pointerover', () => button.setFillStyle(0x27AE60));
         button.on('pointerout', () => button.setFillStyle(0x2ECC71));
-        button.on('pointerdown', callback);
+        button.on('pointerdown', () => { if (!this.isProcessing) callback(); });
     }
 
     /**
@@ -244,23 +252,27 @@ class MoveLearnScene extends Phaser.Scene {
         const button = this.add.rectangle(x, y, btnWidth, btnHeight, 0x95A5A6);
         button.setInteractive();
 
-        const text = this.add.text(x, y, 'Ne pas apprendre', {
+        this.add.text(x, y, 'NE PAS APPRENDRE', {
             fontSize: `${Math.min(width, height) * 0.035}px`,
             fill: '#FFFFFF'
         }).setOrigin(0.5);
 
         button.on('pointerover', () => button.setFillStyle(0x7F8C8D));
         button.on('pointerout', () => button.setFillStyle(0x95A5A6));
-        button.on('pointerdown', () => this.ignoreMove());
+        button.on('pointerdown', () => { if (!this.isProcessing) this.ignoreMove(); });
     }
 
     /**
      * Apprendre le move (remplacer si index fourni)
      */
     async learnMove(replaceIndex) {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
         console.log('[MoveLearn] Apprentissage move:', this.newMove.name, 'remplace:', replaceIndex);
 
         const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+
+        const frName = await this.getMoveName(this.newMove.name);
 
         try {
             const response = await fetch(`${apiUrl}/api/pokemon/learn-move`, {
@@ -277,27 +289,74 @@ class MoveLearnScene extends Phaser.Scene {
 
             if (data.success) {
                 console.log('✅ Move appris avec succès');
-                if (this.onComplete) this.onComplete(true, this.newMove.name);
+                // Passer le moveset mis à jour dans le callback pour garder l'UI cohérente
+                if (this.onComplete) this.onComplete(true, frName, data.moveset, data.move_learned);
                 this.scene.stop();
             } else {
                 console.error('❌ Erreur apprentissage:', data.error);
-                if (this.onComplete) this.onComplete(false);
+                if (this.onComplete) this.onComplete(false, frName);
                 this.scene.stop();
             }
         } catch (error) {
             console.error('[MoveLearn] Erreur:', error);
-            if (this.onComplete) this.onComplete(false);
+            if (this.onComplete) this.onComplete(false, frName);
             this.scene.stop();
         }
+        this.isProcessing = false;
     }
 
     /**
      * Ignorer le nouveau move
      */
-    ignoreMove() {
-        console.log('[MoveLearn] Move ignoré');
-        if (this.onComplete) this.onComplete(false);
+    async ignoreMove() {
+        if (this.isProcessing) return;
+        this.isProcessing = true;
+        console.log('[MoveLearn] Move ignoré - marquage en DB');
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+        const frName = await this.getMoveName(this.newMove.name);
+
+        try {
+            const response = await fetch(`${apiUrl}/api/pokemon/mark-move-seen`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pokemonId: this.pokemon._id, move: { name: this.newMove.name } })
+            });
+            const data = await response.json();
+            if (data && data.success && Array.isArray(data.move_learned)) {
+                // Save locally to keep UI consistent
+                this.pokemon.move_learned = data.move_learned;
+                if (this.onComplete) this.onComplete(false, frName, null, data.move_learned);
+            } else {
+                // Fallback: preserve previous local state
+                if (this.onComplete) this.onComplete(false, frName, null, this.pokemon.move_learned || []);
+            }
+        } catch (err) {
+            console.warn('[MoveLearn] mark-move-seen failed:', err.message);
+            if (this.onComplete) this.onComplete(false, frName, null, this.pokemon.move_learned || []);
+        }
+        this.isProcessing = false;
         this.scene.stop();
+    }
+
+    /**
+     * Récupérer nom FR d'un move (avec cache local)
+     */
+    async getMoveName(moveNameEN) {
+        if (!moveNameEN) return moveNameEN;
+        if (this.translationsCache && this.translationsCache[moveNameEN]) return this.translationsCache[moveNameEN];
+        try {
+            const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+            const response = await fetch(`${backendUrl}/api/translations/move/${moveNameEN}`);
+            if (response.ok) {
+                const data = await response.json();
+                const nameFR = data.name_fr || moveNameEN;
+                if (this.translationsCache) this.translationsCache[moveNameEN] = nameFR;
+                return nameFR;
+            }
+        } catch (e) {
+            console.warn('[MoveLearnScene] Erreur traduction move:', e.message);
+        }
+        return moveNameEN;
     }
 }
 

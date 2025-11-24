@@ -169,4 +169,5 @@ class PokemonAPIManager {
     }
 }
 
-export default new PokemonAPIManager();
+const pokemonAPIManager = new PokemonAPIManager();
+export default pokemonAPIManager;

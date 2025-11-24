@@ -219,14 +219,14 @@ export class TripleTriadGameScene extends Phaser.Scene {
                     }
                 }
 
-                let animsDone = 0, poseDone = 0;
+                let poseDone = 0; // animsDone not used — removed to satisfy linter
 
 
 
                 // 1. Anime d'abord toutes les poses
                 // 1. Anime d'abord toutes les poses
                 if (poseToDo > 0) {
-                    poses.forEach(({ row, col, curr }) => {
+                    for (const { row, col, curr } of poses) {
                         const { width, height } = this.sys.game.canvas;
 
                         // ✅ UTILISE ConfigManager pour des dimensions cohérentes
@@ -248,19 +248,18 @@ export class TripleTriadGameScene extends Phaser.Scene {
                             poseDone++;
                             if (poseDone === poseToDo) {
                                 // Quand toutes les poses sont finies, lance les flips
-                                if (flipToDo > 0) {
-                                    let flipsDone = 0;
-                                    flips.forEach(({ row, col, owner }) => {
-                                        this.animateCapture(row, col, owner, () => {
-                                            flipsDone++;
-                                            if (flipsDone === flipToDo) {
-                                                this.redrawAll();
-                                                if (state.gameEnded) {
-                                                    this.handleEndGame(state);
+                                    if (flipToDo > 0) {
+                                            let flipsDone = 0;
+                                            const onPoseFlipComplete = () => {
+                                                flipsDone++;
+                                                if (flipsDone === flipToDo) {
+                                                    this.redrawAll();
+                                                    if (state.gameEnded) this.handleEndGame(state);
                                                 }
+                                            };
+                                            for (const { row, col, owner } of flips) {
+                                                this.animateCapture(row, col, owner, onPoseFlipComplete);
                                             }
-                                        });
-                                    });
                                 } else {
                                     this.redrawAll();
                                     if (state.gameEnded) {
@@ -292,15 +291,16 @@ export class TripleTriadGameScene extends Phaser.Scene {
                                     if (poseDone === poseToDo) {
                                         if (flipToDo > 0) {
                                             let flipsDone = 0;
-                                            flips.forEach(({ row, col, owner }) => {
-                                                this.animateCapture(row, col, owner, () => {
-                                                    flipsDone++;
-                                                    if (flipsDone === flipToDo) {
-                                                        this.redrawAll();
-                                                        if (state.gameEnded) this.handleEndGame(state);
-                                                    }
-                                                });
-                                            });
+                                            const onPoseFlipComplete2 = () => {
+                                                flipsDone++;
+                                                if (flipsDone === flipToDo) {
+                                                    this.redrawAll();
+                                                    if (state.gameEnded) this.handleEndGame(state);
+                                                }
+                                            };
+                                            for (const { row, col, owner } of flips) {
+                                                this.animateCapture(row, col, owner, onPoseFlipComplete2);
+                                            }
                                         } else {
                                             this.redrawAll();
                                             if (state.gameEnded) this.handleEndGame(state);
@@ -309,7 +309,7 @@ export class TripleTriadGameScene extends Phaser.Scene {
                                 }
                             );
                         }
-                    });
+                    }
                 }
 
                 // Si aucune animation, redraw tout de suite
@@ -521,8 +521,8 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const { width, height } = this.sys.game.canvas;
         const cardW = Math.min(ConfigManager.TRIPLE_TRIAD.CARDS.MAX_WIDTH, width / 8);
         const cardH = cardW * ConfigManager.TRIPLE_TRIAD.CARDS.ASPECT_RATIO;
-        const topMargin = cardH * ConfigManager.TRIPLE_TRIAD.LAYOUT.TOP_MARGIN_RATIO;
-        const bottomMargin = cardH + ConfigManager.TRIPLE_TRIAD.LAYOUT.BOTTOM_MARGIN;
+        // const topMargin = cardH * ConfigManager.TRIPLE_TRIAD.LAYOUT.TOP_MARGIN_RATIO; // unused
+        // const bottomMargin = cardH + ConfigManager.TRIPLE_TRIAD.LAYOUT.BOTTOM_MARGIN; // unused
         const dimensions = this.getBoardDimensionsOptimized(width, height);
         const { cellW, cellH, boardW, boardH, boardX, boardY } = dimensions;
 
@@ -943,6 +943,10 @@ export class TripleTriadGameScene extends Phaser.Scene {
         const ruleMethods = this.getActiveRules();
         const doClassicFlips = (dirs, row, col, card, animate, onAllFlipsDone) => {
             let flipsToDo = 0, flipsDone = 0;
+            const onCaptureComplete = () => {
+                flipsDone++;
+                if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
+            };
             const flips = [];
             for (const { dr, dc, self, opp } of dirs) {
                 const nr = row + dr, nc = col + dc;
@@ -962,21 +966,16 @@ export class TripleTriadGameScene extends Phaser.Scene {
                                 this.opponentScore++;
                                 this.playerScore--;
                             }
-                            this.animateCapture(nr, nc, card.owner, () => {
-                                flipsDone++;
-                                if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
-                            });
+                            this.animateCapture(nr, nc, card.owner, onCaptureComplete);
                         }
                     }
                 }
             }
             if (animate && flipsToDo > 0) {
-                flips.forEach(flip => {
-                    this.animateCapture(flip.nr, flip.nc, flip.owner, () => {
-                        flipsDone++;
-                        if (flipsDone === flipsToDo && onAllFlipsDone) onAllFlipsDone();
-                    });
-                });
+                for (const flip of flips) {
+                    const { nr, nc, owner } = flip;
+                    this.animateCapture(nr, nc, owner, onCaptureComplete);
+                }
             } else if (onAllFlipsDone) {
                 onAllFlipsDone();
             }
@@ -1001,9 +1000,16 @@ export class TripleTriadGameScene extends Phaser.Scene {
         }
         // --- AJOUT : anime les flips spéciaux si animate === true ---
         let specialFlipsToDo = 0, specialFlipsDone = 0;
+            const onSpecialFlipComplete = () => {
+                specialFlipsDone++;
+                if (specialFlipsDone === specialFlipsToDo) {
+                    // Après les flips spéciaux, lancer la capture classique
+                    doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
+                }
+            };
         if (animate && specialFlips.length > 0) {
             specialFlipsToDo = specialFlips.length;
-            specialFlips.forEach(flip => {
+            for (const flip of specialFlips) {
                 const neighbor = this.board[flip.row][flip.col];
                 if (neighbor && neighbor.owner !== card.owner) {
                     neighbor.owner = card.owner;
@@ -1015,20 +1021,14 @@ export class TripleTriadGameScene extends Phaser.Scene {
                         this.opponentScore++;
                         this.playerScore--;
                     }
-                    this.animateCapture(flip.row, flip.col, card.owner, () => {
-                        specialFlipsDone++;
-                        if (specialFlipsDone === specialFlipsToDo) {
-                            // Après les flips spéciaux, lancer la capture classique
-                            doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
-                        }
-                    });
+                    this.animateCapture(flip.row, flip.col, card.owner, onSpecialFlipComplete);
                 } else {
                     specialFlipsDone++;
                     if (specialFlipsDone === specialFlipsToDo) {
                         doClassicFlips(dirs, row, col, card, animate, onAllFlipsDone);
                     }
                 }
-            });
+            }
             return; // On attend la fin des animations spéciales avant de lancer la suite
         } else {
             // Pas d'animation spéciale, on applique direct et on continue
@@ -1555,8 +1555,16 @@ export class TripleTriadGameScene extends Phaser.Scene {
         }
         if (animate && flips.length > 0) {
             let done = 0;
-            flips.forEach(flip => {
-                this.board[flip.row][flip.col].owner = owner;
+            const createCaptureCallback = (fr, fc) => () => {
+                // Combo récursif
+                this.applyCombo(fr, fc, owner, animate, () => {
+                    done++;
+                    if (done === flips.length && onComboDone) onComboDone();
+                });
+            };
+            for (const flip of flips) {
+                const { row: fr, col: fc } = flip;
+                this.board[fr][fc].owner = owner;
                 if (owner === "player" || owner === this.playerId) {
                     this.playerScore++;
                     this.opponentScore--;
@@ -1564,14 +1572,8 @@ export class TripleTriadGameScene extends Phaser.Scene {
                     this.opponentScore++;
                     this.playerScore--;
                 }
-                this.animateCapture(flip.row, flip.col, owner, () => {
-                    // Combo récursif
-                    this.applyCombo(flip.row, flip.col, owner, animate, () => {
-                        done++;
-                        if (done === flips.length && onComboDone) onComboDone();
-                    });
-                });
-            });
+                this.animateCapture(fr, fc, owner, createCaptureCallback(fr, fc));
+            }
         } else {
             for (const flip of flips) {
                 this.board[flip.row][flip.col].owner = owner;
