@@ -91,12 +91,10 @@ export default class BattleTurnManager {
                                 pokemon._id.toString() === this.scene.battleState.playerActive._id.toString()) {
                                 // 🆕 Passer l'ancien XP et l'ancien niveau pour animation correcte
                                 const oldXP = gain.currentXP || 0;
-                                const oldLevel = gain.currentLevel || pokemon.level;
                                 
                                 const leveledUp = await this.scene.animManager.animateXPGain(
                                     gain.xpGained, 
-                                    oldXP, 
-                                    oldLevel
+                                    oldXP
                                 );
                                 
                                 // Gérer apprentissage de nouveaux moves

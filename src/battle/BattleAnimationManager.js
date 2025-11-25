@@ -612,14 +612,16 @@ export default class BattleAnimationManager {
      * 🆕 Anime le gain d'XP avec barre progressive et gestion level-up
      * @param {number} xpGained - XP gagné
      * @param {number} oldXP - XP avant le gain (optionnel, sinon utilise player.experience)
-     * @param {number} oldLevel - Niveau avant le gain (optionnel, sinon utilise player.level)
      */
-    async animateXPGain(xpGained, oldXP = null, oldLevel = null) {
+    async animateXPGain(xpGained, oldXP = null) {
         // console.log('[BattleAnimationManager] Gain XP:', xpGained);
 
         const player = this.scene.battleState.playerActive;
         const startXP = oldXP !== null ? oldXP : (player.experience || 0);
-        const startLevel = oldLevel !== null ? oldLevel : (player.level || 1);
+        const startLevel = this.scene.calculateLevelFromXP(startXP) 
+        //oldLevel !== null ? oldLevel : (player.level || 1);
+        
+        
         const newXP = startXP + xpGained;
         const newLevel = this.scene.calculateLevelFromXP(newXP);
 
@@ -629,7 +631,6 @@ export default class BattleAnimationManager {
         if (newLevel === startLevel) {
             await this.fillXPBar(startXP, newXP, startLevel);
             player.experience = newXP;
-            player.level = newLevel;
             return false;
         }
 
@@ -673,8 +674,6 @@ export default class BattleAnimationManager {
 
         // Mettre à jour le Pokémon
         player.experience = newXP;
-        player.level = newLevel;
-
         return true;
     }
 

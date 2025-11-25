@@ -330,7 +330,6 @@ class ItemManager {
                     { _id: new ObjectId(targetPokemonId) },
                     { 
                         $set: { 
-                            level: newLevel,
                             experience: newXP,
                             maxHP: newStats.maxHP,
                             attack: newStats.attack,

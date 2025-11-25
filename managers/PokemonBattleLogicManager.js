@@ -155,7 +155,7 @@ class PokemonBattleLogicManager {
      * @param {string} statName - 'hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed'
      * @returns {number}
      */
-    calculateStat(pokemon, statName) {
+    calculateStat(pokemon, statName,level = 1) {
         // 🆕 Si les stats sont déjà calculées dans l'objet (via PokemonBattleManager), les utiliser directement
         if (pokemon.stats && pokemon.stats[statName] && typeof pokemon.stats[statName] === 'number' && pokemon.stats[statName] > 0) {
             // Vérifier si c'est une stat calculée (valeur > 5) ou une base stat (valeur brute)
@@ -182,9 +182,8 @@ class PokemonBattleLogicManager {
         const ev = pokemon.evs?.[statName] || 0;
         
         // 🔧 FIXE: S'assurer que le niveau est valide
-        let level = pokemon.level;
+        //let level = pokemon.level;
         if (!level || isNaN(level)) level = 1;
-
         if (statName === 'hp') {
             return calculateMaxHP(base, level, iv, ev);
         } else {

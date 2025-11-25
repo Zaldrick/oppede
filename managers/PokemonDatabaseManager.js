@@ -608,7 +608,7 @@ class PokemonDatabaseManager {
      */
     async createDebugPokemon(playerId, speciesId) {
         try {
-            const debugLevel = 11; // Niveau demandé pour le debug
+            const debugLevel = 15; // Niveau demandé pour le debug
             
             // 1. Générer les données via la méthode centralisée
             const pokemonData = await this.generatePokemonData(speciesId, debugLevel, playerId);
