@@ -92,7 +92,8 @@ export class QuizGameScene extends Phaser.Scene {
         const { width, height } = this.sys.game.canvas;
         
         // Calculs adaptatifs pour mobile
-        // const baseSize = Math.min(width, height); // not used
+        const baseSize = Math.min(width, height);
+        const titleSize = Math.min(baseSize * 0.1, 60);
         const subtitleSize = Math.min(baseSize * 0.06, 32);
         const textSize = Math.min(baseSize * 0.04, 24);
 
