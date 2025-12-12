@@ -30,7 +30,7 @@ export class RemotePlayerManager {
   }
 
   handlePlayersUpdate(players, currentMapId, myId) {
-    // Supprime les joueurs qui ne sont plus sur la même carte ou absents
+    // Supprime les joueurs qui ne sont plus sur la mï¿½me carte ou absents
     Object.keys(this.otherPlayers).forEach((id) => {
       if (!players[id] || players[id].mapId !== currentMapId) {
         if (this.otherPlayers[id].sprite) this.otherPlayers[id].sprite.destroy();
@@ -39,7 +39,7 @@ export class RemotePlayerManager {
       }
     });
 
-    // Crée ou met à jour les joueurs distants
+    // Crï¿½e ou met ï¿½ jour les joueurs distants
     Object.keys(players).forEach((id) => {
       if (id !== myId && players[id].mapId === currentMapId) {
         const characterKey = players[id].character;
@@ -102,7 +102,7 @@ export class RemotePlayerManager {
       }
     });
 
-    // Supprime les joueurs qui ne sont plus sur la même carte ou absents
+    // Supprime les joueurs qui ne sont plus sur la mï¿½me carte ou absents
     Object.keys(this.otherPlayers).forEach((id) => {
       if (!this.latestPlayersData[id] || this.latestPlayersData[id].mapId !== currentMapId) {
         if (this.otherPlayers[id].pseudoText) {
@@ -117,7 +117,7 @@ export class RemotePlayerManager {
   }
 
   createRemotePlayer(id, data, textureKey) {
-    // Supprime tout sprite existant pour éviter les résidus
+    // Supprime tout sprite existant pour ï¿½viter les rï¿½sidus
     if (this.otherPlayers[id]) {
       if (this.otherPlayers[id].pseudoText) {
         this.otherPlayers[id].pseudoText.destroy();
@@ -128,13 +128,14 @@ export class RemotePlayerManager {
       delete this.otherPlayers[id];
     }
 
-    // Vérifie que la texture est bien chargée
+    // Vï¿½rifie que la texture est bien chargï¿½e
     if (!this.scene.textures.exists(textureKey)) {
       console.warn(`Texture "${textureKey}" not loaded for player ${data.pseudo}, skipping sprite creation.`);
       return;
     }
 
     const newSprite = this.scene.physics.add.sprite(data.x, data.y, textureKey);
+    newSprite.setDepth(1); // Ensure remote players are visible
     newSprite.setCollideWorldBounds(true);
     newSprite.setImmovable(true);
     newSprite.currentAnim = data.anim || "";
@@ -149,12 +150,12 @@ export class RemotePlayerManager {
       font: "18px Arial",
       fill: "#ffffff",
       align: "center",
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(100);
 
     // Stocke un objet {sprite, pseudoText}
     this.otherPlayers[id] = { sprite: newSprite, pseudoText };
 
-    // Crée dynamiquement les animations pour ce joueur
+    // Crï¿½e dynamiquement les animations pour ce joueur
     CONFIG.animations.forEach((anim) => {
       const animationKey = `${textureKey}-${anim.key}`;
       if (!this.scene.anims.exists(animationKey)) {
@@ -185,7 +186,7 @@ export class RemotePlayerManager {
     remote.x = Math.abs(newX - targetX) < 1 ? targetX : newX;
     remote.y = Math.abs(newY - targetY) < 1 ? targetY : newY;
 
-    // Met à jour la position du pseudoText
+    // Met ï¿½ jour la position du pseudoText
     if (remoteObj.pseudoText) {
       remoteObj.pseudoText.setPosition(remote.x, remote.y - 29);
     }
@@ -203,11 +204,11 @@ export class RemotePlayerManager {
   }
 
   handleCollision(localPlayer, remotePlayer) {
-    // Empêche les vibrations en désactivant les forces de résolution automatiques
+    // Empï¿½che les vibrations en dï¿½sactivant les forces de rï¿½solution automatiques
     const overlapX = localPlayer.x - remotePlayer.x;
     const overlapY = localPlayer.y - remotePlayer.y;
 
-    // Ajuste la position du joueur local pour éviter les vibrations
+    // Ajuste la position du joueur local pour ï¿½viter les vibrations
     if (Math.abs(overlapX) > Math.abs(overlapY)) {
       localPlayer.x += overlapX > 0 ? 1 : -1;
     } else {

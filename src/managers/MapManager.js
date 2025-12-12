@@ -7,6 +7,8 @@ export class MapManager {
     this.scene = scene;
     this.map = null;
     this.collisionLayer = null;
+    this.layers = [];
+    this.objectSprites = [];
     this.currentBackgroundImage = null;
     this.currentMusicKey = null;
     this.activeEvents = [];
@@ -15,29 +17,40 @@ export class MapManager {
     this.mapIds = {
       map: 0,
       map2: 1,
-      map3: 2
+      map3: 2,
+      qwest: 3
     };
 
     this.backgroundImages = {
       0: "background",
       1: "backgroundext",
       2: "backgroundoppede",
+      3: "qwest",
     };
 
     this.mapMusic = {
+      // Associe chaque clé de map (nom du fichier JSON sans extension) à une clé de musique (chargée dans GameScene)
       map: "music1",
       map2: "music1",
       map3: "music1",
+      qwest: "qwest",
     };
 
     this.teleportPoints = {
       map: [
-        { x: 18*48 + 24, y: 43*48+24, targetMap: "map2", targetX: 7 * 48 + 24, targetY: 8 * 48 + 24 },
+        //{ x: 18*48 + 24, y: 43*48+24, targetMap: "map2", targetX: 7 * 48 + 24, targetY: 8 * 48 + 24 },
+        { x:  18*48 + 24, y: 43*48+24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 8 * 48 + 2 }
       ],
       map2: [
         { x: 7 * 48 + 24, y: 7 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24 },
       ],
-      map3: [],
+      map3: [
+        { x: 42 * 48 + 24, y: 5 * 48 + 24, targetMap: "qwest", targetX: 13 * 48 + 24, targetY: 5 * 48 + 24 },
+        { x: 38 * 48 + 24, y: 5 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24  }
+      ],
+      qwest: [
+        { x: 14 * 48 + 24, y: 5 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 }
+      ],
     };
   }
 
@@ -57,14 +70,40 @@ export class MapManager {
   }
 
   async changeMap(mapKey, spawnX, spawnY) {
+    console.log(`[MapManager] changeMap called with key: ${mapKey}`);
+    
     if (!this.scene.cache.tilemap.has(mapKey)) {
       return;
     }
 
-    // Supprime les colliders existants
+    // Nettoyage complet de la map précédente
     if (this.collisionLayer) {
       this.scene.physics.world.colliders.destroy();
       this.collisionLayer.destroy();
+      this.collisionLayer = null;
+    }
+
+    if (this.layers) {
+        this.layers.forEach(layer => layer.destroy());
+        this.layers = [];
+    }
+
+    if (this.objectSprites) {
+        this.objectSprites.forEach(sprite => sprite.destroy());
+        this.objectSprites = [];
+    }
+
+    if (this.activeEvents) {
+        this.activeEvents.forEach(event => {
+            if (event.bubble) event.bubble.destroy();
+            event.destroy();
+        });
+        this.activeEvents = [];
+    }
+
+    if (this.map) {
+        this.map.destroy();
+        this.map = null;
     }
 
     // Charge la nouvelle carte
@@ -75,36 +114,97 @@ export class MapManager {
       return;
     }
 
-    const tileset = this.map.addTilesetImage("Inside_B", "Inside_B");
-    if (!tileset) {
-      console.error(`Le tileset "Inside_B" n'a pas pu être chargé.`);
-      return;
-    }
+    // Charge les tilesets dynamiquement
+    const tilesets = [];
+    this.map.tilesets.forEach(tilesetData => {
+        let tilesetName = tilesetData.name;
+        
+        // Fallback pour les tilesets externes sans nom explicite dans le JSON
+        if (!tilesetName && tilesetData.source) {
+            // Extrait le nom du fichier sans l'extension
+            // ex: "Interiors_48x48.tsx" -> "Interiors_48x48"
+            const parts = tilesetData.source.split('/');
+            const filename = parts[parts.length - 1];
+            tilesetName = filename.replace(/\.[^/.]+$/, "");
+        }
+
+        if (!tilesetName) {
+             console.warn("Tileset sans nom ni source valide:", tilesetData);
+             return;
+        }
+
+        const tileset = this.map.addTilesetImage(tilesetName, tilesetName);
+        if (tileset) {
+            tilesets.push(tileset);
+        } else {
+            console.warn(`Le tileset "${tilesetName}" n'a pas pu être chargé.`);
+        }
+    });
 
     // Affiche l'image de fond correspondant au mapId
     const mapId = this.mapIds[mapKey];
     this.scene.registry.set("currentMapId", mapId);
+
+    // Update playerData in registry and PlayerService to ensure correct mapId is saved
+    const playerData = this.scene.registry.get("playerData");
+    if (playerData) {
+        playerData.mapId = mapId;
+        this.scene.registry.set("playerData", playerData);
+        PlayerService.setPlayerData(playerData);
+    }
+    
+    // Sécurité : on s'assure que backgroundImages est défini pour éviter l'erreur "reading '2'"
+    if (!this.backgroundImages) {
+        console.warn("[MapManager] backgroundImages was undefined. Re-initializing default values.");
+        this.backgroundImages = {
+            0: "background",
+            1: "backgroundext",
+            2: "backgroundoppede",
+            3: "qwest",
+        };
+    }
+
     const backgroundImageKey = this.backgroundImages[mapId];
     if (backgroundImageKey) {
       if (this.currentBackgroundImage) {
         this.currentBackgroundImage.destroy();
       }
-      this.currentBackgroundImage = this.scene.add.image(0, 0, backgroundImageKey).setOrigin(0).setDepth(-1);
+      // Profondeur très basse pour le fond (-100) pour laisser de la place aux couches négatives (-1, -2...)
+      this.currentBackgroundImage = this.scene.add.image(0, 0, backgroundImageKey).setOrigin(0).setDepth(-100);
     } else {
       console.warn(`Aucune image de fond trouvée pour mapId: ${mapId}`);
     }
 
     // Configure les couches
-    this.collisionLayer = this.map.createLayer("Collision", tileset, 0, 0);
+    this.map.layers.forEach(layerData => {
+        const layer = this.map.createLayer(layerData.name, tilesets, 0, 0);
+        this.layers.push(layer);
+        
+        // Gestion de la profondeur via le nom de la couche (ex: "2", "-1")
+        const depth = parseInt(layerData.name, 10);
+        if (!isNaN(depth)) {
+            layer.setDepth(depth);
+        }
+
+        // Cas spécifique pour la collision (nom "Collision" ou "collision")
+        if (layerData.name.toLowerCase() === "collision") {
+            this.collisionLayer = layer;
+            this.collisionLayer.setCollisionByProperty({ collision: true });
+            // On force la profondeur à 0 et on cache la couche
+            layer.setDepth(-999); 
+            layer.setVisible(false);
+        }
+    });
+
     if (!this.collisionLayer) {
       console.error("La couche de collision n'a pas pu être créée.");
       return;
     }
-    this.collisionLayer.setCollisionByProperty({ collision: true });
 
+    // Debug tile check (optional, kept from original)
     var tile = this.collisionLayer.getTileAt(7, 8);
     if (!tile) {
-      console.warn("Aucune tuile trouvée aux coordonnées (7, 8) dans la couche Collision.");
+      // console.warn("Aucune tuile trouvée aux coordonnées (7, 8) dans la couche Collision.");
     }
 
     // Met à jour les limites du monde
@@ -125,7 +225,8 @@ export class MapManager {
       this.scene.physics.add.collider(player, this.collisionLayer);
     }
 
-    PlayerService.updatePlayerData({ mapId });
+    // Gestion des couches d'objets (visuels)
+    this.createObjectLayers();
 
     await this.loadWorldEvents();
     
@@ -163,7 +264,75 @@ export class MapManager {
       });
     }
 
+    // Force save position to DB to persist map change immediately
+    if (this.scene.playerManager) {
+        this.scene.playerManager.updatePositionInDB().catch(err => console.warn("Failed to save position after map change:", err));
+    }
+
     this.playMusicForMap(mapKey);
+    }
+
+    createObjectLayers() {
+        if (!this.map.objects) return;
+
+        this.map.objects.forEach(layerData => {
+            // Ignore la couche "events" qui est gérée séparément
+            if (layerData.name === "events") return;
+
+            const depth = parseInt(layerData.name, 10) || 10; // Default depth if not a number
+            
+            layerData.objects.forEach(obj => {
+                if (obj.gid) {
+                    // Clean GID (remove flip flags)
+                    // Flags: 0x80000000 (H), 0x40000000 (V), 0x20000000 (D)
+                    const rawGid = obj.gid;
+                    const gid = rawGid & ~(0x80000000 | 0x40000000 | 0x20000000);
+                    
+                    // Find tileset for this GID
+                    const tileset = this.map.tilesets.find(t => gid >= t.firstgid && gid < (t.firstgid + t.total));
+                    
+                    if (tileset) {
+                        const frame = gid - tileset.firstgid;
+                        
+                        // Check for collision property on the tile
+                        const tileProps = tileset.getTileProperties(frame);
+                        const isCollision = tileProps && tileProps.collision;
+
+                        const sprite = this.scene.add.sprite(obj.x, obj.y, tileset.name, frame);
+                        
+                        // Tiled objects are bottom-left origin
+                        sprite.setOrigin(0, 1);
+                        
+                        // Apply dimensions
+                        if (obj.width && obj.height) {
+                            sprite.setDisplaySize(obj.width, obj.height);
+                        }
+                        
+                        // Apply rotation
+                        if (obj.rotation) {
+                            sprite.setRotation(Phaser.Math.DegToRad(obj.rotation));
+                        }
+                        
+                        // Apply flips
+                        const flippedH = (rawGid & 0x80000000) !== 0;
+                        const flippedV = (rawGid & 0x40000000) !== 0;
+                        if (flippedH) sprite.setFlipX(true);
+                        if (flippedV) sprite.setFlipY(true);
+                        
+                        sprite.setDepth(depth);
+                        
+                        // Hide if it's a collision tile, otherwise use object visibility
+                        if (isCollision) {
+                            sprite.setVisible(false);
+                        } else {
+                            sprite.setVisible(obj.visible);
+                        }
+                        
+                        this.objectSprites.push(sprite);
+                    }
+                }
+            });
+        });
     }
 
     async loadWorldEvents() {
@@ -225,6 +394,7 @@ export class MapManager {
         // ✅ CHANGEMENT - Placer le marchand sur map3 (Oppède) au lieu de map
         if (mapKey === "map3") {
             this.createBoosterVendor();
+            this.createRalofNPC();
         }
     }
 
@@ -294,6 +464,61 @@ export class MapManager {
         console.log(`🛒 Marchand de boosters créé à la position (${vendorX}, ${vendorY}) sur ${this.map?.key || 'unknown'}`);
     }
 
+    createRalofNPC() {
+        if (!this.map) return;
+
+        // Position de Ralof sur la gauche de la map3
+        const ralofX = 6 * 48 + 24; 
+        const ralofY = 10 * 48 + 24;
+
+        // Ajustement de la position Y pour le sprite de 96px de haut (centré par défaut)
+        // On le remonte de 24px pour que les pieds soient alignés avec la tuile
+        const ralof = this.scene.physics.add.sprite(ralofX, ralofY - 24, "ralof", 0);
+        
+        ralof.setImmovable(true);
+        ralof.setInteractive();
+        ralof.npcType = "ralof";
+
+        // Animation d'idle pour Ralof
+        this.scene.anims.create({
+            key: 'ralof_idle',
+            frames: this.scene.anims.generateFrameNumbers('ralof', { start: 3, end: 3 }),
+            frameRate: 4,
+            repeat: -1,
+            yoyo: true
+        });
+
+        ralof.play('ralof_idle');
+
+        // Ajouter collision avec le joueur
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, ralof);
+        }
+
+        this.activeEvents.push(ralof);
+
+        // Indicateur visuel
+        const bubble = this.scene.add.text(ralofX, ralofY - 35, "?", {
+            font: "24px Arial",
+            fill: "#fff",
+            stroke: "#000",
+            strokeThickness: 2
+        }).setOrigin(0.5);
+
+        this.scene.tweens.add({
+            targets: bubble,
+            y: ralofY - 45,
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
+        ralof.bubble = bubble;
+        console.log(`Ralof créé à la position (${ralofX}, ${ralofY}) sur ${this.map?.key || 'unknown'}`);
+    }
+
 
     createNPC(eventData, x, y) {
         const npc = this.scene.physics.add.sprite(x + 24, y + 24, "player", 0);
@@ -307,7 +532,12 @@ export class MapManager {
     }
 
     handleNPCInteraction(npc) {
-        if (npc.npcType === "booster_vendor") {
+        if (npc.npcType === "ralof") {
+            const answer = window.prompt("What's my Name ?");
+            if (answer && answer.toLowerCase() === "ralof") {
+                this.changeMap("qwest", 13 * 48 + 24, 5 * 48 + 24);
+            }
+        } else if (npc.npcType === "booster_vendor") {
             // ✅ AMÉLIORATION - Dialogue plus immersif
             this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !");
 
@@ -432,8 +662,8 @@ export class MapManager {
     eventData.state.opened = true;
     // Play SFX for item obtained
     try {
-      if (this.scene && this.scene.soundManager) {
-        this.scene.soundManager.playMoveSound('item_get', { volume: 0.85 });
+      if (this.scene && this.scene.sound) {
+        this.scene.sound.play('item_get', { volume: 0.85 });
       }
     } catch (e) { /* ignore */ }
   }

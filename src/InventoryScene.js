@@ -36,6 +36,8 @@ export class InventoryScene extends Phaser.Scene {
 
     preload() {
         this.load.audio("poubelle", ConfigManager.ASSETS.PATHS.SOUNDS + "poubelle.mp3");
+        this.load.audio("item_get", "/assets/sounds/Item_Get.wav?v=1");
+        this.load.audio("keyitem_get", "/assets/sounds/KeyItem_Get.wav?v=1");
     }
 
     async create() {
@@ -239,7 +241,7 @@ export class InventoryScene extends Phaser.Scene {
             this.updateGlobalInventoryCache();
             this.displayMessage(`${data.cards.length} cartes ajoutées !`);
             // Play item get sound
-            try { if (this.soundManager) this.soundManager.playMoveSound('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
+            try { this.sound.play('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
         }
     }
 
@@ -253,7 +255,7 @@ export class InventoryScene extends Phaser.Scene {
         if (Array.isArray(cards)) {
             await this.addCardsToInventory(cards);
             this.updateGlobalInventoryCache();
-            try { if (this.soundManager) this.soundManager.playMoveSound('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
+            try { this.sound.play('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
         }
     }
 

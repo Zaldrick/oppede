@@ -18,8 +18,14 @@ export class BoosterOpeningScene extends Phaser.Scene {
         this.load.image('boosterArgent', 'assets/items/boosterArgent.png');
         this.load.image('boosterOr', 'assets/items/boosterOr.png');
         this.load.image('boosterP', 'assets/items/boosterP.png');
-        this.load.audio('carte_captured', '/assets/sounds/cardCaptured.mp3');
-        this.load.audio('booster_opening', '/assets/sounds/boosterOpenning.mp3');
+        
+        // Only load audio if not already cached
+        if (!this.cache.audio.exists('carte_captured')) {
+            this.load.audio('carte_captured', '/assets/sounds/cardCaptured.mp3');
+        }
+        if (!this.cache.audio.exists('booster_opening')) {
+            this.load.audio('booster_opening', '/assets/sounds/boosterOpenning.mp3');
+        }
 
         console.log("Booster reçu en preload:", this.booster);
 
@@ -154,7 +160,7 @@ export class BoosterOpeningScene extends Phaser.Scene {
             });
             if (dragDelta > openThreshold) {
                 boosterOpened = true;
-                try { if (this.soundManager) this.soundManager.playMoveSound('booster_opening', { volume: 0.9 }); else this.sound.play('booster_opening'); } catch (e) { /* ignore */ }
+                try { this.sound.play('booster_opening', { volume: 0.9 }); } catch (e) { /* ignore */ }
                 const flash = this.add.rectangle(
                     this.cameras.main.centerX,
                     this.cameras.main.centerY,
@@ -233,10 +239,23 @@ export class BoosterOpeningScene extends Phaser.Scene {
             console.log("🎯 Données à envoyer à l'API:");
             console.log("  - playerId:", playerId, "type:", typeof playerId);
             console.log("  - boosterItemId:", boosterItemId, "type:", typeof boosterItemId);
+            console.log("  - booster full:", this.booster);
+
+            if (!boosterItemId) {
+                throw new Error('boosterItemId is undefined - check this.booster structure');
+            }
 
             const serverCards = await openBooster(playerId, boosterItemId);
 
             console.log("🎯 Cartes reçues du serveur:", serverCards);
+
+            // Reload inventaire immédiatement après ouverture pour retirer le booster consommé
+            this.game.events.emit('inventory:update');
+            const inventoryScene = this.scene.get("InventoryScene");
+            if (inventoryScene && typeof inventoryScene.reloadInventory === "function") {
+                await inventoryScene.reloadInventory();
+                inventoryScene.drawInventory();
+            }
 
             this.cards = serverCards;
 
@@ -388,9 +407,9 @@ export class BoosterOpeningScene extends Phaser.Scene {
             scale: scale * 1.1,
             duration: 350,
             ease: 'Back.Out',
-                    onStart: () => {
-                        try { if (this.soundManager) this.soundManager.playMoveSound('carte_captured', { volume: 0.95 }); else this.sound.play('carte_captured'); } catch (e) { /* ignore */ }
-                    }
+            onStart: () => {
+                try { this.sound.play('carte_captured', { volume: 0.95 }); } catch (e) { /* ignore */ }
+            }
         });
         this.tweens.add({
             targets: [valUp, valDown, valLeft, valRight],

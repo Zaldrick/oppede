@@ -1,3 +1,4 @@
+import { getTypeEffectiveness, getEffectivenessMessage } from '../utils/typeEffectiveness';
 import getPokemonDisplayName from '../utils/getDisplayName';
 /**
  * BattleAnimationManager.js
@@ -128,13 +129,13 @@ export default class BattleAnimationManager {
                 const originalX = this.scene.opponentSprite.x;
                 this.scene.opponentSprite.x = -width * 0.3;
                 this.scene.opponentSprite.setAlpha(1);
-                // Play opponent cry just before starting the final animation
+                
+                // Play opponent cry BEFORE the animation
                 try {
                     if (this.scene && this.scene.soundManager && this.scene.battleState && this.scene.battleState.opponentActive) {
                         const speciesId = this.scene.battleState.opponentActive.species_id;
-                        console.debug(`[BattleAnimationManager] Playing opponent entrance cry (before animation) for ${speciesId}`);
-                        // Fire-and-forget so animation starts immediately
-                        this.scene.soundManager.playPokemonCry(speciesId).catch(() => {});
+                        console.debug(`[BattleAnimationManager] Playing opponent entrance cry for ${speciesId}`);
+                        try { await this.scene.soundManager.playPokemonCry(speciesId); } catch (e) { console.warn('[BattleAnimationManager] Error playing opponent cry', e); }
                     }
                 } catch (e) { /* ignore */ }
 
@@ -154,12 +155,13 @@ export default class BattleAnimationManager {
                 container.style.left = `${-width * 0.3}px`;
                 container.style.opacity = '1';
                 container.style.transition = 'left 600ms cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-                // Play opponent cry just before starting the final animation
+                
+                // Play opponent cry BEFORE the animation (GIF)
                 try {
                     if (this.scene && this.scene.soundManager && this.scene.battleState && this.scene.battleState.opponentActive) {
                         const speciesId = this.scene.battleState.opponentActive.species_id;
-                        console.debug(`[BattleAnimationManager] Playing opponent entrance cry (before animation) for ${speciesId} (GIF)`);
-                        this.scene.soundManager.playPokemonCry(speciesId).catch(() => {});
+                        console.debug(`[BattleAnimationManager] Playing opponent entrance cry for ${speciesId} (GIF)`);
+                        try { await this.scene.soundManager.playPokemonCry(speciesId); } catch (e) { console.warn('[BattleAnimationManager] Error playing opponent cry (GIF)', e); }
                     }
                 } catch (e) { /* ignore */ }
 
@@ -195,12 +197,13 @@ export default class BattleAnimationManager {
                 const originalX = this.scene.playerSprite.x;
                 this.scene.playerSprite.x = width * 1.3;
                 this.scene.playerSprite.setAlpha(1);
-                // Play player cry just before the final animation
+                
+                // Play player cry BEFORE the animation
                 try {
                     if (this.scene && this.scene.soundManager && this.scene.battleState && this.scene.battleState.playerActive) {
                         const speciesId = this.scene.battleState.playerActive.species_id;
-                        console.debug(`[BattleAnimationManager] Playing player entrance cry (before animation) for ${speciesId}`);
-                        this.scene.soundManager.playPokemonCry(speciesId).catch(() => {});
+                        console.debug(`[BattleAnimationManager] Playing player entrance cry for ${speciesId}`);
+                        try { await this.scene.soundManager.playPokemonCry(speciesId); } catch (e) { console.warn('[BattleAnimationManager] Error playing player cry', e); }
                     }
                 } catch (e) { /* ignore */ }
 
@@ -220,12 +223,13 @@ export default class BattleAnimationManager {
                 container.style.left = `${width * 1.3}px`;
                 container.style.opacity = '1';
                 container.style.transition = 'left 600ms cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-                // Play player cry just before the final animation
+                
+                // Play player cry BEFORE the animation (GIF)
                 try {
                     if (this.scene && this.scene.soundManager && this.scene.battleState && this.scene.battleState.playerActive) {
                         const speciesId = this.scene.battleState.playerActive.species_id;
-                        console.debug(`[BattleAnimationManager] Playing player entrance cry (before animation) for ${speciesId} (GIF)`);
-                        this.scene.soundManager.playPokemonCry(speciesId).catch(() => {});
+                        console.debug(`[BattleAnimationManager] Playing player entrance cry for ${speciesId} (GIF)`);
+                        try { await this.scene.soundManager.playPokemonCry(speciesId); } catch (e) { console.warn('[BattleAnimationManager] Error playing player cry (GIF)', e); }
                     }
                 } catch (e) { /* ignore */ }
 
@@ -612,16 +616,14 @@ export default class BattleAnimationManager {
      * 🆕 Anime le gain d'XP avec barre progressive et gestion level-up
      * @param {number} xpGained - XP gagné
      * @param {number} oldXP - XP avant le gain (optionnel, sinon utilise player.experience)
+     * @param {number} oldLevel - Niveau avant le gain (optionnel, sinon utilise player.level)
      */
-    async animateXPGain(xpGained, oldXP = null) {
+    async animateXPGain(xpGained, oldXP = null, oldLevel = null) {
         // console.log('[BattleAnimationManager] Gain XP:', xpGained);
 
         const player = this.scene.battleState.playerActive;
         const startXP = oldXP !== null ? oldXP : (player.experience || 0);
-        const startLevel = this.scene.calculateLevelFromXP(startXP) 
-        //oldLevel !== null ? oldLevel : (player.level || 1);
-        
-        
+        const startLevel = oldLevel !== null ? oldLevel : (player.level || 1);
         const newXP = startXP + xpGained;
         const newLevel = this.scene.calculateLevelFromXP(newXP);
 
@@ -631,6 +633,7 @@ export default class BattleAnimationManager {
         if (newLevel === startLevel) {
             await this.fillXPBar(startXP, newXP, startLevel);
             player.experience = newXP;
+            player.level = newLevel;
             return false;
         }
 
@@ -674,6 +677,8 @@ export default class BattleAnimationManager {
 
         // Mettre à jour le Pokémon
         player.experience = newXP;
+        player.level = newLevel;
+
         return true;
     }
 

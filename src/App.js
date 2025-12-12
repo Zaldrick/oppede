@@ -36,6 +36,8 @@ const Game = () => {
             parent: 'game-container',
             width: window.innerWidth,
             height: window.innerHeight,
+            pixelArt: true, // Fixes texture bleeding/blurriness
+            roundPixels: true, // Forces integer coordinates to prevent sub-pixel artifacts
             scale: {
                 mode: Phaser.Scale.FIT,
                 autoCenter: Phaser.Scale.CENTER_BOTH,

@@ -24,6 +24,11 @@ export class UIManager {
     const gameWidth = this.scene.scale.width;
     const gameHeight = this.scene.scale.height;
 
+    // Si la largeur est supérieure à la hauteur (mode paysage/desktop), on n'affiche pas les contrôles tactiles
+    if (gameWidth > gameHeight) {
+        return;
+    }
+
     const joystickPlugin = this.scene.plugins.get('rexvirtualjoystickplugin');
     if (!joystickPlugin) {
       console.error("rexVirtualJoystick plugin is not available in GameScene.");
@@ -36,8 +41,8 @@ export class UIManager {
       x: gameWidth * 0.2,
       y: gameHeight * 0.82,
       radius: joystickRadius,
-      base: this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor),
-      thumb: this.scene.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor),
+      base: this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor).setDepth(9999),
+      thumb: this.scene.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor).setDepth(9999),
     });
     this.joystick.setScrollFactor(0);
 
@@ -45,12 +50,13 @@ export class UIManager {
     const buttonARadius = gameWidth * 0.07 / this.zoomFactor;
     this.buttonA = this.scene.add.circle(gameWidth * 0.87, gameHeight * 0.8, buttonARadius, 0x808080)
       .setInteractive()
+      .setDepth(9999)
       .on('pointerdown', () => this.handleButtonA());
     this.buttonAText = this.scene.add.text(gameWidth * 0.87, gameHeight * 0.8, "A", {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(9999);
     this.buttonA.setScrollFactor(0);
     this.buttonAText.setScrollFactor(0);
 
@@ -58,6 +64,7 @@ export class UIManager {
     const buttonBRadius = gameWidth * 0.07 / this.zoomFactor;
     this.buttonB = this.scene.add.circle(gameWidth * 0.74, gameHeight * 0.85, buttonBRadius, 0x808080)
       .setInteractive()
+      .setDepth(9999)
       .on('pointerdown', () => { this.scene.playerManager?.setSpeedBoost(true); })
       .on('pointerup', () => { this.scene.playerManager?.setSpeedBoost(false); })
       .on('pointerout', () => { this.scene.playerManager?.setSpeedBoost(false); });
@@ -65,7 +72,7 @@ export class UIManager {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(9999);
     this.buttonB.setScrollFactor(0);
     this.buttonBText.setScrollFactor(0);
 
@@ -74,12 +81,13 @@ export class UIManager {
     const startButtonHeight = gameHeight * 0.04 / this.zoomFactor;
     this.startButton = this.scene.add.rectangle(gameWidth * 0.5, gameHeight * 0.88, startButtonWidth, startButtonHeight, 0x808080)
       .setInteractive()
+      .setDepth(9999)
       .on('pointerdown', () => this.handleStartButton());
     this.startButtonText = this.scene.add.text(gameWidth * 0.5, gameHeight * 0.88, "Start", {
       font: `${gameWidth * 0.05 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(9999);
     this.startButton.setScrollFactor(0);
     this.startButtonText.setScrollFactor(0);
   }
@@ -141,7 +149,7 @@ export class UIManager {
     const menuX = player.x + 100;
     const menuY = player.y - 100;
 
-    this.interactionMenu = this.scene.add.container(menuX, menuY);
+    this.interactionMenu = this.scene.add.container(menuX, menuY).setDepth(9999);
 
     const background = this.scene.add.rectangle(0, 0, 160, 125, 0x000000, 0.8).setOrigin(0.5);
     this.interactionMenu.add(background);
@@ -230,6 +238,8 @@ export class UIManager {
 
         if (this.startMenu) {
             this.startMenu.destroy();
+            this.startMenu = null;
+            return;
         }
 
         const player = this.scene.playerManager?.getPlayer();
@@ -240,7 +250,7 @@ export class UIManager {
         const gameWidth = this.scene.scale.width;
         const gameHeight = this.scene.scale.height;
 
-        this.startMenu = this.scene.add.container(playerX, playerY + gameHeight * 0.05);
+        this.startMenu = this.scene.add.container(playerX, playerY + gameHeight * 0.05).setDepth(9999);
 
         const background = this.scene.add.rectangle(0, 0, gameWidth * 0.95, gameHeight * 0.85, 0x000000, 0.85).setOrigin(0.5);
         this.startMenu.add(background);
@@ -381,7 +391,7 @@ export class UIManager {
     const gameWidth = this.scene.scale.width;
     const gameHeight = this.scene.scale.height;
 
-    this.profileMenu = this.scene.add.container(gameWidth / 2, gameHeight / 2);
+    this.profileMenu = this.scene.add.container(gameWidth / 2, gameHeight / 2).setDepth(9999);
 
     const background = this.scene.add.rectangle(0, 0, gameWidth * 0.8, gameHeight * 0.6, 0x000000, 0.8).setOrigin(0.5);
     this.profileMenu.add(background);
@@ -494,6 +504,16 @@ export class UIManager {
     });
     this.scene.input.keyboard.on('keyup-SHIFT', () => {
       this.scene.playerManager?.setSpeedBoost(false);
+    });
+
+    // Entrée pour interagir (A)
+    this.scene.input.keyboard.on('keydown-ENTER', () => {
+        this.handleButtonA();
+    });
+
+    // Echap pour le menu (Start)
+    this.scene.input.keyboard.on('keydown-ESC', () => {
+        this.handleStartButton();
     });
   }
 

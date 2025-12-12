@@ -1,0 +1,71 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "qwest.tmx",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "file.lastUsedOpenFilter": "Tous les Fichiers (*)",
+    "fileStates": {
+        "": {
+            "scaleInDock": 1
+        },
+        "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps/Inside_B.tsx": {
+            "scaleInDock": 1
+        },
+        "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps/oppede.tmx": {
+            "scale": 0.2194047619047619,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1531.4161692892021,
+                "y": 717.8513293543135
+            }
+        },
+        "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps/oppede.tmx#Inside_B": {
+            "scaleInDock": 1
+        },
+        "Interiors_free.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "Room_Builder_free.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "qwest.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 3093.5,
+                "y": 1043
+            }
+        },
+        "qwest.tmx#Room_Builder_free": {
+            "scaleInDock": 1
+        }
+    },
+    "last.imagePath": "C:/Users/Zaldrick/Documents/Tiled/christmas/tileset/1_Interiors/48x48",
+    "map.height": 50,
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 48,
+    "map.tileWidth": 48,
+    "map.width": 60,
+    "openFiles": [
+        "qwest.tmx"
+    ],
+    "project": "christmas.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "Interiors_free.tsx",
+        "Room_Builder_free.tsx",
+        "qwest.tmx",
+        "C:/Users/Zaldrick/Documents/GitHub/oppede/public/assets/maps/oppede.tmx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 48,
+        "width": 48
+    }
+}

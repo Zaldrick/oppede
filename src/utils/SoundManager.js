@@ -281,8 +281,8 @@ export default class SoundManager {
     }
 
     buildUrl(moveName, ext, path) {
-        const filename = moveName;
-        return `${path}${encodeURIComponent(filename)}.${ext}`;
+        const filename = `${moveName}.${ext}`;
+        return `${path}${encodeURIComponent(filename)}`;
     }
 
     // Build a list of candidate filenames to try based on common filename patterns in the assets
@@ -336,34 +336,13 @@ export default class SoundManager {
             };
 
             try {
-                // Before loading with Phaser, attempt a quick HEAD request to validate the resource exists and is likely an audio file.
-                // This helps avoid loading an HTML 404 page that later fails to decode.
-                (async () => {
-                    try {
-                        const head = await fetch(url, { method: 'HEAD' });
-                        if (!head.ok) {
-                            // Not found or other HTTP error -- fail early
-                            console.warn('[SoundManager] HEAD check not ok for', url, head.status);
-                            cleanup();
-                            return reject(new Error('Not found'));
-                        }
-                        const ct = head.headers.get('content-type') || '';
-                        if (ct && !ct.startsWith('audio/')) {
-                            // Not an audio content type
-                            console.warn('[SoundManager] HEAD content-type not audio for', url, ct);
-                            cleanup();
-                            return reject(new Error('Not audio content-type'));
-                        }
-                    } catch (e) {
-                        // HEAD failed (some static servers/proxies don't respond to HEAD), we let Phaser try to load.
-                    }
-
-                    // Register events
-                    this.scene.load.once('filecomplete', onFileComplete);
-                    this.scene.load.once('loaderror', onFileError);
-                    this.scene.load.audio(key, url);
-                    this.scene.load.start();
-                })();
+                // Register events and ask Phaser to load the audio resource.
+                // We removed the HEAD pre-check to avoid noisy fetches against static servers
+                // that return HTML for missing files. Let Phaser handle the actual request.
+                this.scene.load.once('filecomplete', onFileComplete);
+                this.scene.load.once('loaderror', onFileError);
+                this.scene.load.audio(key, url);
+                this.scene.load.start();
             } catch (e) {
                 cleanup();
                 reject(e);
@@ -373,54 +352,104 @@ export default class SoundManager {
 
     // Attempt to load move sound trying supported extensions sequentially
     async tryLoadMoveSound(moveName) {
-        const key = this.buildKey(moveName);
+        const baseKey = this.buildKey(moveName);
         // already loaded
-        if (this.loaded.has(key) || (this.scene.sound && this.scene.sound.get(key))) return key;
-        if (this.loading.has(key)) return this.loading.get(key);
+        if (this.loaded.has(baseKey) || (this.scene.sound && this.scene.sound.get(baseKey))) return baseKey;
+        if (this.loading.has(baseKey)) return this.loading.get(baseKey);
 
         const promise = (async () => {
-            // support a special mapping (generic/critical/faint) to existing asset names
+            // Simplified loading strategy: files are named with their exact English names (Nuzzle.mp3, etc.)
             const specialName = this.specialMappings[moveName?.toLowerCase()];
-            const candidateNames = specialName ? [specialName] : this.buildCandidateNames(moveName);
+            
+            // Build simple list of candidates: exact move name is primary
+            let candidateNames = [moveName]; // ex: "nuzzle" or "levelUp"
 
-            // Try movePath first (move sounds are in /moves), then sfxPath (event sounds)
+            // Add Title-case variant (most likely match: Nuzzle or LevelUp)
+            // Handle both space-separated words AND camelCase
+            let titleCase;
+            if (moveName.includes(' ')) {
+                // Space-separated: "quick attack" → "Quick Attack"
+                titleCase = moveName
+                    .trim()
+                    .split(' ')
+                    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                    .join(' ');
+            } else {
+                // camelCase: "levelUp" → "LevelUp"
+                titleCase = moveName.charAt(0).toUpperCase() + moveName.slice(1);
+            }
+            if (titleCase !== moveName) {
+                candidateNames.push(titleCase); // ex: "Nuzzle" or "LevelUp"
+            }
+            // Add special mapping if exists
+            if (specialName) {
+                candidateNames.unshift(specialName);
+            }
+
             const basePaths = [this.movePath, this.sfxPath];
+            const tryExtensions = ['mp3', 'wav', 'ogg'];
+
             for (const candidate of candidateNames) {
+                if (!candidate) continue;
                 for (const basePath of basePaths) {
-                    // Support both explicit /assets... and /public/assets... served by express.
-                    // Many environments serve static files under `/public`; try it first to avoid 404->index.html
                     const tryPaths = [`/public${basePath}`, basePath];
                     for (const tryPath of tryPaths) {
-                        for (const ext of this.extensions) {
+                        for (const ext of tryExtensions) {
                             const url = this.buildUrl(candidate, ext, tryPath);
-                            // debug: log the attempt
-                            console.debug(`[SoundManager] tryLoadMoveSound attempt key=${key} url=${url}`);
-                        try {
-                            await this.loadAudioForKey(key, url);
-                            // Mark loaded
-                            this.loaded.add(key);
-                            console.log(`[SoundManager] tryLoadMoveSound loaded key=${key} from ${url}`);
-                            return key;
-                        } catch (e) {
-                            // try next extension
+                            // Try a simple fetch first to validate the file exists and is audio before Phaser tries
+                            try {
+                                const response = await fetch(url, { method: 'HEAD' });
+                                if (!response.ok) {
+                                    // 404 or other error, skip this URL
+                                    continue;
+                                }
+                                
+                                // Check content-type header to ensure it's audio (not HTML)
+                                const contentType = response.headers.get('content-type') || '';
+                                if (!contentType.includes('audio')) {
+                                    // Wrong content type (probably HTML 404), skip
+                                    continue;
+                                }
+                                
+                                // File exists and is audio, now load it with Phaser under baseKey
+                                await this.loadAudioForKey(baseKey, url);
+                                this.loaded.add(baseKey);
+                                console.log(`[SoundManager] ✓ Loaded move sound: ${candidate} (${url})`);
+                                return baseKey;
+                            } catch (e) {
+                                // HEAD failed or network error, try GET instead as fallback
+                                try {
+                                    const getResponse = await fetch(url, { method: 'GET' });
+                                    if (!getResponse.ok) continue;
+                                    
+                                    const contentType = getResponse.headers.get('content-type') || '';
+                                    if (!contentType.includes('audio')) continue;
+                                    
+                                    await this.loadAudioForKey(baseKey, url);
+                                    this.loaded.add(baseKey);
+                                    console.log(`[SoundManager] ✓ Loaded move sound (via GET): ${candidate} (${url})`);
+                                    return baseKey;
+                                } catch (e2) {
+                                    // both HEAD and GET failed, try next candidate
+                                }
+                            }
                         }
-                    }
                     }
                 }
             }
 
-            // If no sound file exists, reject
-            console.warn(`[SoundManager] Aucune piste trouvée pour ${moveName} (candidates: ${candidateNames.join(', ')})`);
+            // If no sound file exists, warn once and fail
+            console.warn(`[SoundManager] ✗ Aucune piste trouvée pour ${moveName} (candidates: ${candidateNames.join(', ')})`);
             throw new Error('No move sound found');
         })();
 
-        this.loading.set(key, promise);
+        this.loading.set(baseKey, promise);
         try {
             const result = await promise;
-            this.loading.delete(key);
+            this.loading.delete(baseKey);
             return result;
         } catch (e) {
-            this.loading.delete(key);
+            this.loading.delete(baseKey);
             throw e;
         }
     }

@@ -43,7 +43,7 @@ export class GameScene extends Phaser.Scene {
             const appearancePath = `/assets/apparences/${playerPseudo}.png`;
             this.load.spritesheet("playerAppearance", appearancePath, {
                 frameWidth: 48,
-                frameHeight: 48,
+                frameHeight: 96,
             });
         } else {
             console.error("Player pseudo is not defined in the registry!");
@@ -75,13 +75,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     resume() {
-        if (!MusicManager.isPlaying('gameMusic')) {
-            MusicManager.play(this, 'gameMusic', { loop: true, volume: 0.5 });
-        }
+        MusicManager.resume();
     }
 
     async create() {
         this.game.events.emit("scene-switch", "GameScene");
+        
+        // DEBUG: Log click coordinates
+        this.input.on('pointerdown', (pointer) => {
+            const worldX = pointer.worldX;
+            const worldY = pointer.worldY;
+            const tileX = Math.floor(worldX / 48);
+            const tileY = Math.floor(worldY / 48);
+            console.log(`DEBUG CLICK - World: (${Math.round(worldX)}, ${Math.round(worldY)}) | Tile: ${tileX}:${tileY}`);
+        });
+
         this.cameras.main.fadeIn(1000, 0, 0, 0);
 
         const chatElement = document.getElementById("chat");
@@ -103,7 +111,12 @@ export class GameScene extends Phaser.Scene {
         });
 
         // Local SFX manager
-        try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
+        try {
+            this.soundManager = new SoundManager(this);
+            // MusicManager.play(this, 'music1', { loop: true, volume: 0.5 });
+        } catch (e) {
+            this.soundManager = null;
+        }
         try {
             if (typeof window !== 'undefined' && this.soundManager) {
                 window.debugPlayCry = async (id) => {
@@ -193,12 +206,26 @@ export class GameScene extends Phaser.Scene {
     loadAssets() {
         this.load.audio("teleportSound", "/assets/sounds/tp.mp3");
         this.load.audio("music1", "/assets/musics/music1.mp3");
-        this.load.image("background", "/assets/interieur.png");
+        this.load.audio("qwest", "/assets/musics/qwest.mp3");
+        // Preload battle music
+        this.load.audio("battle-wild", "/assets/musics/pkm/battle-wild.mp3");
+        this.load.audio("battle-trainer", "/assets/musics/pkm/battle-trainer.mp3");
+        this.load.audio("victory-wild", "/assets/musics/pkm/victory-wild.mp3");
+        // Preload item sounds
+        this.load.audio("item_get", "/assets/sounds/Item_Get.wav?v=1");
+        this.load.audio("keyitem_get", "/assets/sounds/KeyItem_Get.wav?v=1");
+        this.load.image("qwest", "/assets/qwest.png");
         this.load.image("backgroundext", "/assets/maps/exterieur.png");
         this.load.image("backgroundoppede", "/assets/maps/oppede.png");
-        this.load.spritesheet("player", "/assets/apparences/Mehdi.png", {
+        // Utilisation de Marin.png pour le nouveau système d'animation (48x96)
+        this.load.spritesheet("player", "/assets/apparences/Marin.png", {
             frameWidth: 48,
-            frameHeight: 48,
+            frameHeight: 96,
+        });
+
+        this.load.spritesheet("ralof", "/assets/apparences/Ralof.png", {
+            frameWidth: 48,
+            frameHeight: 96,
         });
 
         this.load.spritesheet("marchand", "/assets/apparences/marchand.png", {
@@ -209,6 +236,19 @@ export class GameScene extends Phaser.Scene {
         this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
         this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj");
         this.load.tilemapTiledJSON("map3", "/assets/maps/oppede.tmj");
+        this.load.tilemapTiledJSON("qwest", "/assets/maps/qwest.tmj");
+        this.load.spritesheet("Room_Builder_48x48", "/assets/maps/Room_Builder_48x48.png", {
+            frameWidth: 48,
+            frameHeight: 48
+        });
+        
+        // Load split tilesets for mobile compatibility
+        for (let i = 0; i <= 10; i++) {
+            this.load.spritesheet(`Interiors_48x48_part_${i}`, `/assets/maps/Interiors_48x48_part_${i}.png`, {
+                frameWidth: 48,
+                frameHeight: 48
+            });
+        }
 
         // Événements de diagnostic
         this.load.on('filecomplete-tilemapJSON-map3', (key, type, data) => {
@@ -317,11 +357,9 @@ export class GameScene extends Phaser.Scene {
         console.log("Updated inventory:", PlayerService.getInventory());
         // Play item sound (key item or normal)
         try {
-            if (this.soundManager) {
-                const isKey = item && (item.isKeyItem || (item.type && item.type === 'key_item') || (item.nom && String(item.nom).toLowerCase().includes('clé')));
-                const keyName = isKey ? 'keyitem_get' : 'item_get';
-                this.soundManager.playMoveSound(keyName, { volume: 0.85 });
-            }
+            const isKey = item && (item.isKeyItem || (item.type && item.type === 'key_item') || (item.nom && String(item.nom).toLowerCase().includes('clé')));
+            const keyName = isKey ? 'keyitem_get' : 'item_get';
+            this.sound.play(keyName, { volume: 0.85 });
         } catch (e) { /* ignore */ }
     }
 

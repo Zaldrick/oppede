@@ -42,6 +42,9 @@ export class PokemonBattleScene extends Phaser.Scene {
         
         // Animation state
         this.turnInProgress = false;
+        // Battle music tracking
+        this.currentBattleMusicKey = null;
+        this.currentBattleMusicInstance = null;
         
         // Cache traductions FR (moves)
         this.translationsCache = {};
@@ -70,6 +73,13 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.turnInProgress = false;
     }
 
+    preload() {
+        // Load battle music in this scene's context
+        const musicTrack = this.battleType === 'trainer' ? 'battle-trainer' : 'battle-wild';
+        this.load.audio(musicTrack, `/assets/musics/pkm/${musicTrack}.mp3`);
+        this.load.audio('victory-wild', '/assets/musics/pkm/victory-wild.mp3');
+    }
+
     async create() {
         console.log('[BattleScene] Création scène de combat');
 
@@ -83,33 +93,46 @@ export class PokemonBattleScene extends Phaser.Scene {
             }
         });
 
-        // Démarrer la transition d'entrée spectaculaire
-        // Préparer et jouer la musique de combat AVANT la transition pour qu'elle démarre au plus tôt
+        // Pause current music before starting battle
         try {
-            this.soundManager = new SoundManager(this);
-            // Ensure any legacy/directly-played background music tracks are stopped to avoid overlapping
-            try {
-                if (this.sound && Array.isArray(this.sound.sounds)) {
-                    this.sound.sounds.forEach(s => {
-                        try {
-                            const key = s && s.key ? String(s.key) : '';
-                            if (key.startsWith('music_') || ['mainMenuMusic', 'music1', 'gameMusic', 'mainMenuMusic'].includes(key)) {
-                                try { s.stop(); s.destroy(); } catch (e) {}
-                            }
-                        } catch (e) {}
-                    });
-                }
-            } catch (e) { /* ignore */ }
-            try { MusicManager.pause(); } catch (e) { /* ignore */ }
+            MusicManager.pause();
+        } catch (e) { /* ignore */ }
+
+        // Play battle music after transition completes. Use a dedicated instance
+        // so we can stop/destroy it deterministically on cleanup.
+        try {
             const musicTrack = this.battleType === 'trainer' ? 'battle-trainer' : 'battle-wild';
-            // Kick off the music (no await) to avoid blocking the animation
-            this.soundManager.playMusic(musicTrack, { volume: 0.3, loop: true }).catch(() => {});
+            this.currentBattleMusicKey = musicTrack;
+            try {
+                // Prefer adding a sound instance so we control its lifecycle
+                if (this.sound && this.sound.add) {
+                    if (this.sound.get(musicTrack)) {
+                        this.currentBattleMusicInstance = this.sound.add(musicTrack, { loop: true, volume: 0.3 });
+                        this.currentBattleMusicInstance.play();
+                    } else {
+                        // If no cached key (edge-case), try to play directly
+                        this.currentBattleMusicInstance = this.sound.play(musicTrack, { loop: true, volume: 0.3 });
+                    }
+                }
+            } catch (e) {
+                // fallback to simple play
+                try { this.sound.play(musicTrack, { loop: true, volume: 0.3 }); } catch (err) {}
+            }
+            console.log(`[BattleScene] Battle music playing: ${musicTrack}`);
         } catch (e) {
-            // If SoundManager construction fails, ignore to avoid blocking the transition
-            console.warn('[BattleScene] SoundManager not initialized before transition', e);
+            console.warn('[BattleScene] Failed to play battle music:', e);
         }
 
+        // Démarrer la transition d'entrée spectaculaire
+        try {
+            this.soundManager = new SoundManager(this);
+        } catch (e) {
+            console.warn('[BattleScene] SoundManager not initialized', e);
+        }
+        // ... existing code...
+
         await this.playEntryTransition(width, height);
+
 
         // Initialiser Battle Manager
         if (!this.battleManager) {
@@ -1661,6 +1684,35 @@ export class PokemonBattleScene extends Phaser.Scene {
     cleanupBattle() {
         console.log('[BattleScene] Cleanup...');
         
+        // Stop battle music robustly: stop instance, stop by key and destroy any lingering sounds
+        if (this.currentBattleMusicInstance) {
+            try { this.currentBattleMusicInstance.stop(); } catch (e) {}
+            try { this.currentBattleMusicInstance.destroy(); } catch (e) {}
+            this.currentBattleMusicInstance = null;
+        }
+        if (this.currentBattleMusicKey) {
+            try { this.sound.stopByKey(this.currentBattleMusicKey); } catch (e) {}
+            // destroy any lingering sound objects with that key
+            try {
+                if (Array.isArray(this.sound.sounds)) {
+                    this.sound.sounds.slice().forEach(s => {
+                        try {
+                            if (s && s.key === this.currentBattleMusicKey) {
+                                try { s.stop(); } catch (e) {}
+                                try { s.destroy(); } catch (e) {}
+                            }
+                        } catch (inner) {}
+                    });
+                }
+            } catch (e) {}
+            this.currentBattleMusicKey = null;
+        }
+
+        // Resume previous music
+        try {
+            MusicManager.resume();
+        } catch (e) { /* ignore */ }
+        
         // Nettoyer les GIFs DOM
         if (this.playerGifContainer) {
             this.playerGifContainer.remove();
@@ -1685,14 +1737,5 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.animManager = null;
         this.spriteManager = null;
         this.turnManager = null;
-
-        // Stop music if playing
-        // Stop battle music if playing
-        if (this.soundManager) {
-            try { this.soundManager.stopMusic(); } catch (e) { /* ignore */ }
-        }
-
-        // Restore previous global music if any (MainMenu/Game music)
-        try { MusicManager.restorePrevious(); } catch (e) { /* ignore */ }
     }
 }

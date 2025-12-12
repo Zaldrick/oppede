@@ -308,22 +308,22 @@ export default class BattleSpriteManager {
                 // Animation entrée si demandé (et play cry at the end)
                 if (animate) {
                     try {
-                        // Play player cry just before the entrance animation for better sync; do not block on it
-                        try {
-                            if (this.scene && this.scene.soundManager) {
-                                console.debug(`[BattleSpriteManager] Requesting player cry (before animateEntrance) for ${pokemon.species_id}`);
-                                this.scene.soundManager.playPokemonCry(pokemon.species_id).catch(() => {});
-                            }
-                        } catch (e) { /* ignore */ }
-
                         // Slide the player sprite in from the left to match PNJ-style motion
                         await this.animateEntrance(result, shadow, 500, 'left');
+                        if (this.scene && this.scene.soundManager) {
+                            try {
+                                console.debug(`[BattleSpriteManager] Requesting player cry for ${pokemon.species_id}`);
+                                const played = await this.scene.soundManager.playPokemonCry(pokemon.species_id);
+                                console.debug(`[BattleSpriteManager] Player cry played=${played} for ${pokemon.species_id}`);
+                            } catch (e) { console.warn('[BattleSpriteManager] Error playing player cry', e); }
+                        }
                     } catch (e) {
-                        // If animateEntrance threw, attempt to play the cry anyway (non-blocking)
+                        // If animateEntrance threw, attempt to play the cry anyway
                         try {
                             if (this.scene && this.scene.soundManager) {
                                 console.debug(`[BattleSpriteManager] Requesting player cry (entrance failed) for ${pokemon.species_id}`);
-                                this.scene.soundManager.playPokemonCry(pokemon.species_id).catch(() => {});
+                                const played = await this.scene.soundManager.playPokemonCry(pokemon.species_id);
+                                console.debug(`[BattleSpriteManager] Player cry (entrance failed) played=${played} for ${pokemon.species_id}`);
                             }
                         } catch (err) { console.warn('[BattleSpriteManager] Error playing player cry (entrance failed)', err); }
                     }

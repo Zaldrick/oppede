@@ -3,11 +3,21 @@ import PlayerService from '../services/PlayerService.js';
 
 const CONFIG = {
   maxSpeed: 350,
+  // Configuration pour spritesheet "Marin.png" (2688x1920)
+  // Grille : 56 colonnes x 20 lignes (Tiles 48x96)
+  // Ligne 2 visuelle (Index 56 à 111) = Idle
+  // Ligne 3 visuelle (Index 112 à 167) = Marche (Walk)
   animations: [
-    { key: "walk-down", start: 0, end: 2 },
-    { key: "walk-left", start: 3, end: 5 },
-    { key: "walk-right", start: 6, end: 8 },
-    { key: "walk-up", start: 9, end: 11 },
+    // Idle (Ligne 2)
+    { key: "idle-right", start: 56, end: 61, frameRate: 5 },
+    { key: "idle-up", start: 62, end: 67, frameRate: 5 },
+    { key: "idle-left", start: 68, end: 73, frameRate: 5 },
+    { key: "idle-down", start: 74, end: 79, frameRate: 5 },
+    // Walk (Ligne 3)
+    { key: "walk-right", start: 112, end: 117, frameRate: 10 },
+    { key: "walk-up", start: 118, end: 123, frameRate: 10 },
+    { key: "walk-left", start: 124, end: 129, frameRate: 10 },
+    { key: "walk-down", start: 130, end: 135, frameRate: 10 },
   ],
 };
 
@@ -17,6 +27,7 @@ export class PlayerManager {
     this.player = null;
     this.isSpeedBoosted = false;
     this.currentAnim = "";
+    this.lastDirection = "down"; // Default direction
     this.lastMoveSent = 0;
     this.playerPosition = null;
   }
@@ -31,11 +42,12 @@ export class PlayerManager {
     const { x, y } = position || this.playerPosition || { x: 0, y: 0 };
     
     this.player = this.scene.physics.add.sprite(x, y, useTextureKey);
+    this.player.setDepth(1); // Ensure player is above floor/walls (depth 0)
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
     this.player.setImmovable(true);
-    this.player.body.setSize(36, 36);
-    this.player.body.setOffset(6, 6);
+    this.player.body.setSize(36, 36); // Hitbox plus petite pour les pieds
+    this.player.body.setOffset(8, 60); // Décalage vers le bas (96 - 32 - 4) pour coller aux pieds
 
     this.createAnimations(useTextureKey);
     return this.player;
@@ -80,18 +92,22 @@ export class PlayerManager {
     if (cursors.left?.isDown) {
       keyboardActive = true;
       newAnim = "walk-left";
+      this.lastDirection = "left";
       this.player.setVelocity(-speed, 0);
     } else if (cursors.right?.isDown) {
       keyboardActive = true;
       newAnim = "walk-right";
+      this.lastDirection = "right";
       this.player.setVelocity(speed, 0);
     } else if (cursors.up?.isDown) {
       keyboardActive = true;
       newAnim = "walk-up";
+      this.lastDirection = "up";
       this.player.setVelocity(0, -speed);
     } else if (cursors.down?.isDown) {
       keyboardActive = true;
       newAnim = "walk-down";
+      this.lastDirection = "down";
       this.player.setVelocity(0, speed);
     }
 
@@ -100,12 +116,16 @@ export class PlayerManager {
       const angle = joystick.angle;
       if (angle > -45 && angle <= 45) {
         newAnim = "walk-right";
+        this.lastDirection = "right";
       } else if (angle > 45 && angle <= 135) {
         newAnim = "walk-down";
+        this.lastDirection = "down";
       } else if (angle > 135 || angle <= -135) {
         newAnim = "walk-left";
+        this.lastDirection = "left";
       } else if (angle > -135 && angle <= -45) {
         newAnim = "walk-up";
+        this.lastDirection = "up";
       }
       const forceCoeff = this.isSpeedBoosted ? 2.5 : 1.5;
       this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * joystick.force * forceCoeff);
@@ -115,8 +135,10 @@ export class PlayerManager {
     // Animation
     if (newAnim === "") {
       this.player.setVelocity(0);
-      if (this.player.anims.isPlaying) {
-        this.player.anims.stop();
+      const idleAnim = `idle-${this.lastDirection}`;
+      if (this.currentAnim !== idleAnim) {
+        this.player.anims.play(idleAnim, true);
+        this.currentAnim = idleAnim;
       }
       this.currentAnim = "";
     } else if (newAnim !== this.currentAnim) {
@@ -161,6 +183,8 @@ export class PlayerManager {
     const posX = this.player.x;
     const posY = this.player.y;
     const mapId = playerData.mapId;
+
+    console.log(`[PlayerManager] Saving position to DB: x=${Math.round(posX)}, y=${Math.round(posY)}, mapId=${mapId}`);
 
     try {
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/players/update-position`, {
