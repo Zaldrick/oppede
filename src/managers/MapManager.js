@@ -18,7 +18,10 @@ export class MapManager {
       map: 0,
       map2: 1,
       map3: 2,
-      qwest: 3
+      qwest: 3,
+      lille: 4,
+      metro: 5,
+      metroInterieur: 6
     };
 
     this.backgroundImages = {
@@ -26,14 +29,19 @@ export class MapManager {
       1: "backgroundext",
       2: "backgroundoppede",
       3: "qwest",
+      4: "qwest", // Placeholder
+      5: "qwest", // Placeholder
+      6: "qwest", // Placeholder
     };
 
     this.mapMusic = {
-      // Associe chaque clé de map (nom du fichier JSON sans extension) à une clé de musique (chargée dans GameScene)
       map: "music1",
       map2: "music1",
       map3: "music1",
       qwest: "qwest",
+      lille: "qwest",
+      metro: "qwest",
+      metroInterieur: "qwest",
     };
 
     this.teleportPoints = {
@@ -45,12 +53,22 @@ export class MapManager {
         { x: 7 * 48 + 24, y: 7 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24 },
       ],
       map3: [
-        { x: 42 * 48 + 24, y: 5 * 48 + 24, targetMap: "qwest", targetX: 13 * 48 + 24, targetY: 5 * 48 + 24 },
+        { x: 42 * 48 + 24, y: 5 * 48 + 24, targetMap: "qwest", targetX: 3 * 48 + 24, targetY: 4 * 48 + 24 },
         { x: 38 * 48 + 24, y: 5 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24  }
       ],
       qwest: [
-        { x: 14 * 48 + 24, y: 5 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 }
+        { x: 13 * 48 + 24, y: 13 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 },
+        { x: 15 * 48 + 24, y: 26 * 48 + 24, targetMap: "lille", targetX: 61 * 48 + 24, targetY: 62 * 48 + 24 }
       ],
+      lille: [
+        { x: 19 * 48 + 24, y:22 * 48 + 24, targetMap: "metro", targetX: 26 * 48 + 24, targetY: 29 * 48 + 24 },
+        { x: 61 * 48 + 24, y: 61 * 48 + 24, targetMap: "qwest", targetX: 15 * 48 + 24, targetY: 24 * 48 + 24 }
+      ],
+      metro: [
+        { x: 26 * 48 + 24, y: 31* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+        { x: 27 * 48 + 24, y: 31* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+        { x: 26* 48+21, y: 15 * 48-10, targetMap: "lille",  targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+      ]
     };
   }
 
@@ -72,7 +90,21 @@ export class MapManager {
   async changeMap(mapKey, spawnX, spawnY) {
     console.log(`[MapManager] changeMap called with key: ${mapKey}`);
     
+    // Ensure backgroundImages is defined
+    if (!this.backgroundImages) {
+        console.warn("[MapManager] backgroundImages was undefined. Re-initializing default values.");
+        this.backgroundImages = {
+            0: "background",
+            1: "backgroundext",
+            2: "backgroundoppede",
+            3: "qwest",
+            4: "qwest", // Placeholder for lille
+            5: "qwest"  // Placeholder for metro
+        };
+    }
+
     if (!this.scene.cache.tilemap.has(mapKey)) {
+      console.error(`[MapManager] Tilemap key "${mapKey}" not found in cache.`);
       return;
     }
 
@@ -106,8 +138,32 @@ export class MapManager {
         this.map = null;
     }
 
+    // DIAGNOSTIC AVANT CRÉATION
+    const mapData = this.scene.cache.tilemap.get(mapKey);
+    if (mapData && mapData.data) {
+        const rawData = mapData.data;
+        // Vérification des tilesets externes
+        if (rawData.tilesets) {
+            const externalTilesets = rawData.tilesets.filter(t => t.source);
+            if (externalTilesets.length > 0) {
+                console.error(`[MapManager] 🛑 ERREUR CRITIQUE: La map "${mapKey}" utilise des tilesets externes (.tsx).`);
+                console.error(`[MapManager] Phaser ne supporte pas bien les tilesets externes. Dans Tiled, cliquez sur le bouton "Embed Tilesets" (ou "Incorporer les jeux de tuiles") pour chaque tileset avant d'exporter en JSON.`);
+                console.error(`[MapManager] Tilesets problématiques:`, externalTilesets.map(t => t.source));
+            }
+        }
+    }
+
     // Charge la nouvelle carte
-    this.map = this.scene.make.tilemap({ key: mapKey });
+    console.log(`[MapManager] Tentative de création de la tilemap: "${mapKey}"`);
+    try {
+        this.map = this.scene.make.tilemap({ key: mapKey });
+    } catch (err) {
+        console.error(`[MapManager] 💥 CRASH lors de make.tilemap("${mapKey}")`);
+        console.error(`[MapManager] Cause probable: Tileset externe non incorporé ou format JSON invalide.`);
+        console.error(`[MapManager] Détail de l'erreur:`, err);
+        return;
+    }
+
     this.map.key = mapKey;
     if (!this.map) {
       console.error(`La carte "${mapKey}" n'a pas pu être chargée.`);
@@ -133,11 +189,20 @@ export class MapManager {
              return;
         }
 
-        const tileset = this.map.addTilesetImage(tilesetName, tilesetName);
+        let tileset = this.map.addTilesetImage(tilesetName, tilesetName);
+        
+        // Fallback si le tileset n'a pas pu être chargé (image manquante)
+        if (!tileset) {
+            console.warn(`[MapManager] Le tileset "${tilesetName}" n'a pas pu être chargé. Utilisation du fallback "Room_Builder_48x48".`);
+            // On essaie de charger avec une image qui existe sûr (Room_Builder_48x48)
+            // Cela permet d'éviter que Phaser ne plante si un layer fait référence à ce tileset
+            tileset = this.map.addTilesetImage(tilesetName, "Room_Builder_48x48");
+        }
+
         if (tileset) {
             tilesets.push(tileset);
         } else {
-            console.warn(`Le tileset "${tilesetName}" n'a pas pu être chargé.`);
+            console.warn(`[MapManager] ECHEC TOTAL chargement tileset "${tilesetName}".`);
         }
     });
 
@@ -161,6 +226,8 @@ export class MapManager {
             1: "backgroundext",
             2: "backgroundoppede",
             3: "qwest",
+            4: "qwest",
+            5: "qwest"
         };
     }
 
@@ -396,6 +463,95 @@ export class MapManager {
             this.createBoosterVendor();
             this.createRalofNPC();
         }
+
+        if (mapKey === "metro") {
+            this.createSubwayDoor();
+        }
+    }
+
+    createSubwayDoor() {
+        if (!this.map) return;
+
+        // Coordonnées: entre 21:15 et 22:15.
+        // Sprite 96x96. Centré sur X=22*48 (entre 21 et 22) et Y=15*48 (bas aligné avec tile 15)
+       // const doorX = 21* 48+20; // 1032 (milieu case 21) + 24 = 1056 (bord droit case 21 / bord gauche case 22)
+        //const doorY = 15*48+6;
+        // Wait, 21.5 * 48 = 1032. 22 * 48 = 1056.
+        // Case 21: 1008-1056. Center 1032.
+        // Case 22: 1056-1104. Center 1080.
+        // Midpoint: 1056.
+        
+        // Correction positionnement pour sprite 96x96 centré sur la jonction des cases 21 et 22
+        const finalX = 26 * 48+21; 
+        const finalY = 15 * 48-10;
+
+        const door = this.scene.physics.add.sprite(finalX, finalY, "subway_door", 0);
+        door.setImmovable(true);
+        door.setDepth(-1); // Au-dessus du sol
+
+        // Animations
+        if (!this.scene.anims.exists('subway_door_open')) {
+            this.scene.anims.create({
+                key: 'subway_door_open',
+                frames: this.scene.anims.generateFrameNumbers('subway_door', { start: 0, end: 7 }),
+                frameRate: 10,
+                repeat: 0
+            });
+        }
+        if (!this.scene.anims.exists('subway_door_close')) {
+            this.scene.anims.create({
+                key: 'subway_door_close',
+                frames: this.scene.anims.generateFrameNumbers('subway_door', { start: 7, end: 0 }),
+                frameRate: 10,
+                repeat: 0
+            });
+        }
+
+        // Zone de détection pour l'ouverture
+        const detectionZone = this.scene.add.zone(finalX, finalY, 100, 180); // Zone plus large
+        this.scene.physics.world.enable(detectionZone);
+        
+        // Gestion de l'ouverture/fermeture
+        door.isOpen = false;
+        
+        this.scene.physics.add.overlap(this.scene.playerManager.getPlayer(), detectionZone, () => {
+            if (!door.active) return; // Safety check
+            
+            if (!door.isOpen) {
+                try {
+                    door.play('subway_door_open');
+                    this.scene.sound.play('metro_open', { volume: 0.5 });
+                    door.isOpen = true;
+                } catch (e) {
+                    console.warn("Failed to play door open animation/sound", e);
+                }
+            }
+            door.lastOverlapTime = this.scene.time.now;
+        });
+
+        // Update loop pour fermer la porte
+        const updateListener = () => {
+            if (!door.active) {
+                // Clean up listener if door is destroyed
+                this.scene.events.off('update', updateListener);
+                return;
+            }
+
+            if (door.isOpen && this.scene.time.now - door.lastOverlapTime > 200) {
+                try {
+                    door.play('subway_door_close');
+                    this.scene.sound.play('metro_close', { volume: 0.5 });
+                    door.isOpen = false;
+                } catch (e) {
+                    console.warn("Failed to play door close animation/sound", e);
+                }
+            }
+        };
+        
+        this.scene.events.on('update', updateListener);
+
+        this.activeEvents.push(door);
+        //console.log(`Porte de métro créée à (${doorX}, ${doorY})`);
     }
 
 
@@ -607,7 +763,11 @@ export class MapManager {
 
       this.scene.physics.world.enable(teleportZone);
       this.scene.physics.add.overlap(player, teleportZone, () => {
-        try { if (this.scene.soundManager) this.scene.soundManager.playMoveSound('teleport', { volume: 0.3 }); else this.scene.sound.play("teleportSound", { volume: 0.3 }); } catch (e) { /* ignore */ }
+        try { 
+            this.scene.sound.play("teleportSound", { volume: 0.3 }); 
+        } catch (e) { 
+            console.warn("Failed to play teleportSound:", e);
+        }
         this.changeMap(point.targetMap, point.targetX, point.targetY);
       });
     });

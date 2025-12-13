@@ -18,7 +18,7 @@ export class MainMenuScene extends Phaser.Scene {
     preload() {
         this.load.image("mainMenuBackground", "/assets/mainMenuBackground.png"); // Load the background image
         this.load.audio("silentSound", "/assets/musics/silent.mp3");
-        this.load.audio("mainMenuMusic", "/assets/musics/mainMenuMusic.mp3?v=1"); // Load background music with cache buster
+        this.load.audio("mainMenuMusic", "/assets/musics/mainMenuMusic.mp3"); // Load background music with cache buster
         this.load.image("logo", "/assets/logo.png"); // Load the logo image
     }
 

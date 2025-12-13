@@ -469,8 +469,8 @@ export class PokemonBattleScene extends Phaser.Scene {
 
         // Badge de niveau (cercle stylé) - agrandi et responsive
         const levelBadgeX = boxX + boxWidth * 0.88;
-        const levelBadgeY = boxY + boxHeight * 0.30;
-        const badgeRadius = Math.min(width, height) * 0.035; // Plus grand
+        const levelBadgeY = boxY + boxHeight * 0.305;
+        const badgeRadius = Math.min(width, height) * 0.030; // Plus grand
         
         // Calculer le level depuis l'XP si manquant ou en désaccord avec l'XP envoyé
         const calculatedLevel = this.calculateLevelFromXP(player.experience || 0);

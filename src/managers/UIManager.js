@@ -18,6 +18,17 @@ export class UIManager {
     this.startMenu = null;
     this.profileMenu = null;
     this.zoomFactor = 1;
+
+    // Dialogue System
+    this.dialogueGroup = null;
+    this.isDialogueActive = false;
+    this.dialogueData = [];
+    this.currentDialogueIndex = 0;
+    this.dialogueText = null;
+    this.dialogueName = null;
+    this.dialogueAvatar = null;
+    this.dialogueNextIcon = null;
+    this.lastDialogueAdvance = 0;
   }
 
   createUI() {
@@ -65,7 +76,13 @@ export class UIManager {
     this.buttonB = this.scene.add.circle(gameWidth * 0.74, gameHeight * 0.85, buttonBRadius, 0x808080)
       .setInteractive()
       .setDepth(9999)
-      .on('pointerdown', () => { this.scene.playerManager?.setSpeedBoost(true); })
+      .on('pointerdown', () => { 
+          if (this.isDialogueActive) {
+              this.advanceDialogue();
+          } else {
+              this.scene.playerManager?.setSpeedBoost(true); 
+          }
+      })
       .on('pointerup', () => { this.scene.playerManager?.setSpeedBoost(false); })
       .on('pointerout', () => { this.scene.playerManager?.setSpeedBoost(false); });
     this.buttonBText = this.scene.add.text(gameWidth * 0.74, gameHeight * 0.85, "B", {
@@ -93,6 +110,11 @@ export class UIManager {
   }
 
   handleButtonA() {
+    if (this.isDialogueActive) {
+        this.advanceDialogue();
+        return;
+    }
+
     const player = this.scene.playerManager?.getPlayer();
     if (!player) return;
 
@@ -242,18 +264,34 @@ export class UIManager {
             return;
         }
 
-        const player = this.scene.playerManager?.getPlayer();
-        if (!player) return;
-
-        const playerX = player.x;
-        const playerY = player.y;
         const gameWidth = this.scene.scale.width;
         const gameHeight = this.scene.scale.height;
 
-        this.startMenu = this.scene.add.container(playerX, playerY + gameHeight * 0.05).setDepth(9999);
+        // Positionner le menu au centre de l'écran (HUD)
+        this.startMenu = this.scene.add.container(gameWidth / 2, gameHeight / 2).setDepth(9999);
+        this.startMenu.setScrollFactor(0);
 
         const background = this.scene.add.rectangle(0, 0, gameWidth * 0.95, gameHeight * 0.85, 0x000000, 0.85).setOrigin(0.5);
+        background.setScrollFactor(0);
         this.startMenu.add(background);
+
+        // ❌ Bouton de fermeture (Croix en haut à droite)
+        const closeBtnSize = 40;
+        // Position relative au centre du conteneur (0,0)
+        // background.width est gameWidth * 0.95
+        const bgWidth = gameWidth * 0.95;
+        const bgHeight = gameHeight * 0.85;
+        
+        const closeBtnX = bgWidth / 2 - 30;
+        const closeBtnY = -bgHeight / 2 + 30;
+        
+        const closeBtn = this.scene.add.text(closeBtnX, closeBtnY, '✕', {
+            font: 'bold 30px Arial',
+            fill: '#ffffff'
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        
+        closeBtn.on('pointerdown', () => this.closeMenu());
+        this.startMenu.add(closeBtn);
 
         const menuOptions = [
             {
@@ -292,11 +330,11 @@ export class UIManager {
                 description: "Votre équipe"
             },
             {
-                label: "Fermer",
-                icon: "❌",
-                color: 0xF44336,
-                action: () => this.closeMenu(),
-                description: "Retour au Jeux"
+                label: "Journal",
+                icon: "📜",
+                color: 0x8E44AD,
+                action: () => this.openQuestJournal(),
+                description: "Vos quêtes"
             }
         ];
 
@@ -320,28 +358,29 @@ export class UIManager {
             const y = startY + row * (cardSize + spacing);
 
             const cardBorder = this.scene.add.rectangle(x, y, cardSize + 8, cardSize + 8, 0xffffff, 0.4)
-                .setOrigin(0.5);
+                .setOrigin(0.5).setScrollFactor(0);
 
             const cardBg = this.scene.add.rectangle(x, y, cardSize, cardSize, option.color, 0.9)
                 .setOrigin(0.5)
-                .setInteractive({ useHandCursor: true });
+                .setInteractive({ useHandCursor: true })
+                .setScrollFactor(0);
 
             const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
                 font: `${Math.round(cardSize * 0.4)}px Arial`,
                 align: "center"
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setScrollFactor(0);
 
             const labelText = this.scene.add.text(x, y + cardSize * 0.15, option.label, {
                 font: `bold ${Math.round(cardSize * 0.16)}px Arial`,
                 fill: "#ffffff",
                 align: "center"
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setScrollFactor(0);
 
             const descText = this.scene.add.text(x, y + cardSize * 0.3, option.description, {
                 font: `${Math.round(cardSize * 0.11)}px Arial`,
                 fill: "#e0e0e0",
                 align: "center"
-            }).setOrigin(0.5);
+            }).setOrigin(0.5).setScrollFactor(0);
 
             cardBg.on('pointerdown', () => {
                 console.log(`🎯 Clic sur: ${option.label}`);
@@ -351,7 +390,7 @@ export class UIManager {
             this.startMenu.add([cardBorder, cardBg, iconText, labelText, descText]);
         });
 
-        this.startMenu.setScrollFactor(1);
+        this.startMenu.setScrollFactor(0);
 
     }
 
@@ -361,6 +400,21 @@ export class UIManager {
       this.startMenu.destroy();
       this.startMenu = null;
     }
+  }
+
+  openQuestJournal() {
+    console.log("📜 OUVERTURE JOURNAL QUÊTES");
+    this.closeMenu();
+    const playerData = this.scene.registry.get("playerData");
+    const playerId = playerData && playerData._id ? playerData._id : null;
+
+    if (!playerId) {
+      this.scene.displayMessage("Impossible de trouver l'identifiant du joueur.");
+      return;
+    }
+
+    this.scene.scene.launch("QuestScene", { playerId });
+    this.scene.scene.pause();
   }
 
   openInventory() {
@@ -515,6 +569,13 @@ export class UIManager {
     this.scene.input.keyboard.on('keydown-ESC', () => {
         this.handleStartButton();
     });
+
+    // Global click for dialogue
+    this.scene.input.on('pointerdown', (pointer) => {
+        if (this.isDialogueActive) {
+            this.advanceDialogue();
+        }
+    });
   }
 
   handleResize(gameSize) {
@@ -548,6 +609,158 @@ export class UIManager {
     this.scene.scene.pause();
   }
 
+  // --- DIALOGUE SYSTEM ---
+
+  showDialogue(dialogues) {
+    if (!dialogues) return;
+    
+    // Normalize to array
+    this.dialogueData = Array.isArray(dialogues) ? dialogues : [dialogues];
+    this.currentDialogueIndex = 0;
+    this.isDialogueActive = true;
+
+    // Stop player movement
+    if (this.scene.playerManager && this.scene.playerManager.player) {
+        this.scene.playerManager.player.setVelocity(0);
+        this.scene.playerManager.player.anims.stop();
+    }
+
+    this.createDialogueUI();
+    this.updateDialogueContent();
+  }
+
+  createDialogueUI() {
+    if (this.dialogueGroup) {
+        this.dialogueGroup.setVisible(true);
+        return;
+    }
+
+    const gameWidth = this.scene.scale.width;
+    const gameHeight = this.scene.scale.height;
+    
+    // Container for all dialogue elements
+    this.dialogueGroup = this.scene.add.container(0, 0).setDepth(10000).setScrollFactor(0);
+
+    // Dimensions
+    const margin = 20;
+    const boxHeight = gameHeight * 0.25; // 25% of screen height
+    const boxWidth = gameWidth - (margin * 2);
+    const boxX = margin;
+    const boxY = margin; // Top of screen
+
+    // Background (Retro style: Black with white border)
+    const bg = this.scene.add.rectangle(boxX + boxWidth/2, boxY + boxHeight/2, boxWidth, boxHeight, 0x000000, 0.9);
+    bg.setStrokeStyle(4, 0xffffff);
+    this.dialogueGroup.add(bg);
+
+    // Avatar Area (Left 15%)
+    const avatarWidth = boxWidth * 0.15;
+    const avatarSize = Math.min(avatarWidth, boxHeight * 0.6);
+    const avatarX = boxX + (avatarWidth / 2) + 10;
+    const avatarY = boxY + (boxHeight / 2) - 10;
+
+    this.dialogueAvatar = this.scene.add.sprite(avatarX, avatarY, 'playerAppearance'); // Placeholder texture
+    this.dialogueGroup.add(this.dialogueAvatar);
+
+    // Name Text (Below Avatar)
+    this.dialogueName = this.scene.add.text(avatarX, avatarY + (avatarSize/2) + 15, "Name", {
+        font: "bold 16px Arial",
+        fill: "#ffff00", // Yellow for name
+        align: "center",
+        wordWrap: { width: avatarWidth }
+    }).setOrigin(0.5);
+    this.dialogueGroup.add(this.dialogueName);
+
+    // Dialogue Text (Right side)
+    const textX = boxX + avatarWidth + 30;
+    const textY = boxY + 20;
+    const textWidth = boxWidth - avatarWidth - 50;
+
+    this.dialogueText = this.scene.add.text(textX, textY, "", {
+        font: "20px Arial",
+        fill: "#ffffff",
+        align: "left",
+        wordWrap: { width: textWidth }
+    });
+    this.dialogueGroup.add(this.dialogueText);
+
+    // Next Indicator (Blinking arrow at bottom right)
+    this.dialogueNextIcon = this.scene.add.text(boxX + boxWidth - 30, boxY + boxHeight - 30, "▼", {
+        font: "20px Arial",
+        fill: "#ffffff"
+    }).setOrigin(0.5);
+    
+    this.scene.tweens.add({
+        targets: this.dialogueNextIcon,
+        y: boxY + boxHeight - 25,
+        duration: 500,
+        yoyo: true,
+        repeat: -1
+    });
+    this.dialogueGroup.add(this.dialogueNextIcon);
+  }
+
+  updateDialogueContent() {
+    if (!this.dialogueData || this.dialogueData.length === 0) return;
+
+    const data = this.dialogueData[this.currentDialogueIndex];
+
+    // Update Text
+    this.dialogueText.setText(data.text || "...");
+
+    // Update Name
+    if (data.name) {
+        this.dialogueName.setText(data.name);
+        this.dialogueName.setVisible(true);
+    } else {
+        this.dialogueName.setVisible(false);
+    }
+
+    // Update Avatar
+    if (data.avatar) {
+        if (this.scene.textures.exists(data.avatar)) {
+            this.dialogueAvatar.setTexture(data.avatar);
+            this.dialogueAvatar.setVisible(true);
+            
+            // Scale to fit
+            const gameHeight = this.scene.scale.height;
+            const boxHeight = gameHeight * 0.25;
+            const avatarWidth = (this.scene.scale.width - 40) * 0.15;
+            const maxSize = Math.min(avatarWidth, boxHeight * 0.6);
+            
+            this.dialogueAvatar.setScale(1);
+            const scale = maxSize / Math.max(this.dialogueAvatar.width, this.dialogueAvatar.height);
+            this.dialogueAvatar.setScale(scale);
+        } else {
+            this.dialogueAvatar.setVisible(false);
+        }
+    } else {
+        this.dialogueAvatar.setVisible(false);
+    }
+  }
+
+  advanceDialogue() {
+    const now = Date.now();
+    if (this.lastDialogueAdvance && now - this.lastDialogueAdvance < 300) {
+        return;
+    }
+    this.lastDialogueAdvance = now;
+
+    this.currentDialogueIndex++;
+    if (this.currentDialogueIndex < this.dialogueData.length) {
+        this.updateDialogueContent();
+    } else {
+        this.closeDialogue();
+    }
+  }
+
+  closeDialogue() {
+    this.isDialogueActive = false;
+    if (this.dialogueGroup) {
+        this.dialogueGroup.setVisible(false);
+    }
+  }
+
   destroy() {
     if (this.interactionMenu) {
       this.interactionMenu.destroy();
@@ -562,6 +775,11 @@ export class UIManager {
     if (this.profileMenu) {
       this.profileMenu.destroy();
       this.profileMenu = null;
+    }
+
+    if (this.dialogueGroup) {
+      this.dialogueGroup.destroy();
+      this.dialogueGroup = null;
     }
   }
 }

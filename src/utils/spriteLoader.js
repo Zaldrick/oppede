@@ -217,7 +217,7 @@ export class SpriteLoader {
      * @param {number} depth - Z-index (pour layer ordering)
      * @returns {Object} - { element: HTMLImageElement, container: HTMLDivElement }
      */
-    static async displayAnimatedGif(scene, x, y, gifUrl, targetWidth, depth = 1) {
+    static async displayAnimatedGif(scene, x, y, gifUrl, targetWidth, depth = 1, options = {}) {
         // 🆕 Utiliser le cache pour éviter de spammer l'API
         const finalUrl = await this.getCachedGif(gifUrl);
 
@@ -238,6 +238,11 @@ export class SpriteLoader {
                 container.style.pointerEvents = 'none';
                 container.style.zIndex = depth.toString();
                 container.style.imageRendering = 'pixelated';
+                
+                // 🆕 Gestion de l'opacité initiale (pour éviter le flash)
+                if (options.alpha !== undefined) {
+                    container.style.opacity = options.alpha.toString();
+                }
                 
                 // Créer image GIF définitive
                 const img = document.createElement('img');
@@ -348,7 +353,7 @@ export class SpriteLoader {
             const screenWidth = scene.scale.width;
             const targetWidth = screenWidth * 0.12 * scale; // 12% de l'écran * multiplicateur
             
-            const gif = await this.displayAnimatedGif(scene, x, y, spriteUrl, targetWidth, depth);
+            const gif = await this.displayAnimatedGif(scene, x, y, spriteUrl, targetWidth, depth, options);
             
             return {
                 type: 'gif',

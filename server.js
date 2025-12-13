@@ -25,6 +25,7 @@ const PokemonBattleManager = require('./managers/PokemonBattleManager');
 const PokemonEvolutionManager = require('./managers/PokemonEvolutionManager'); // 🆕 Import EvolutionManager
 const TranslationManager = require('./managers/TranslationManager');
 const ItemManager = require('./managers/ItemManager'); // 🆕 Import ItemManager
+const QuestManager = require('./managers/QuestManager'); // 🆕 Import QuestManager
 
 
 const PORT = process.env.BACKEND_PORT || 3000;
@@ -175,6 +176,11 @@ class Server {
             await this.managers.itemManager.initialize();
             console.log('✅ ItemManager initialisé');
 
+            // QuestManager - gestion des quêtes
+            this.managers.questManager = new QuestManager(this.managers.databaseManager);
+            await this.managers.questManager.initialize();
+            console.log('✅ QuestManager initialisé');
+
         } catch (error) {
             console.error('❌ Erreur lors de l\'initialisation des managers:', error);
             throw error;
@@ -211,6 +217,9 @@ class Server {
         // Routes Combat Pokémon
         this.managers.pokemonBattleManager.setupRoutes(this.app);
 
+
+        // Routes Quêtes
+        this.managers.questManager.setupRoutes(this.app);
         // Routes Évolution Pokémon
         this.managers.pokemonEvolutionManager.setupRoutes(this.app);
 

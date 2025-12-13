@@ -370,7 +370,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         container.add(card);
 
         // Afficher le sprite du Pokémon (MENU sprite: Gen VII)
-                if (pokemon.speciesData?.sprites?.menu) {
+        if (pokemon.speciesData?.sprites?.menu) {
             try {
                 const sprite = await SpriteLoader.displaySprite(
                     this,
@@ -378,9 +378,23 @@ export class PokemonTeamScene extends Phaser.Scene {
                     0,
                     pokemon.speciesData.sprites.menu,
                     getPokemonDisplayName(pokemon).substring(0, 2) || '?',
-                    width / 160 // Scale proportionnel
+                    1 // Scale initial
                 );
-                if (sprite) container.add(sprite);
+                if (sprite) {
+                    // 🆕 LIMITER LA TAILLE DU SPRITE (FIXE)
+                    const maxSpriteWidth = width * 0.45;
+                    const maxSpriteHeight = height * 0.85;
+                    
+                    if (sprite.width > 0 && sprite.height > 0) {
+                        const scaleX = maxSpriteWidth / sprite.width;
+                        const scaleY = maxSpriteHeight / sprite.height;
+                        // On force le sprite à rentrer dans la case (scale down ou up)
+                        const scale = Math.min(scaleX, scaleY);
+                        sprite.setScale(scale);
+                    }
+                    
+                    container.add(sprite);
+                }
             } catch (e) {
                 console.error('[PokemonTeam] Erreur affichage sprite:', e);
             }

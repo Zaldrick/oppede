@@ -204,7 +204,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     loadAssets() {
-        this.load.audio("teleportSound", "/assets/sounds/tp.mp3");
+        this.load.audio("teleportSound", "/assets/sounds/tp.ogg?v=2");
+        this.load.audio("metro_open", "/assets/sounds/metro_open.mp3");
+        this.load.audio("metro_close", "/assets/sounds/metro_close.mp3");
         this.load.audio("music1", "/assets/musics/music1.mp3");
         this.load.audio("qwest", "/assets/musics/qwest.mp3");
         // Preload battle music
@@ -228,6 +230,11 @@ export class GameScene extends Phaser.Scene {
             frameHeight: 96,
         });
 
+        this.load.spritesheet("subway_door", "/assets/sprites/Subway_Train_1_Door_1_See_Through_48x48.png", {
+            frameWidth: 96,
+            frameHeight: 96,
+        });
+
         this.load.spritesheet("marchand", "/assets/apparences/marchand.png", {
             frameWidth: 48,
             frameHeight: 48,
@@ -237,10 +244,25 @@ export class GameScene extends Phaser.Scene {
         this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj");
         this.load.tilemapTiledJSON("map3", "/assets/maps/oppede.tmj");
         this.load.tilemapTiledJSON("qwest", "/assets/maps/qwest.tmj");
+        this.load.tilemapTiledJSON("lille", "/assets/maps/Lille.tmj");
+        this.load.tilemapTiledJSON("metro", "/assets/maps/metro.tmj");
         this.load.spritesheet("Room_Builder_48x48", "/assets/maps/Room_Builder_48x48.png", {
             frameWidth: 48,
             frameHeight: 48
         });
+
+        // Load Modern Exteriors Tilesets
+        this.load.image("1_Terrains_and_Fences_48x48", "/assets/maps/1_Terrains_and_Fences_48x48.png");
+        this.load.image("2_City_Terrains_48x48", "/assets/maps/2_City_Terrains_48x48.png");
+        this.load.image("3_City_Props_48x48", "/assets/maps/3_City_Props_48x48.png");
+        this.load.image("4_Generic_Buildings_48x48", "/assets/maps/4_Generic_Buildings_48x48.png");
+        this.load.image("5_Floor_Modular_Buildings_48x48", "/assets/maps/5_Floor_Modular_Buildings_48x48.png");
+        this.load.image("6_Garage_Sales_48x48", "/assets/maps/6_Garage_Sales_48x48.png");
+        this.load.image("8_Worksite_48x48", "/assets/maps/8_Worksite_48x48.png");
+        this.load.image("9_Shopping_Center_and_Markets_48x48", "/assets/maps/9_Shopping_Center_and_Markets_48x48.png");
+        this.load.image("10_Vehicles_48x48", "/assets/maps/10_Vehicles_48x48.png");
+        this.load.image("20_Subway_and_Train_Station_48x48", "/assets/maps/20_Subway_and_Train_Station_48x48.png");
+        this.load.image("collision", "/assets/maps/collision.png");
         
         // Load split tilesets for mobile compatibility
         for (let i = 0; i <= 10; i++) {

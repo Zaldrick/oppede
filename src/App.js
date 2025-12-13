@@ -1,5 +1,6 @@
 import { GameScene } from "./GameScene";
 import { InventoryScene } from "./InventoryScene";
+import { QuestScene } from "./QuestScene";
 import { MainMenuScene } from "./MainMenuScene";
 import { TripleTriadSelectScene } from './TripleTriadSelectScene';
 import { TripleTriadGameScene } from './TripleTriadGameScene';
@@ -51,7 +52,7 @@ const Game = () => {
             dom: {
                 createContainer: true, // Enable DOM elements
             },
-            scene: [MainMenuScene, GameScene, InventoryScene, TripleTriadSelectScene, TripleTriadGameScene, BoosterOpeningScene, PhotoGalleryScene, QuizGameScene, QuizLobbyScene, TripleTriadAIConfigScene, TripleTriadPvPConfigScene, PokemonTeamScene, PokemonDetailScene, PokemonBattleScene, PokemonEvolutionScene, MoveLearnScene, CaptureScene],
+            scene: [MainMenuScene, GameScene, InventoryScene, QuestScene, TripleTriadSelectScene, TripleTriadGameScene, BoosterOpeningScene, PhotoGalleryScene, QuizGameScene, QuizLobbyScene, TripleTriadAIConfigScene, TripleTriadPvPConfigScene, PokemonTeamScene, PokemonDetailScene, PokemonBattleScene, PokemonEvolutionScene, MoveLearnScene, CaptureScene],
             plugins: {
                 global: [
                     {

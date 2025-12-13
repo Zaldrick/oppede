@@ -149,7 +149,8 @@ export default class BattleSpriteManager {
                     getPokemonDisplayName(opponent).substring(0, 2),
                     2.5,
                     5, // depth
-                    this.scene.useAnimatedSprites // Option globale
+                    this.scene.useAnimatedSprites, // Option globale
+                    { alpha: 0 } // 🆕 Démarrer invisible pour éviter le flash/double animation
                 );
                 
                 // Stocker les références (unifiées)
@@ -170,10 +171,85 @@ export default class BattleSpriteManager {
                 // 🆕 Utiliser les dimensions réelles (Phaser ou GIF)
                 const spriteWidth = result.displayWidth || 96;
                 const spriteHeight = result.displayHeight || 96;
+                
+                // 🆕 LIMITER LA TAILLE DU SPRITE (Responsive)
+                // Adversaire (face) = un peu plus petit
+                const maxWidth = Math.max(width * 0.45, 300); 
+                const maxHeight = Math.max(height * 0.50, 300);
+                
+                if (result.type === 'phaser' && result.sprite) {
+                    // NOUVELLE LOGIQUE RESPONSIVE (Portrait vs Landscape)
+                    const isPortrait = height > width;
+                    let finalScale;
+
+                    if (isPortrait) {
+                        // En portrait, on se base sur la LARGEUR pour éviter que le sprite ne déborde
+                        // On veut que le sprite prenne environ 40% de la largeur de l'écran
+                        const targetWidth = maxWidth * 0.45;
+                        // On estime la taille de base du sprite à 96px pour le calcul du scale
+                        finalScale = targetWidth / 96;
+                    } else {
+                        // En landscape, on se base sur la HAUTEUR (logique précédente)
+                        const referenceHeight = 1080;
+                        const screenScale = height / referenceHeight;
+                        const baseScale = 4 ; 
+                        finalScale = baseScale * screenScale;
+                    }
+                    
+                    // Appliquer l'échelle
+                    result.sprite.setScale(finalScale);
+
+                    // Sécurité : si le sprite devient vraiment trop grand (ex: dépasse 50% de l'écran), on le cap
+                    if (result.sprite.displayHeight > maxHeight) {
+                        const clampScale = maxHeight / result.sprite.height;
+                        result.sprite.setScale(clampScale);
+                    }
+                } else if (result.type === 'gif' && result.gifContainer) {
+                    // NOUVELLE LOGIQUE RESPONSIVE (Portrait vs Landscape)
+                    const isPortrait = height > width;
+                    let finalScale;
+
+                    if (isPortrait) {
+                        const targetWidth = width * 0.40;
+                        finalScale = targetWidth / 96;
+                    } else {
+                        const referenceHeight = 1080;
+                        const screenScale = height / referenceHeight;
+                        const baseScale = 4 ; 
+                        finalScale = baseScale * screenScale;
+                    }
+
+                    // Reset des contraintes précédentes
+                    result.gifContainer.style.width = 'auto';
+                    result.gifContainer.style.height = 'auto';
+                    result.gifContainer.style.minHeight = '0'; 
+                    result.gifContainer.style.maxWidth = 'none';
+                    result.gifContainer.style.maxHeight = 'none';
+                    
+                    // Application de l'échelle
+                    result.gifContainer.style.transform = `scale(${finalScale})`;
+                    result.gifContainer.style.transformOrigin = 'center center';
+                }
+
+                // 🆕 CALCUL DE L'OMBRE APRÈS REDIMENSIONNEMENT
+                // On récupère les dimensions réelles affichées
+                let displayWidth = 96;
+                let displayHeight = 96;
+
+                if (result.type === 'phaser' && result.sprite) {
+                    displayWidth = result.sprite.displayWidth;
+                    displayHeight = result.sprite.displayHeight;
+                } else if (result.type === 'gif' && result.gifContainer) {
+                    // Estimation pour le GIF (car le DOM n'est pas encore rendu)
+                    // On utilise la taille max comme référence si on ne peut pas mesurer
+                    displayWidth = Math.min(spriteWidth, maxWidth);
+                    displayHeight = Math.min(spriteHeight, maxHeight);
+                }
+
                 const shadowSize = {
-                    width: spriteWidth * 0.8,
-                    height: spriteHeight * 0.15,
-                    offsetY: spriteHeight * 0.45
+                    width: displayWidth * 0.8,
+                    height: displayHeight * 0.15,
+                    offsetY: displayHeight * 0.45
                 };
                 
                 shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
@@ -207,7 +283,8 @@ export default class BattleSpriteManager {
                     getPokemonDisplayName(player).substring(0, 2),
                     3,
                     1, // depth
-                    this.scene.useAnimatedSprites // Option globale
+                    this.scene.useAnimatedSprites, // Option globale
+                    { alpha: 0 } // 🆕 Démarrer invisible pour éviter le flash/double animation
                 );
                 
                 // Stocker les références (unifiées)
@@ -228,10 +305,67 @@ export default class BattleSpriteManager {
                 // 🆕 Utiliser les dimensions réelles (Phaser ou GIF)
                 const spriteWidth = result.displayWidth || 96;
                 const spriteHeight = result.displayHeight || 96;
+
+                // 🆕 LIMITER LA TAILLE DU SPRITE (Responsive)
+                // Joueur (dos) = plus grand pour perspective
+                const maxWidth = Math.max(width * 0.55, 400);
+                const maxHeight = Math.max(height * 0.60, 400);
+                
+                if (result.type === 'phaser' && result.sprite) {
+                    // NOUVELLE LOGIQUE RESPONSIVE (Portrait vs Landscape)
+                    const isPortrait = height > width;
+                    let finalScale;
+
+                    if (isPortrait) {
+                        // En portrait, on se base sur la LARGEUR
+                        // Le joueur est plus proche, on lui donne 55% de la largeur
+                        const targetWidth = maxWidth * 0.55;
+                        finalScale = targetWidth / 96;
+                    } else {
+                        // En landscape, on se base sur la HAUTEUR
+                        const referenceHeight = 1080;
+                        const screenScale = height / referenceHeight;
+                        const baseScale = 4 ; 
+                        finalScale = baseScale * screenScale;
+                    }
+                    
+                    // Appliquer l'échelle
+                    result.sprite.setScale(finalScale);
+
+                    // Sécurité : si le sprite devient vraiment trop grand
+                    if (result.sprite.displayHeight > maxHeight) {
+                        const clampScale = maxHeight / result.sprite.height;
+                        result.sprite.setScale(clampScale);
+                    }
+
+                } else if (result.type === 'gif' && result.gifContainer) {
+                    // Pour les GIFs, on force la taille CSS
+                    result.gifContainer.style.width = 'auto'; // Garder ratio
+                    result.gifContainer.style.height = 'auto';
+                    // Max limits
+                    result.gifContainer.style.maxWidth = `${maxWidth}px`;
+                    result.gifContainer.style.maxHeight = `${maxHeight}px`;
+                    
+                    // Min limits (pour éviter les GIFs minuscules sur 4K)
+                    result.gifContainer.style.minHeight = `${height * 0.25}px`;
+                }
+
+                // 🆕 CALCUL DE L'OMBRE APRÈS REDIMENSIONNEMENT
+                let displayWidth = 96;
+                let displayHeight = 96;
+
+                if (result.type === 'phaser' && result.sprite) {
+                    displayWidth = result.sprite.displayWidth;
+                    displayHeight = result.sprite.displayHeight;
+                } else if (result.type === 'gif' && result.gifContainer) {
+                    displayWidth = Math.min(spriteWidth, maxWidth);
+                    displayHeight = Math.min(spriteHeight, maxHeight);
+                }
+
                 const shadowSize = {
-                    width: spriteWidth * 0.85,
-                    height: spriteHeight * 0.15,
-                    offsetY: spriteHeight * 0.45
+                    width: displayWidth * 0.85,
+                    height: displayHeight * 0.15,
+                    offsetY: displayHeight * 0.45
                 };
                 
                 shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
@@ -297,6 +431,66 @@ export default class BattleSpriteManager {
                 // Créer ombre
                 const shadow = this.scene.add.graphics();
                 shadow.fillStyle(0x000000, 0.6);
+                
+                // 🆕 LIMITER LA TAILLE DU SPRITE (Responsive)
+                // Joueur (dos) = plus grand pour perspective
+                const maxWidth = Math.max(width * 0.55, 400);
+                const maxHeight = Math.max(height * 0.60, 400);
+                
+                if (result.type === 'phaser' && result.sprite) {
+                    // NOUVELLE LOGIQUE RESPONSIVE (Portrait vs Landscape)
+                    const isPortrait = height > width;
+                    let finalScale;
+
+                    if (isPortrait) {
+                        // En portrait, on se base sur la LARGEUR
+                        // Le joueur est plus proche, on lui donne 55% de la largeur
+                        const targetWidth = maxWidth * 0.55;
+                        finalScale = targetWidth / 96;
+                    } else {
+                        // En landscape, on se base sur la HAUTEUR
+                        const referenceHeight = 1080;
+                        const screenScale = height / referenceHeight;
+                        const baseScale = 5.2; 
+                        finalScale = baseScale * screenScale;
+                    }
+                    
+                    // Appliquer l'échelle
+                    result.sprite.setScale(finalScale);
+
+                    // Sécurité : si le sprite devient vraiment trop grand
+                    if (result.sprite.displayHeight > maxHeight) {
+                        const clampScale = maxHeight / result.sprite.height;
+                        result.sprite.setScale(clampScale);
+                    }
+                } else if (result.type === 'gif' && result.gifContainer) {
+                    // NOUVELLE LOGIQUE RESPONSIVE (Portrait vs Landscape)
+                    const isPortrait = height > width;
+                    let finalScale;
+
+                    if (isPortrait) {
+                        const targetWidth = maxWidth * 0.5;
+                        finalScale = targetWidth / 96;
+                    } else {
+                        const referenceHeight = 1080;
+                        const screenScale = height / referenceHeight;
+                        const baseScale = 5.2; 
+                        finalScale = baseScale * screenScale;
+                    }
+                    
+
+                    // Reset des contraintes précédentes
+                    result.gifContainer.style.width = 'auto';
+                    result.gifContainer.style.height = 'auto';
+                    result.gifContainer.style.minHeight = '0'; 
+                    result.gifContainer.style.maxWidth = 'none';
+                    result.gifContainer.style.maxHeight = 'none';
+                    
+                    // Application de l'échelle
+                    result.gifContainer.style.transform = `scale(${finalScale})`;
+                    result.gifContainer.style.transformOrigin = 'center center';
+                }
+
                 const shadowSize = result.type === 'phaser' && result.sprite 
                     ? { width: result.sprite.displayWidth * 0.85, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
                     : { width: 90, height: 15, offsetY: 50 };

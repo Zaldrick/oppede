@@ -59,7 +59,8 @@ export default class SoundManager {
             'itemget': 'Item_Get',
             'evolution_startup': 'Evolution_Startup',
             'evolution_start': 'Evolution_Startup',
-            'booster_opening': 'boosterOpenning'
+            'booster_opening': 'boosterOpenning',
+            'teleport': 'tp'
         };
         Object.assign(this.specialMappings, eventMappings);
     }

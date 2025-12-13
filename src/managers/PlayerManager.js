@@ -83,6 +83,13 @@ export class PlayerManager {
   handleMovement(cursors, joystick, socket, myId) {
     if (!this.player || !this.player.body || !cursors) return;
 
+    // Block movement if dialogue is active
+    if (this.scene.uiManager && this.scene.uiManager.isDialogueActive) {
+        this.player.setVelocity(0);
+        this.player.anims.stop();
+        return;
+    }
+
     // const gridSize = 8; // unused — removed to avoid lint warning
     let newAnim = "";
     let keyboardActive = false;

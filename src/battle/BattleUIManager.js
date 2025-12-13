@@ -415,9 +415,11 @@ export default class BattleUIManager {
         this.scene.dialogText.setVisible(false);
 
         // Boutons du menu (grille 2x2) avec style moderne
+        // ✅ FIXE: Ajuster la taille pour rester dans le cadre
         const buttonWidth = menuWidth * 0.44;
-        const buttonHeight = menuHeight * 0.40;
+        const buttonHeight = menuHeight * 0.35; // Réduit de 0.40 à 0.35
         const buttonSpacing = menuWidth * 0.04;
+        const verticalSpacing = menuHeight * 0.10; // Espacement vertical explicite
 
         const buttons = [
             { label: 'COMBATTRE', x: 0, y: 0, color: 0xE74C3C, action: () => this.scene.menuManager.showMoveSelector() },
@@ -430,7 +432,9 @@ export default class BattleUIManager {
 
         buttons.forEach(btn => {
             const btnX = menuX + buttonSpacing + btn.x * (buttonWidth + buttonSpacing);
-            const btnY = menuY + buttonSpacing + btn.y * (buttonHeight + buttonSpacing);
+            // ✅ FIXE: Calcul Y plus précis pour centrer verticalement
+            const startY = menuY + (menuHeight - (2 * buttonHeight + verticalSpacing)) / 2;
+            const btnY = startY + btn.y * (buttonHeight + verticalSpacing);
 
             const btnContainer = this.scene.add.container(btnX, btnY);
             
@@ -664,8 +668,9 @@ export default class BattleUIManager {
         container.add(moveName);
 
         // Badge de type avec ombre et bordure
-        const typeWidth = width * 0.4;
-        const typeHeight = height * 0.30;
+        // ✅ FIXE: Limiter la taille du badge de type
+        const typeWidth = Math.min(width * 0.4, 120);
+        const typeHeight = Math.min(height * 0.30, 40);
         const typeX = width * 0.08;
         const typeY = height * 0.60;
         

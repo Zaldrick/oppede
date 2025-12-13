@@ -52,16 +52,16 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
 
         // === TITRE ===
         this.container.add(this.add.text(width / 2, height * 0.1, "Configuration IA", {
-            font: `${Math.round(width * 0.06)}px Arial`,
+            font: `${Math.round(Math.min(width, height) * 0.06)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
 
         // === SECTION DIFFICULTÉ ===
-        const difficultyY = height * 0.18; // ✅ RÉDUIT de 0.25 à 0.18
+        const difficultyY = height * 0.20;
 
         this.container.add(this.add.text(width / 2, difficultyY, "Puissance de l'IA", {
-            font: `${Math.round(width * 0.045)}px Arial`,
+            font: `${Math.round(Math.min(width, height) * 0.045)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
@@ -72,12 +72,15 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             { key: 'difficile', label: 'Balkany', desc: 'Rire de droite' }
         ];
 
+        const buttonHeight = height * 0.06;
+        const buttonSpacing = height * 0.01;
+
         difficulties.forEach((diff, index) => {
-            const btnY = difficultyY + 50 + index * 45; // ✅ RÉDUIT l'espacement entre boutons
+            const btnY = difficultyY + height * 0.06 + index * (buttonHeight + buttonSpacing);
             const isSelected = this.selectedDifficulty === diff.key;
 
-            const btn = this.add.text(width / 2 - 100, btnY, diff.label, {
-                font: `${Math.round(width * 0.04)}px Arial`,
+            const btn = this.add.text(width / 2 - width * 0.15, btnY, diff.label, {
+                font: `${Math.round(Math.min(width, height) * 0.035)}px Arial`,
                 fill: isSelected ? "#0f0" : "#fff",
                 backgroundColor: isSelected ? "#004400" : "#444444"
             })
@@ -92,17 +95,17 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             this.container.add(btn);
 
             // Description
-            this.container.add(this.add.text(width / 2 + 20, btnY, diff.desc, {
-                font: `${Math.round(width * 0.03)}px Arial`,
+            this.container.add(this.add.text(width / 2 + width * 0.05, btnY, diff.desc, {
+                font: `${Math.round(Math.min(width, height) * 0.025)}px Arial`,
                 fill: "#ccc"
             }).setOrigin(0, 0.5));
         });
 
         // === SECTION RÈGLES ===
-        const rulesY = height * 0.45; // ✅ RÉDUIT de 0.55 à 0.42
+        const rulesY = height * 0.55;
 
         this.container.add(this.add.text(width / 2, rulesY, "Règles du Jeux", {
-            font: `${Math.round(width * 0.046)}px Arial`,
+            font: `${Math.round(Math.min(width, height) * 0.046)}px Arial`,
             fill: "#fff",
             fontStyle: "bold"
         }).setOrigin(0.5));
@@ -115,11 +118,11 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
         ];
 
         rules.forEach((rule, index) => {
-            const btnY = rulesY + 50 + index * 45; // ✅ RÉDUIT l'espacement entre règles
+            const btnY = rulesY + height * 0.06 + index * (buttonHeight + buttonSpacing);
             const isSelected = this.selectedRules[rule.key];
 
-            const checkbox = this.add.text(width / 2 - 120, btnY, isSelected ? "☑" : "☐", {
-                font: `${Math.round(width * 0.1)}px Arial`,
+            const checkbox = this.add.text(width / 2 - width * 0.25, btnY, isSelected ? "☑" : "☐", {
+                font: `${Math.round(Math.min(width, height) * 0.05)}px Arial`,
                 fill: isSelected ? "#0f0" : "#fff"
             })
                 .setOrigin(0.5)
@@ -131,8 +134,8 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
 
             this.container.add(checkbox);
 
-            const label = this.add.text(width / 2 - 80, btnY, rule.label, {
-                font: `${Math.round(width * 0.04)}px Arial`,
+            const label = this.add.text(width / 2 - width * 0.20, btnY, rule.label, {
+                font: `${Math.round(Math.min(width, height) * 0.035)}px Arial`,
                 fill: "#fff"
             })
                 .setOrigin(0, 0.5)
@@ -145,18 +148,18 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
             this.container.add(label);
 
             // Description
-            this.container.add(this.add.text(width / 2 + 20, btnY, rule.desc, {
-                font: `${Math.round(width * 0.03)}px Arial`,
+            this.container.add(this.add.text(width / 2 + width * 0.05, btnY, rule.desc, {
+                font: `${Math.round(Math.min(width, height) * 0.025)}px Arial`,
                 fill: "#ccc"
             }).setOrigin(0, 0.5));
         });
 
         // === BOUTONS ===
-        const btnY = height * 0.85; // ✅ RÉDUIT de 0.9 à 0.85
+        const actionBtnY = height * 0.92;
 
         // Bouton Retour
-        const backBtn = this.add.text(width / 2 - 100, btnY, "Retour", {
-            font: `${Math.round(width * 0.04)}px Arial`,
+        const backBtn = this.add.text(width * 0.3, actionBtnY, "Retour", {
+            font: `${Math.round(Math.min(width, height) * 0.04)}px Arial`,
             fill: "#fff",
             backgroundColor: "#666"
         })
@@ -168,8 +171,8 @@ export class TripleTriadAIConfigScene extends Phaser.Scene {
         this.container.add(backBtn);
 
         // Bouton Commencer
-        const startBtn = this.add.text(width / 2 + 100, btnY, "Commencer", {
-            font: `${Math.round(width * 0.04)}px Arial`,
+        const startBtn = this.add.text(width * 0.7, actionBtnY, "Commencer", {
+            font: `${Math.round(Math.min(width, height) * 0.04)}px Arial`,
             fill: "#fff",
             backgroundColor: "#0a7c0a"
         })
