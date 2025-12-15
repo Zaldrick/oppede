@@ -30,6 +30,19 @@ export class UIManager {
     this.dialogueAvatar = null;
     this.dialogueNextIcon = null;
     this.lastDialogueAdvance = 0;
+
+    // Anti-spam: small cooldown after a dialogue closes to avoid instantly
+    // re-triggering an interaction on the same key press.
+    this.interactionCooldownUntil = 0;
+  }
+
+  setInteractionCooldown(durationMs = 300) {
+    const ms = Math.max(0, Number(durationMs) || 0);
+    this.interactionCooldownUntil = Date.now() + ms;
+  }
+
+  isInteractionOnCooldown() {
+    return Date.now() < (this.interactionCooldownUntil || 0);
   }
 
   createUI() {
@@ -116,6 +129,11 @@ export class UIManager {
         return;
     }
 
+    // Prevent accidental re-interaction just after closing a dialogue
+    if (this.isInteractionOnCooldown()) {
+      return;
+    }
+
     const player = this.scene.playerManager?.getPlayer();
     if (!player) return;
 
@@ -141,12 +159,14 @@ export class UIManager {
     let targetId = this.scene.remotePlayerManager?.getNearestRemotePlayer(player.x, player.y);
     if (targetId) {
         this.showInteractionMenu(targetId);
-    } else {
-        this.scene.displayMessage("Aucun joueur à proximité\n pour l'interaction");
     }
   }
 
   handleInteraction() {
+    if (this.isInteractionOnCooldown()) {
+      return;
+    }
+
     const player = this.scene.playerManager?.getPlayer();
     if (!player) return;
 
@@ -771,6 +791,9 @@ export class UIManager {
     if (this.dialogueGroup) {
         this.dialogueGroup.setVisible(false);
     }
+
+    // Apply a short cooldown to prevent instant re-trigger
+    this.setInteractionCooldown(300);
   }
 
   destroy() {

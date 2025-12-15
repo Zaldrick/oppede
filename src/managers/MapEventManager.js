@@ -1,10 +1,47 @@
 import Phaser from "phaser";
 
+import { QuestRouter } from "../quests/QuestRouter";
+import { EtoileDuSoirQuest } from "../quests/EtoileDuSoirQuest";
+
 export class MapEventManager {
     constructor(scene, mapManager) {
         this.scene = scene;
         this.mapManager = mapManager;
         this.activeEvents = [];
+
+        // Router de quêtes (1 handler par quête) pour éviter que MapEventManager devienne un fourre-tout
+        this.questRouter = new QuestRouter({
+            scene: this.scene,
+            mapManager: this.mapManager,
+            eventManager: this,
+            handlers: [new EtoileDuSoirQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })]
+        });
+    }
+
+    faceNpcToPlayer(npc) {
+        const player = this.scene.playerManager?.getPlayer();
+        if (!player || !npc) return;
+
+        const dx = player.x - npc.x;
+        const dy = player.y - npc.y;
+
+        // If the NPC uses the player spritesheet, we can set a directional idle frame.
+        // Player idle frames (see PlayerManager CONFIG): right 56, up 62, left 68, down 74.
+        if (npc.texture?.key === 'player' && typeof npc.setFrame === 'function') {
+            let frame = 74; // down
+            if (Math.abs(dx) > Math.abs(dy)) {
+                frame = dx < 0 ? 68 : 56;
+            } else {
+                frame = dy < 0 ? 62 : 74;
+            }
+            npc.setFrame(frame);
+            return;
+        }
+
+        // Generic fallback: flip horizontally towards the player (works for most NPC sprites).
+        if (typeof npc.setFlipX === 'function') {
+            npc.setFlipX(dx < 0);
+        }
     }
 
     async loadWorldEvents() {
@@ -74,6 +111,11 @@ export class MapEventManager {
             this.createSubwayDoor();
         }
 
+        // Spécifique Douai (Quête Etoile du Soir)
+        if (mapKey === "douai") {
+            this.questRouter.spawnForMap(mapKey);
+        }
+
         // Populate Ambient NPCs
         if (["lille", "douai", "metro", "metroInterieur"].includes(mapKey)) {
             this.populateAmbientNPCs(mapKey);
@@ -85,9 +127,10 @@ export class MapEventManager {
             "adam", "alex", "amelia", "ash", "bob", "bouncer", 
             "bruce", "dan", "edward", "fishmonger_1", "kid_abby", "kid_karen"
         ];
+        // old_man_josh retiré car géré manuellement pour la quête
         const npcListDouai = [
             "kid_mitty", "kid_oscar", "kid_romeo", "kid_tim", "lucy", "molly", 
-            "old_man_josh", "old_woman_jenny", "pier", "rob", "roki", "samuel"
+            "old_woman_jenny", "pier", "rob", "roki", "samuel"
         ];
         
         let npcsToSpawn = [];
@@ -237,6 +280,102 @@ export class MapEventManager {
         this.activeEvents.push(door);
     }
 
+    createSparklesEvent() {
+        const x = 41 * 48 + 24;
+        const y = 73 * 48 + 24;
+
+        // Animation sparkles
+        if (!this.scene.anims.exists('sparkles_anim')) {
+            this.scene.anims.create({
+                key: 'sparkles_anim',
+                frames: this.scene.anims.generateFrameNumbers('sparkles', { start: 0, end: 3 }),
+                frameRate: 8,
+                repeat: -1
+            });
+        }
+
+        const sparkles = this.scene.physics.add.sprite(x, y, "sparkles");
+        sparkles.play('sparkles_anim');
+        sparkles.setImmovable(true);
+        sparkles.setInteractive();
+        sparkles.npcType = "sparkles_quest"; 
+        
+        // Hitbox
+        sparkles.body.setSize(32, 32);
+        sparkles.body.setOffset(8, 8);
+
+        this.activeEvents.push(sparkles);
+    }
+
+    createJoshNPC() {
+        const x = 50 * 48 + 24;
+        const y = 73 * 48 + 24;
+        
+        // Sprite 48x96 -> npc_old_man_josh
+        const josh = this.scene.physics.add.sprite(x, y - 24, "npc_old_man_josh", 0);
+        josh.body.setSize(32, 32);
+        josh.body.setOffset(8, 64);
+        josh.setImmovable(true);
+        josh.setInteractive();
+        josh.npcType = "josh_quest";
+
+        const animKey = 'old_man_josh_idle'; // Key used by populateAmbientNPCs logic
+        if (!this.scene.anims.exists(animKey)) {
+             this.scene.anims.create({
+                key: animKey,
+                frames: this.scene.anims.generateFrameNumbers('npc_old_man_josh', { start: 0, end: 3 }),
+                frameRate: 4,
+                repeat: -1,
+                yoyo: true
+            });
+        }
+        josh.play(animKey);
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, josh);
+        }
+        this.activeEvents.push(josh);
+    }
+
+    createQuestChest() {
+        const x = 49 * 48 + 24;
+        const y = 73 * 48 + 24;
+
+        const chest = this.scene.physics.add.sprite(x, y, "coffre", 0);
+        chest.setImmovable(true);
+        chest.setInteractive();
+        chest.npcType = "quest_chest";
+        
+        // Hitbox
+        chest.body.setSize(32, 32);
+        chest.body.setOffset(8, 16);
+
+        // Animation ouverture
+        if (!this.scene.anims.exists('coffre_open')) {
+            this.scene.anims.create({
+                key: 'coffre_open',
+                frames: this.scene.anims.generateFrameNumbers('coffre', { start: 0, end: 3 }),
+                frameRate: 8,
+                repeat: 0
+            });
+        }
+
+        // État initial selon la quête
+        const playerData = this.scene.registry.get("playerData");
+        const questId = playerData.quests ? playerData.quests["Etoile du Soir"] : 0;
+        
+        if (questId >= 3) {
+            chest.setFrame(3); // Déjà ouvert
+        }
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, chest);
+        }
+        this.activeEvents.push(chest);
+    }
+
     createBoosterVendor() {
         if (!this.mapManager.map) return;
 
@@ -373,13 +512,25 @@ export class MapEventManager {
     }
 
     handleNPCInteraction(npc) {
+        const playerPseudo = this.scene.registry.get("playerPseudo") || "Moi";
+        const playerData = this.scene.registry.get("playerData");
+        const playerId = playerData ? playerData._id : null;
+
+        // Make the NPC face the player before any dialogue/quest handling.
+        this.faceNpcToPlayer(npc);
+
+        // Quêtes : si un handler s'en occupe, on stop ici.
+        if (this.questRouter && this.questRouter.handleNPCInteraction(npc)) {
+            return;
+        }
+
         if (npc.npcType === "ralof") {
             const answer = window.prompt("What's my Name ?");
             if (answer && answer.toLowerCase() === "ralof") {
                 this.mapManager.changeMap("qwest", 13 * 48 + 24, 5 * 48 + 24);
             }
         } else if (npc.npcType === "booster_vendor") {
-            this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !");
+            this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !", "Marchand");
             setTimeout(() => {
                 if (this.scene.shopManager) {
                     this.scene.shopManager.openShop();
@@ -397,10 +548,10 @@ export class MapEventManager {
                 "..."
             ];
             const randomDialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
-            this.scene.displayMessage(randomDialogue);
+            this.scene.displayMessage(randomDialogue, npc.npcName || "Habitant");
         } else if (npc.npcType === "dialogue" && npc.eventData) {
             const dialogue = npc.eventData.properties?.dialogue || "Bonjour !";
-            this.scene.displayMessage(dialogue);
+            this.scene.displayMessage(dialogue, npc.eventData.properties?.speaker || "PNJ");
 
             if (!npc.eventData.state.hasSpoken) {
                 fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${npc.eventData._id}/state`, {
@@ -414,9 +565,10 @@ export class MapEventManager {
     }
 
     handleChestInteraction(chest) {
+        const playerPseudo = this.scene.registry.get("playerPseudo") || "Moi";
         const { eventData } = chest;
         if (eventData.state.opened) {
-            this.scene.displayMessage("Ce coffre est déjà ouvert !");
+            this.scene.displayMessage("Ce coffre est déjà ouvert !", playerPseudo);
             return;
         }
 
@@ -425,7 +577,7 @@ export class MapEventManager {
             chest.setFrame(4);
         });
 
-        this.scene.displayMessage(`Vous trouvez : ${eventData.properties.loot}`);
+        this.scene.displayMessage(`Vous trouvez : ${eventData.properties.loot}`, playerPseudo);
 
         fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${eventData._id}/state`, {
             method: "POST",

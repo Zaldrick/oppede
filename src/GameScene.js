@@ -18,6 +18,9 @@ export class GameScene extends Phaser.Scene {
         super("GameScene");
         this.inventory = [];
 
+        // Dialogue queue (évite d'écraser une boîte de dialogue par une autre)
+        this.dialogueQueue = [];
+
         // Initialisation des managers
         this.playerManager = null;
         this.remotePlayerManager = null;
@@ -127,8 +130,17 @@ export class GameScene extends Phaser.Scene {
         this.scorePollingInterval = setInterval(async () => {
             const playerPseudo = this.registry.get("playerPseudo");
             if (playerPseudo) {
-                const playerData = await PlayerService.fetchPlayerData(playerPseudo);
-                this.registry.set("playerData", playerData);
+                const previousPlayerData = this.registry.get("playerData");
+                const refreshedPlayerData = await PlayerService.fetchPlayerData(playerPseudo);
+
+                // IMPORTANT: ne pas écraser l'état de quêtes local (utilisé par MapEventManager)
+                // fetchPlayerData ne renvoie pas toujours les quêtes, donc on conserve celles déjà synchronisées.
+                const mergedPlayerData = { ...previousPlayerData, ...refreshedPlayerData };
+                if (previousPlayerData?.quests && (!mergedPlayerData.quests || Object.keys(mergedPlayerData.quests).length === 0)) {
+                    mergedPlayerData.quests = previousPlayerData.quests;
+                }
+
+                this.registry.set("playerData", mergedPlayerData);
                 // Ici tu peux aussi rafraîchir l'affichage du score si besoin
             }
         }, 5000); // toutes les 5 secondes
@@ -152,6 +164,35 @@ export class GameScene extends Phaser.Scene {
         if (!playerData) {
             console.error("Player data is not defined in the registry! Aborting game initialization.");
             return;
+        }
+
+        // Charger les quêtes du joueur pour synchroniser l'état local
+        try {
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (!apiUrl) {
+                console.warn("[GameScene] REACT_APP_API_URL non défini; synchronisation des quêtes ignorée.");
+                return;
+            }
+
+            const questsRes = await fetch(`${apiUrl}/api/quests/${playerData._id}`);
+            if (questsRes.ok) {
+                const questsData = await questsRes.json();
+                // Convertir en format { "QuestId": stepIndex } pour MapEventManager
+                playerData.quests = {};
+                questsData.forEach(q => {
+                    playerData.quests[q.questId] = q.stepIndex;
+                    // Si la quête est terminée, on peut stocker un index élevé ou un flag
+                    if (q.status === 'completed') {
+                        // MapEventManager attend souvent un index élevé pour "fini" (ex: 4)
+                        // On garde stepIndex, mais on pourrait ajouter une logique si besoin.
+                        // Pour Etoile du Soir, step 4 = fini.
+                    }
+                });
+                this.registry.set("playerData", playerData);
+                console.log("[GameScene] Quêtes synchronisées :", playerData.quests);
+            }
+        } catch (e) {
+            console.warn("[GameScene] Impossible de charger les quêtes :", e);
         }
 
         // Diagnostic des cartes
@@ -240,6 +281,7 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("teleportSound", "/assets/sounds/tp.ogg?v=2");
         this.load.audio("metro_open", "/assets/sounds/metro_open.mp3");
         this.load.audio("metro_close", "/assets/sounds/metro_close.mp3");
+        this.load.audio("car_start", "/assets/sounds/car_start.mp3");
         this.load.audio("music1", "/assets/musics/music1.mp3");
         this.load.audio("qwest", "/assets/musics/qwest.mp3");
         // Preload battle music
@@ -269,6 +311,16 @@ export class GameScene extends Phaser.Scene {
         });
 
         this.load.spritesheet("marchand", "/assets/apparences/marchand.png", {
+            frameWidth: 48,
+            frameHeight: 48,
+        });
+
+        this.load.spritesheet("sparkles", "/assets/sprites/sparkles.png", {
+            frameWidth: 48,
+            frameHeight: 48,
+        });
+
+        this.load.spritesheet("coffre", "/assets/sprites/coffre.png", {
             frameWidth: 48,
             frameHeight: 48,
         });
@@ -405,42 +457,88 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    displayMessage(text) {
+    displayMessage(text, speakerName = null, onComplete = null) {
+        // Si une boîte est déjà affichée, on enfile le message pour l'afficher ensuite
+        if (this.currentDialogueBox) {
+            this.dialogueQueue.push({ text, speakerName, onComplete });
+            return;
+        }
+
         // Nettoie l'ancienne boîte de dialogue si elle existe
         if (this.currentDialogueBox) {
             this.currentDialogueBox.destroy();
             this.currentDialogueBox = null;
         }
 
+        // Bloque le joueur via UIManager
+        if (this.uiManager) {
+            this.uiManager.isDialogueActive = true;
+        }
+        // Stop le mouvement immédiatement
+        if (this.playerManager && this.playerManager.player) {
+            this.playerManager.player.setVelocity(0);
+            this.playerManager.player.anims.stop();
+        }
+
         const { width, height } = this.scale;
         const padding = 20;
         
         // Dimensions responsives
-        // Sur PC (largeur > hauteur), on limite la largeur de la boîte pour qu'elle ne soit pas étirée
         const isLandscape = width > height;
         const boxWidth = isLandscape ? Math.min(width * 0.6, 800) : width - (padding * 2);
         const boxHeight = 150;
         
-        // Positionnement : En haut pour éviter les contrôles tactiles (qui sont en bas)
-        // Centré horizontalement
+        // Positionnement
         const boxX = (width - boxWidth) / 2;
-        const boxY = padding * 2; // Un peu d'espace depuis le haut
+        let boxY;
 
-        // Conteneur principal (Depth très élevé pour être au-dessus des layers map * 10000)
-        const container = this.add.container(0, 0).setScrollFactor(0).setDepth(200000);
+        if (isLandscape) {
+            // PC / Paysage : En bas (au-dessus du chat input)
+            // On laisse une marge pour le chat input (~60px) + un peu d'espace
+            boxY = height - boxHeight - 80;
+        } else {
+            // Mobile / Portrait : En haut (pour éviter le joystick en bas)
+            boxY = padding * 2;
+        }
+
+        // Conteneur principal
+        const container = this.add.container(0, 0).setScrollFactor(0).setDepth(Number.MAX_SAFE_INTEGER);
         this.currentDialogueBox = container;
 
-        // Fond de la boîte (Gris Taupe Transparent)
+        // Fond de la boîte
         const bg = this.add.graphics();
-        // Couleur Taupe : ~#483C32 (RGB: 72, 60, 50) -> 0x483C32
-        // Ou un gris chaud : 0x504a45
-        bg.fillStyle(0x504a45, 0.9); 
+        bg.fillStyle(0x504a45, 0.95); 
         bg.fillRoundedRect(boxX, boxY, boxWidth, boxHeight, 10);
         
         // Bordure
-        bg.lineStyle(3, 0xc0b0a0, 1); // Bordure beige/taupe clair
+        bg.lineStyle(3, 0xc0b0a0, 1);
         bg.strokeRoundedRect(boxX, boxY, boxWidth, boxHeight, 10);
         container.add(bg);
+
+        // Nom de l'interlocuteur (si fourni)
+        if (speakerName) {
+            const nameBg = this.add.graphics();
+            nameBg.fillStyle(0x333333, 1);
+            // Petit badge pour le nom au-dessus de la boîte
+            const nameX = boxX + 20;
+            const nameY = boxY - 15;
+            const namePadding = 10;
+            
+            const nameTextObj = this.add.text(nameX + namePadding, nameY + 2, speakerName, {
+                font: "bold 18px Arial",
+                fill: "#FFD700" // Or
+            });
+            
+            const nameWidth = nameTextObj.width + (namePadding * 2);
+            const nameHeight = 28;
+            
+            nameBg.fillRoundedRect(nameX, nameY, nameWidth, nameHeight, 5);
+            nameBg.lineStyle(2, 0xc0b0a0, 1);
+            nameBg.strokeRoundedRect(nameX, nameY, nameWidth, nameHeight, 5);
+            
+            container.add(nameBg);
+            container.add(nameTextObj);
+        }
 
         // Texte
         const textStyle = {
@@ -450,14 +548,106 @@ export class GameScene extends Phaser.Scene {
             align: "left"
         };
 
-        const messageText = this.add.text(boxX + padding, boxY + padding, "", textStyle);
+        const messageText = this.add.text(boxX + padding, boxY + padding + (speakerName ? 10 : 0), "", textStyle);
         container.add(messageText);
+
+        // Indicateur de suite (flèche clignotante)
+        const nextIcon = this.add.text(boxX + boxWidth - 30, boxY + boxHeight - 30, "▼", {
+            font: "20px Arial", fill: "#ffffff"
+        }).setOrigin(0.5).setVisible(false);
+        container.add(nextIcon);
 
         // Effet de machine à écrire
         let charIndex = 0;
-        const typeSpeed = 30; // ms par caractère
+        const typeSpeed = 15; // Plus rapide (15ms vs 30ms)
 
         if (this.dialogueTimer) this.dialogueTimer.remove();
+
+        const finishTyping = () => {
+            if (this.dialogueTimer) this.dialogueTimer.remove();
+            // Safety check: ensure container and text object still exist
+            if (!this.currentDialogueBox || !this.currentDialogueBox.scene || !messageText || !messageText.scene) {
+                return;
+            }
+            
+            messageText.text = text;
+            charIndex = text.length;
+            
+            if (nextIcon && nextIcon.scene) {
+                nextIcon.setVisible(true);
+                // Animation de la flèche
+                this.tweens.add({
+                    targets: nextIcon,
+                    y: boxY + boxHeight - 25,
+                    duration: 500,
+                    yoyo: true,
+                    repeat: -1
+                });
+            }
+        };
+
+        const closeDialogue = () => {
+            if (this.currentDialogueBox === container) {
+                if (this.dialogueTimer) {
+                    this.dialogueTimer.remove();
+                    this.dialogueTimer = null;
+                }
+
+                container.destroy();
+                this.currentDialogueBox = null;
+                
+                // Nettoyage des écouteurs clavier temporaires
+                this.input.keyboard.off('keydown-SPACE', handleInput);
+                this.input.keyboard.off('keydown-ENTER', handleInput);
+
+                // Anti-spam: évite de relancer une interaction juste après fermeture
+                // (ex: même pression de touche qui ferme puis ré-interagit)
+                if (this.uiManager?.setInteractionCooldown) {
+                    this.uiManager.setInteractionCooldown(300);
+                }
+                
+                // Priorité aux enchaînements via onComplete (PNJ en 2 boîtes, etc.)
+                if (onComplete) onComplete();
+
+                // Si onComplete a déclenché une nouvelle boîte, on laisse la queue pour plus tard
+                if (this.currentDialogueBox) {
+                    return;
+                }
+
+                // Sinon, on affiche le prochain message en attente
+                if (this.dialogueQueue && this.dialogueQueue.length > 0) {
+                    const next = this.dialogueQueue.shift();
+                    this.time.delayedCall(0, () => {
+                        this.displayMessage(next.text, next.speakerName, next.onComplete);
+                    });
+                    return;
+                }
+
+                // Fin de chaîne : on débloque le joueur
+                if (this.uiManager) this.uiManager.isDialogueActive = false;
+            }
+        };
+
+        const handleInput = () => {
+            if (charIndex < text.length) {
+                finishTyping();
+            } else {
+                closeDialogue();
+            }
+        };
+
+        // Écouteurs clavier
+        // Délai pour éviter que l'appui sur la touche d'interaction ne passe instantanément le dialogue
+        this.time.delayedCall(200, () => {
+            this.input.keyboard.on('keydown-SPACE', handleInput);
+            this.input.keyboard.on('keydown-ENTER', handleInput);
+            
+            // Fermeture au clic (Zone plein écran)
+            const closeZone = this.add.zone(0, 0, width, height).setOrigin(0).setInteractive();
+            closeZone.on('pointerdown', handleInput);
+            container.add(closeZone);
+            container.sendToBack(closeZone); // Derrière le texte mais capture les clics hors boutons
+        });
 
         this.dialogueTimer = this.time.addEvent({
             delay: typeSpeed,
@@ -465,44 +655,12 @@ export class GameScene extends Phaser.Scene {
                 messageText.text += text[charIndex];
                 charIndex++;
                 if (charIndex >= text.length) {
-                    this.dialogueTimer.remove();
-                    // Auto-close après lecture (optionnel, ou sur clic)
-                    this.time.delayedCall(4000, () => {
-                        if (this.currentDialogueBox === container) {
-                            this.tweens.add({
-                                targets: container,
-                                alpha: 0,
-                                duration: 500,
-                                onComplete: () => {
-                                    if (this.currentDialogueBox === container) {
-                                        container.destroy();
-                                        this.currentDialogueBox = null;
-                                    }
-                                }
-                            });
-                        }
-                    });
+                    finishTyping();
                 }
             },
             repeat: text.length - 1
         });
 
-        // Fermeture au clic (Zone plein écran pour capturer le clic partout)
-        const closeZone = this.add.zone(0, 0, width, height).setOrigin(0).setInteractive();
-        closeZone.on('pointerdown', () => {
-            if (charIndex < text.length) {
-                // Affiche tout instantanément
-                this.dialogueTimer.remove();
-                messageText.text = text;
-                charIndex = text.length;
-            } else {
-                // Ferme la boîte
-                container.destroy();
-                this.currentDialogueBox = null;
-                closeZone.destroy();
-            }
-        });
-        container.add(closeZone);
     }
 
     selectPlayer() {
@@ -528,13 +686,43 @@ export class GameScene extends Phaser.Scene {
     }
 
     addItemToInventory(item) {
-        PlayerService.addItemToInventory(item);
-        console.log("Updated inventory:", PlayerService.getInventory());
+        const normalizedItem = {
+            ...item,
+            quantite: Number(item?.quantite ?? item?.['quantité'] ?? item?.quantity ?? 1) || 1
+        };
+
+        PlayerService.addItemToInventory(normalizedItem);
+        const updatedInventory = PlayerService.getInventory();
+        this.inventory = Array.isArray(updatedInventory) ? [...updatedInventory] : [];
+        this.game.events.emit('inventory:cacheUpdated', this.inventory);
+        console.log("Updated inventory:", this.inventory);
+
+        // Persistance serveur si possible (sans hardcoder d'URL)
+        try {
+            const playerId = this.registry.get('playerData')?._id;
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (apiUrl && playerId && normalizedItem?.nom) {
+                fetch(`${apiUrl}/api/inventory/add-by-name`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId, itemName: normalizedItem.nom, quantity: normalizedItem.quantite })
+                }).then(async (res) => {
+                    if (!res.ok) return;
+                    // Refresh cache depuis le serveur pour refléter l'item_id/_id, etc.
+                    try {
+                        const fresh = await PlayerService.fetchInventory(playerId);
+                        this.inventory = Array.isArray(fresh) ? [...fresh] : [];
+                        this.game.events.emit('inventory:cacheUpdated', this.inventory);
+                    } catch (e) { /* ignore */ }
+                });
+            }
+        } catch (e) { /* ignore */ }
+
         // Play item sound (key item or normal)
         try {
             const isKey = item && (item.isKeyItem || (item.type && item.type === 'key_item') || (item.nom && String(item.nom).toLowerCase().includes('clé')));
             const keyName = isKey ? 'keyitem_get' : 'item_get';
-            this.sound.play(keyName, { volume: 0.85 });
+            this.sound.play(keyName, { volume: 0.65 });
         } catch (e) { /* ignore */ }
     }
 

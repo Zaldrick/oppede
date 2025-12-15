@@ -204,6 +204,38 @@ class DatabaseManager {
             }
         });
 
+        // Route pour ajouter un item à l'inventaire via son nom (utile pour quêtes/rewards)
+        app.post('/api/inventory/add-by-name', async (req, res) => {
+            try {
+                const { playerId, itemName, quantity = 1 } = req.body;
+                if (!playerId || !itemName) {
+                    return res.status(400).json({ error: 'playerId et itemName requis' });
+                }
+
+                const qty = Number(quantity) || 1;
+                const db = await this.connectToDatabase();
+                const { ObjectId } = require('mongodb');
+                const itemsCol = db.collection('items');
+                const inventoryCol = db.collection('inventory');
+
+                const itemDoc = await itemsCol.findOne({ nom: itemName });
+                if (!itemDoc) {
+                    return res.status(404).json({ error: `Item not found: ${itemName}` });
+                }
+
+                await inventoryCol.updateOne(
+                    { player_id: new ObjectId(playerId), item_id: itemDoc._id },
+                    { $inc: { quantité: qty } },
+                    { upsert: true }
+                );
+
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error add-by-name inventory:', error);
+                res.status(500).json({ error: 'Failed to add item' });
+            }
+        });
+
         // Route pour supprimer un item de l'inventaire
         app.post('/api/inventory/remove-item', async (req, res) => {
             const { playerId, itemId } = req.body;

@@ -42,7 +42,7 @@ async function seedDatabase() {
             { pseudo: "Admin", dailyTeam: "1", dailyScore: 10, totalScore: 1000, posX: 2424.0, posY: 360.0, mapId: 2, isActif: false, updatedAt: new Date() },
             { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
-            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:false, updatedAt: new Date() },
+            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 6,isActif:false, updatedAt: new Date() },
             { pseudo: "Jo", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Soso", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Caro", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
@@ -76,11 +76,11 @@ async function seedDatabase() {
                     "type": "item"
                 },
                 {
-                    "nom": "Clef",
-                    "image": "fc71.png",
+                    "nom": "Clés de voiture",
+                    "image": "fc75.png",
                     "is_echangeable": true,
                     "prix": 30,
-                    "type": "item"
+                    "type": "key_items"
                 },
                 {
                     "nom": "Livre Rouge",

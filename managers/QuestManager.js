@@ -227,6 +227,57 @@ class QuestManager {
                 res.status(500).json({ error: 'Failed to complete quest' });
             }
         });
+
+        // Supprimer une quête (Debug)
+        app.delete('/api/quests/:playerId/:questIdentifier', async (req, res) => {
+            try {
+                const { playerId, questIdentifier } = req.params;
+                const decodedIdentifier = decodeURIComponent(questIdentifier);
+                
+                let targetQuestId = decodedIdentifier;
+                
+                // 1. Chercher si l'identifiant correspond à un titre dans la DB
+                const questByTitle = await this.questsCollection.findOne({ title: decodedIdentifier });
+                if (questByTitle) {
+                    targetQuestId = questByTitle.quest_id;
+                } else {
+                    // 2. Chercher si l'identifiant correspond à un titre dans le Registre (Code)
+                    const allQuests = QuestRegistry.getAllQuests();
+                    const questObj = allQuests.find(q => q.title === decodedIdentifier);
+                    if (questObj) {
+                        targetQuestId = questObj.id;
+                    }
+                }
+                
+                // 3. Tenter la suppression
+                const result = await this.playerQuestsCollection.deleteOne({ 
+                    playerId: playerId, 
+                    questId: targetQuestId 
+                });
+
+                if (result.deletedCount > 0) {
+                    res.json({ success: true, message: `Quest '${targetQuestId}' deleted for player` });
+                } else {
+                    // Si échec, on tente avec l'identifiant brut (au cas où c'était déjà un ID)
+                    if (targetQuestId !== decodedIdentifier) {
+                        const result2 = await this.playerQuestsCollection.deleteOne({ 
+                            playerId: playerId, 
+                            questId: decodedIdentifier 
+                        });
+                        
+                        if (result2.deletedCount > 0) {
+                            res.json({ success: true, message: `Quest '${decodedIdentifier}' deleted for player` });
+                            return;
+                        }
+                    }
+                    
+                    res.status(404).json({ error: 'Quest not found or not active for player' });
+                }
+            } catch (error) {
+                console.error('Error deleting quest:', error);
+                res.status(500).json({ error: 'Failed to delete quest' });
+            }
+        });
     }
 }
 

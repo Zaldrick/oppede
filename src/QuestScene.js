@@ -217,7 +217,48 @@ export class QuestScene extends Phaser.Scene {
         this.detailsPanel.innerHTML = `
             <div class="quest-details-title">${quest.title}</div>
             <div style="white-space: pre-wrap; font-size: 16px; line-height: 1.6;">${quest.description}</div>
+            <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <button class="debug-delete-btn" style="background: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: inherit;">
+                    🗑️ Supprimer la quête (Debug)
+                </button>
+            </div>
         `;
+
+        const deleteBtn = this.detailsPanel.querySelector('.debug-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.onclick = () => this.deleteQuest(quest);
+        }
+    }
+
+    async deleteQuest(quest) {
+        if (!window.confirm(`Êtes-vous sûr de vouloir supprimer la quête "${quest.title}" ?`)) {
+            return;
+        }
+
+        // 1. Mise à jour du registre local (Client)
+        const playerData = this.registry.get('playerData');
+        if (playerData && playerData.quests) {
+            delete playerData.quests[quest.title];
+            this.registry.set('playerData', playerData);
+            console.log(`Quête "${quest.title}" supprimée du registre local.`);
+        }
+
+        // 2. Tentative de mise à jour côté serveur
+        try {
+            const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:3000";
+            // On tente une requête DELETE standard
+            await fetch(`${apiUrl}/api/quests/${this.playerId}/${encodeURIComponent(quest.title)}`, {
+                method: 'DELETE'
+            });
+            console.log("Requête de suppression envoyée au serveur.");
+        } catch (error) {
+            console.warn("Erreur lors de la suppression serveur (API peut-être manquante):", error);
+        }
+
+        // 3. Mise à jour de l'interface
+        this.quests = this.quests.filter(q => q !== quest);
+        this.selectedQuest = null;
+        this.drawQuests();
     }
 
     closeScene() {

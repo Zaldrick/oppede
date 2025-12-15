@@ -14,6 +14,8 @@ export class MapManager {
     this.currentBackgroundImage = null;
     this.currentMusicKey = null;
     this.shakeTimer = null;
+    this.teleportZones = [];
+    this.isTeleporting = false;
 
     // Sub-managers
     this.eventManager = new MapEventManager(scene, this);
@@ -67,6 +69,7 @@ export class MapManager {
       ],
       qwest: [
         { x: 13 * 48 + 24, y: 13 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 },
+        { x: 13 * 48 + 24, y: 21 * 48 + 24, targetMap: "douai", targetX: 40 * 48 + 24, targetY: 73 * 48, requiredItemName: "Clés de voiture" },
         { x: 15 * 48 + 24, y: 27 * 48, targetMap: "lille", targetX: 61 * 48 + 24, targetY: 61 * 48 + 24 }
       ],
       lille: [
@@ -84,10 +87,10 @@ export class MapManager {
       ],
       douai: [
         { x: 114 * 48 + 24, y:20 * 48 + 24 , targetMap: "metroInterieur", targetX: 40* 48+21, targetY:7* 48+24 },
-        { x: 84* 48 + 24, y:17 * 48 + 24 , targetMap: "marin", targetX: 38* 48+21, targetY:4* 48 +4}
+        { x: 37* 48 + 24, y:73 * 48 + 24 , targetMap: "marin", targetX: 38* 48+21, targetY:4* 48 +4}
       ],
       marin: [
-        { x: 39 * 48 + 24, y:4 * 48 + 24 , targetMap: "douai", targetX: 85* 48+21, targetY:17* 48+24 }
+        { x: 39 * 48 + 24, y:4 * 48 + 24 , targetMap: "douai", targetX: 38* 48+21, targetY:73* 48+24 }
       ]
     };
   }
@@ -110,8 +113,9 @@ export class MapManager {
   async changeMap(mapKey, spawnX, spawnY) {
     console.log(`[MapManager] changeMap called with key: ${mapKey}`);
     
-    // Stop any existing shake effect
-    if (this.shakeTimer) {
+    try {
+        // Stop any existing shake effect
+        if (this.shakeTimer) {
         this.shakeTimer.remove();
         this.shakeTimer = null;
         this.scene.cameras.main.resetFX();
@@ -153,6 +157,11 @@ export class MapManager {
     if (this.objectSprites) {
         this.objectSprites.forEach(sprite => sprite.destroy());
         this.objectSprites = [];
+    }
+
+    if (this.teleportZones) {
+        this.teleportZones.forEach(zone => zone.destroy());
+        this.teleportZones = [];
     }
 
     if (this.map) {
@@ -378,7 +387,10 @@ export class MapManager {
     if (mapKey === "metroInterieur") {
         this.startMetroShake();
     }
+    } finally {
+        this.isTeleporting = false;
     }
+  }
 
     createObjectLayers() {
         if (!this.map.objects) return;
@@ -474,7 +486,27 @@ export class MapManager {
       }
 
       this.scene.physics.world.enable(teleportZone);
+      this.teleportZones.push(teleportZone);
+      
       this.scene.physics.add.overlap(player, teleportZone, () => {
+        if (this.isTeleporting) return;
+
+        // Optional gating: require an item in inventory to allow teleport
+        if (point.requiredItemName) {
+          const inventory = PlayerService.getInventory();
+          const hasRequiredItem = Array.isArray(inventory) && inventory.some(i => {
+            if (!i) return false;
+            if (i.nom !== point.requiredItemName) return false;
+            const qty = Number(i.quantite ?? i['quantité'] ?? i.quantity ?? 0) || 0;
+            return qty > 0;
+          });
+          if (!hasRequiredItem) {
+            return;
+          }
+        }
+
+        this.isTeleporting = true;
+
         try { 
             this.scene.sound.play("teleportSound", { volume: 0.3 }); 
         } catch (e) { 
