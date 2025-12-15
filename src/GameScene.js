@@ -112,6 +112,9 @@ export class GameScene extends Phaser.Scene {
             }
         };
 
+        // Allow other methods (setupGame, MapManager callbacks, etc.) to update status.
+        this.__setStatus = setStatus;
+
         setStatus('GameScene: init…');
 
         // Catch async errors that would otherwise just produce a black canvas.
@@ -227,67 +230,104 @@ export class GameScene extends Phaser.Scene {
     }
 
     async setupGame() {
+        const setStatus = (msg) => {
+            try {
+                if (typeof this.__setStatus === 'function') this.__setStatus(msg);
+            } catch (e) {}
+        };
+
+        const getApiBaseUrl = () => {
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (apiUrl && apiUrl !== 'undefined' && apiUrl !== 'null') return apiUrl;
+            // Safe fallback: same-origin API (useful in prod deployments behind one domain).
+            try {
+                return window.location.origin;
+            } catch (e) {
+                return '';
+            }
+        };
+
+        const fetchWithTimeout = async (url, options = {}, timeoutMs = 7000) => {
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const id = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+            try {
+                return await fetch(url, { ...options, signal: controller ? controller.signal : undefined });
+            } finally {
+                if (id) clearTimeout(id);
+            }
+        };
+
         const playerData = this.registry.get("playerData");
         if (!playerData) {
             console.error("Player data is not defined in the registry! Aborting game initialization.");
             return;
         }
 
-        // Charger les quêtes du joueur pour synchroniser l'état local
-        try {
-            const apiUrl = process.env.REACT_APP_API_URL;
-            if (!apiUrl) {
-                console.warn("[GameScene] REACT_APP_API_URL non défini; synchronisation des quêtes ignorée.");
-                return;
-            }
-
-            const questsRes = await fetch(`${apiUrl}/api/quests/${playerData._id}`);
-            if (questsRes.ok) {
+        // Charger les quêtes du joueur pour synchroniser l'état local.
+        // IMPORTANT: ne doit jamais bloquer l'initialisation du jeu (sinon écran noir sur mobile).
+        const apiUrl = getApiBaseUrl();
+        const syncQuestsPromise = (async () => {
+            try {
+                setStatus('GameScene: sync quêtes…');
+                const questsRes = await fetchWithTimeout(`${apiUrl}/api/quests/${playerData._id}`, {}, 2500);
+                if (!questsRes.ok) return;
                 const questsData = await questsRes.json();
                 // Convertir en format { "QuestId": stepIndex } pour MapEventManager
                 playerData.quests = {};
                 questsData.forEach(q => {
                     playerData.quests[q.questId] = q.stepIndex;
-                    // Si la quête est terminée, on peut stocker un index élevé ou un flag
-                    if (q.status === 'completed') {
-                        // MapEventManager attend souvent un index élevé pour "fini" (ex: 4)
-                        // On garde stepIndex, mais on pourrait ajouter une logique si besoin.
-                        // Pour Etoile du Soir, step 4 = fini.
-                    }
                 });
                 this.registry.set("playerData", playerData);
                 console.log("[GameScene] Quêtes synchronisées :", playerData.quests);
+            } catch (e) {
+                console.warn("[GameScene] Sync quêtes ignorée:", e);
             }
-        } catch (e) {
-            console.warn("[GameScene] Impossible de charger les quêtes :", e);
-        }
+        })();
 
         // Diagnostic des cartes
+        setStatus('GameScene: diagnostic maps…');
         this.mapManager.compareTilemaps();
 
+        // Give quests a short head-start (but do not block longer than 1.2s)
+        try {
+            await Promise.race([
+                syncQuestsPromise,
+                new Promise((resolve) => setTimeout(resolve, 1200)),
+            ]);
+        } catch (e) {
+            // ignore
+        }
+
         // Configuration du joueur
+        setStatus('GameScene: création joueur…');
         this.playerManager.setPlayerPosition(this.playerPosition);
         await this.playerManager.createPlayer(playerData, "playerAppearance", this.playerPosition);
 
         // Configuration du monde
+        setStatus('GameScene: chargement map…');
         this.mapManager.setupWorld(playerData);
 
         // Configuration des joueurs distants
+        setStatus('GameScene: joueurs distants…');
         this.remotePlayerManager.initialize(this.playerManager);
 
         // Configuration de l'interface
+        setStatus('GameScene: UI…');
         this.uiManager.setupCamera();
         this.uiManager.setupControls();
         this.uiManager.createUI();
 
         // Configuration du socket
+        setStatus('GameScene: socket…');
         this.socketManager.initialize();
         this.myId = this.socketManager.getMyId();
 
-        // Chargement des joueurs
-        await this.loadPlayers();
+        // Chargement des joueurs (optionnel, non bloquant)
+        setStatus('GameScene: chargement joueurs…');
+        try { this.loadPlayers(); } catch (e) {}
 
         // Mise à jour périodique de la position
+        setStatus('GameScene: fin init…');
         this.positionUpdateInterval = setInterval(() => this.updatePlayer(), 2000);
     }
 

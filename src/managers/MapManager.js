@@ -112,6 +112,12 @@ export class MapManager {
 
   async changeMap(mapKey, spawnX, spawnY) {
     console.log(`[MapManager] changeMap called with key: ${mapKey}`);
+
+    const setStatus = (msg) => {
+      try {
+        if (typeof this.scene?.__setStatus === 'function') this.scene.__setStatus(msg);
+      } catch (e) {}
+    };
     
     try {
         // Stop any existing shake effect
@@ -136,6 +142,7 @@ export class MapManager {
 
     if (!this.scene.cache.tilemap.has(mapKey)) {
       console.error(`[MapManager] Tilemap key "${mapKey}" not found in cache.`);
+      setStatus(`Erreur: tilemap "${mapKey}" absente (cache)`);
       return;
     }
 
