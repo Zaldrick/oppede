@@ -131,7 +131,9 @@ export class GameScene extends Phaser.Scene {
                 this.__unhandledRejectionHandler = (event) => {
                     const reason = event?.reason;
                     console.error('[GameScene] Unhandled promise rejection:', reason);
-                    setStatus(`Erreur (promise): ${reason?.message || String(reason)}`);
+                    const stack = reason?.stack ? String(reason.stack) : '';
+                    const details = stack ? `\n${stack}` : '';
+                    setStatus(`Erreur (promise): ${reason?.message || String(reason)}${details}`);
                     try { this.__statusText?.setVisible(true); } catch (e) {}
                 };
                 window.addEventListener('unhandledrejection', this.__unhandledRejectionHandler);
@@ -140,7 +142,12 @@ export class GameScene extends Phaser.Scene {
             if (!this.__windowErrorHandler) {
                 this.__windowErrorHandler = (event) => {
                     const msg = event?.message || event?.error?.message || 'Erreur JS';
-                    setStatus(`Erreur (window): ${msg}`);
+                    const file = event?.filename ? String(event.filename) : '';
+                    const line = typeof event?.lineno === 'number' ? event.lineno : '';
+                    const col = typeof event?.colno === 'number' ? event.colno : '';
+                    const where = file ? `\n${file}${line ? `:${line}` : ''}${col ? `:${col}` : ''}` : '';
+                    const stack = event?.error?.stack ? `\n${String(event.error.stack)}` : '';
+                    setStatus(`Erreur (window): ${msg}${where}${stack}`);
                     try { this.__statusText?.setVisible(true); } catch (e) {}
                 };
                 window.addEventListener('error', this.__windowErrorHandler);
@@ -529,10 +536,8 @@ export class GameScene extends Phaser.Scene {
         
         // Load split tilesets for mobile compatibility
         for (let i = 0; i <= 10; i++) {
-            this.load.spritesheet(`Interiors_48x48_part_${i}`, `/assets/maps/Interiors_48x48_part_${i}.png`, {
-                frameWidth: 48,
-                frameHeight: 48
-            });
+            // These are tileset images referenced by Tiled (.tmj). They must be loaded as images (not spritesheets).
+            this.load.image(`Interiors_48x48_part_${i}`, `/assets/maps/Interiors_48x48_part_${i}.png`);
         }
 
         // Événements de diagnostic

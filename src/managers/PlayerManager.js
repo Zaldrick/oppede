@@ -54,6 +54,15 @@ export class PlayerManager {
   }
 
   createAnimations(textureKey) {
+    const texExists = this.scene?.textures?.exists?.(textureKey);
+    if (!texExists) {
+      console.warn(`[PlayerManager] Texture missing for animations: ${textureKey}`);
+      return;
+    }
+
+    const tex = this.scene.textures.get(textureKey);
+    const totalFrames = typeof tex?.frameTotal === 'number' ? tex.frameTotal : null;
+
     CONFIG.animations.forEach(anim => {
       const animationKey = anim.key;
 
@@ -62,15 +71,39 @@ export class PlayerManager {
         return;
       }
 
+      if (typeof totalFrames === 'number' && totalFrames > 0 && anim.end >= totalFrames) {
+        console.warn(
+          `[PlayerManager] Skip animation '${animationKey}' (frames ${anim.start}-${anim.end}) because '${textureKey}' has only ${totalFrames} frames.`
+        );
+        return;
+      }
+
+      let frames;
+      try {
+        frames = this.scene.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end });
+      } catch (e) {
+        console.warn(`[PlayerManager] Failed to generate frames for '${animationKey}' from '${textureKey}'`, e);
+        return;
+      }
+
+      if (!frames || frames.length === 0) {
+        console.warn(`[PlayerManager] No frames generated for '${animationKey}' from '${textureKey}'`);
+        return;
+      }
+
       this.scene.anims.create({
         key: animationKey,
-        frames: this.scene.anims.generateFrameNumbers(textureKey, { start: anim.start, end: anim.end }),
+        frames,
         frameRate: 8,
         repeat: -1,
       });
     });
 
     if (!this.scene.anims.exists('chest-open')) {
+      if (!this.scene.textures.exists('!Chest')) {
+        console.warn("[PlayerManager] Texture '!Chest' missing; skip chest-open animation");
+        return;
+      }
       this.scene.anims.create({
         key: 'chest-open',
         frames: this.scene.anims.generateFrameNumbers('!Chest', { start: 0, end: 3 }),
