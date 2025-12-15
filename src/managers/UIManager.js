@@ -1,4 +1,5 @@
-﻿const CONFIG = {
+﻿import Phaser from "phaser";
+const CONFIG = {
   joystick: {
     baseColor: 0x888888,
     thumbColor: 0xffffff,
@@ -52,8 +53,8 @@ export class UIManager {
       x: gameWidth * 0.2,
       y: gameHeight * 0.82,
       radius: joystickRadius,
-      base: this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor).setDepth(9999),
-      thumb: this.scene.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor).setDepth(9999),
+      base: this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor).setDepth(200000),
+      thumb: this.scene.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor).setDepth(200000),
     });
     this.joystick.setScrollFactor(0);
 
@@ -61,13 +62,13 @@ export class UIManager {
     const buttonARadius = gameWidth * 0.07 / this.zoomFactor;
     this.buttonA = this.scene.add.circle(gameWidth * 0.87, gameHeight * 0.8, buttonARadius, 0x808080)
       .setInteractive()
-      .setDepth(9999)
+      .setDepth(200000)
       .on('pointerdown', () => this.handleButtonA());
     this.buttonAText = this.scene.add.text(gameWidth * 0.87, gameHeight * 0.8, "A", {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
-    }).setOrigin(0.5).setDepth(9999);
+    }).setOrigin(0.5).setDepth(200000);
     this.buttonA.setScrollFactor(0);
     this.buttonAText.setScrollFactor(0);
 
@@ -75,7 +76,7 @@ export class UIManager {
     const buttonBRadius = gameWidth * 0.07 / this.zoomFactor;
     this.buttonB = this.scene.add.circle(gameWidth * 0.74, gameHeight * 0.85, buttonBRadius, 0x808080)
       .setInteractive()
-      .setDepth(9999)
+      .setDepth(200000)
       .on('pointerdown', () => { 
           if (this.isDialogueActive) {
               this.advanceDialogue();
@@ -89,7 +90,7 @@ export class UIManager {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
-    }).setOrigin(0.5).setDepth(9999);
+    }).setOrigin(0.5).setDepth(200000);
     this.buttonB.setScrollFactor(0);
     this.buttonBText.setScrollFactor(0);
 
@@ -268,7 +269,7 @@ export class UIManager {
         const gameHeight = this.scene.scale.height;
 
         // Positionner le menu au centre de l'écran (HUD)
-        this.startMenu = this.scene.add.container(gameWidth / 2, gameHeight / 2).setDepth(9999);
+        this.startMenu = this.scene.add.container(gameWidth / 2, gameHeight / 2).setDepth(250000);
         this.startMenu.setScrollFactor(0);
 
         const background = this.scene.add.rectangle(0, 0, gameWidth * 0.95, gameHeight * 0.85, 0x000000, 0.85).setOrigin(0.5);
@@ -560,9 +561,20 @@ export class UIManager {
       this.scene.playerManager?.setSpeedBoost(false);
     });
 
-    // Entrée pour interagir (A)
-    this.scene.input.keyboard.on('keydown-ENTER', () => {
-        this.handleButtonA();
+    // Entrée et Espace pour interagir (A)
+    const interactionKeys = [
+        this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER),
+        this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    ];
+
+    interactionKeys.forEach(key => {
+        key.on('down', () => {
+            // Évite d'interagir si l'utilisateur tape dans un champ texte (chat)
+            if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+            this.handleButtonA();
+        });
     });
 
     // Echap pour le menu (Start)

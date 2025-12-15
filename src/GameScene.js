@@ -199,6 +199,39 @@ export class GameScene extends Phaser.Scene {
         // Mise à jour des joueurs distants
         this.remotePlayerManager.updateRemotePlayers();
 
+        // --- GESTION DE LA PROFONDEUR (Z-INDEX) ---
+        
+        // 1. Le joueur local
+        const player = this.playerManager.getPlayer();
+        if (player) {
+            player.setDepth(player.y);
+        }
+
+        // 2. Les joueurs distants (Sprite + Pseudo)
+        if (this.remotePlayerManager?.otherPlayers) {
+            Object.values(this.remotePlayerManager.otherPlayers).forEach(remoteObj => {
+                if (remoteObj.sprite) {
+                    remoteObj.sprite.setDepth(remoteObj.sprite.y);
+                    // Le pseudo doit être au-dessus du sprite
+                    if (remoteObj.pseudoText) {
+                        remoteObj.pseudoText.setDepth(remoteObj.sprite.y + 1); 
+                    }
+                }
+            });
+        }
+
+        // 3. Les PNJs et objets interactifs
+        if (this.mapManager?.eventManager?.activeEvents) {
+            this.mapManager.eventManager.activeEvents.forEach(entity => {
+                if (entity && entity.active) {
+                    entity.setDepth(entity.y);
+                    // Si le PNJ a une bulle de dialogue ou un texte associé
+                    if (entity.bubble) {
+                        entity.bubble.setDepth(entity.y + 100); // Toujours bien visible
+                    }
+                }
+            });
+        }
         // Envoi de la position
         this.playerManager.sendMovementUpdate(this.socketManager?.getSocket(), this.myId);
     }
@@ -239,6 +272,27 @@ export class GameScene extends Phaser.Scene {
             frameWidth: 48,
             frameHeight: 48,
         });
+
+        // Chargement des PNJs d'ambiance
+        const npcSprites = [
+            "Adam_idle_anim_48x48.png", "Alex_idle_anim_48x48.png", "Amelia_idle_anim_48x48.png", 
+            "Ash_idle_anim_48x48.png", "Bob_idle_anim_48x48.png", "Bouncer_idle_anim_48x48.png", 
+            "Bruce_idle_anim_48x48.png", "Dan_idle_anim_48x48.png", "Edward_idle_anim_48x48.png", 
+            "Fishmonger_1_idle_anim_48x48.png", "Kid_Abby_idle_anim_48x48.png", "Kid_Karen_idle_anim_48x48.png", 
+            "Kid_Mitty_idle_anim_48x48.png", "kid_Oscar_idle_anim_48x48.png", "Kid_Romeo_idle_anim_48x48.png", 
+            "Kid_Tim_idle_anim_48x48.png", "Lucy_idle_anim_48x48.png", "Molly_idle_anim_48x48.png", 
+            "Old_man_Josh_idle_anim_48x48.png", "Old_woman_Jenny_idle_anim_48x48.png", "Pier_idle_anim_48x48.png", 
+            "Rob_idle_anim_48x48.png", "Roki_idle_anim_48x48.png", "Samuel_idle_anim_48x48.png"
+        ];
+
+        npcSprites.forEach(filename => {
+            const key = filename.replace("_idle_anim_48x48.png", "").toLowerCase();
+            this.load.spritesheet(`npc_${key}`, `/assets/sprites/${filename}`, {
+                frameWidth: 48,
+                frameHeight: 96
+            });
+        });
+
         this.load.spritesheet('!Chest', '/assets/maps/!Chest.png', { frameWidth: 48, frameHeight: 48 });
         this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
         this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj");
@@ -246,6 +300,9 @@ export class GameScene extends Phaser.Scene {
         this.load.tilemapTiledJSON("qwest", "/assets/maps/qwest.tmj");
         this.load.tilemapTiledJSON("lille", "/assets/maps/Lille.tmj");
         this.load.tilemapTiledJSON("metro", "/assets/maps/metro.tmj");
+        this.load.tilemapTiledJSON("metroInterieur", "/assets/maps/metroInterieur.tmj");
+        this.load.tilemapTiledJSON("douai", "/assets/maps/douai.tmj");
+        this.load.tilemapTiledJSON("marin", "/assets/maps/marin.tmj");
         this.load.spritesheet("Room_Builder_48x48", "/assets/maps/Room_Builder_48x48.png", {
             frameWidth: 48,
             frameHeight: 48
@@ -261,6 +318,23 @@ export class GameScene extends Phaser.Scene {
         this.load.image("8_Worksite_48x48", "/assets/maps/8_Worksite_48x48.png");
         this.load.image("9_Shopping_Center_and_Markets_48x48", "/assets/maps/9_Shopping_Center_and_Markets_48x48.png");
         this.load.image("10_Vehicles_48x48", "/assets/maps/10_Vehicles_48x48.png");
+        this.load.image("13_School_48x48", "/assets/maps/13_School_48x48.png");
+        this.load.image("1_Generic_48x48", "/assets/maps/1_Generic_48x48.png");
+        this.load.image("2_LivingRoom_48x48", "/assets/maps/2_LivingRoom_48x48.png");
+        this.load.image("3_Bathroom_48x48", "/assets/maps/3_Bathroom_48x48.png");
+        this.load.image("4_Bedroom_48x48", "/assets/maps/4_Bedroom_48x48.png");
+        this.load.image("5_Classroom_and_library_48x48", "/assets/maps/5_Classroom_and_library_48x48.png");
+        this.load.image("6_Music_and_sport_48x48", "/assets/maps/6_Music_and_sport_48x48.png");
+        this.load.image("7_Art_48x48", "/assets/maps/7_Art_48x48.png");
+        this.load.image("12_Kitchen_48x48", "/assets/maps/12_Kitchen_48x48.png");
+        this.load.image("14_Basement_48x48", "/assets/maps/14_Basement_48x48.png");
+        this.load.image("15_Christmas_48x48", "/assets/maps/15_Christmas_48x48.png");
+        this.load.image("17_Visibile_Upstairs_System_48x48", "/assets/maps/17_Visibile_Upstairs_System_48x48.png");
+        this.load.image("21_Clothing_Store_48x48", "/assets/maps/21_Clothing_Store_48x48.png");
+        this.load.image("23_Television_and_Film_Studio_48x48", "/assets/maps/23_Television_and_Film_Studio_48x48.png");
+        this.load.image("5_Classroom_and_library_48x48", "/assets/maps/5_Classroom_and_library_48x48.png");
+        this.load.image("19_Hospital_48x48", "/assets/maps/19_Hospital_48x48.png");
+        this.load.image("18_Jail_48x48", "/assets/maps/18_Jail_48x48.png");
         this.load.image("20_Subway_and_Train_Station_48x48", "/assets/maps/20_Subway_and_Train_Station_48x48.png");
         this.load.image("collision", "/assets/maps/collision.png");
         
@@ -332,24 +406,103 @@ export class GameScene extends Phaser.Scene {
     }
 
     displayMessage(text) {
-        const gameWidth = this.scale.width;
-        const gameHeight = this.scale.height;
+        // Nettoie l'ancienne boîte de dialogue si elle existe
+        if (this.currentDialogueBox) {
+            this.currentDialogueBox.destroy();
+            this.currentDialogueBox = null;
+        }
 
-        const style = {
-            font: `${gameWidth * 0.05}px Arial`,
+        const { width, height } = this.scale;
+        const padding = 20;
+        
+        // Dimensions responsives
+        // Sur PC (largeur > hauteur), on limite la largeur de la boîte pour qu'elle ne soit pas étirée
+        const isLandscape = width > height;
+        const boxWidth = isLandscape ? Math.min(width * 0.6, 800) : width - (padding * 2);
+        const boxHeight = 150;
+        
+        // Positionnement : En haut pour éviter les contrôles tactiles (qui sont en bas)
+        // Centré horizontalement
+        const boxX = (width - boxWidth) / 2;
+        const boxY = padding * 2; // Un peu d'espace depuis le haut
+
+        // Conteneur principal (Depth très élevé pour être au-dessus des layers map * 10000)
+        const container = this.add.container(0, 0).setScrollFactor(0).setDepth(200000);
+        this.currentDialogueBox = container;
+
+        // Fond de la boîte (Gris Taupe Transparent)
+        const bg = this.add.graphics();
+        // Couleur Taupe : ~#483C32 (RGB: 72, 60, 50) -> 0x483C32
+        // Ou un gris chaud : 0x504a45
+        bg.fillStyle(0x504a45, 0.9); 
+        bg.fillRoundedRect(boxX, boxY, boxWidth, boxHeight, 10);
+        
+        // Bordure
+        bg.lineStyle(3, 0xc0b0a0, 1); // Bordure beige/taupe clair
+        bg.strokeRoundedRect(boxX, boxY, boxWidth, boxHeight, 10);
+        container.add(bg);
+
+        // Texte
+        const textStyle = {
+            font: "22px Arial",
             fill: "#ffffff",
-            backgroundColor: "#000000",
-            padding: { x: 20, y: 10 },
-            align: "center"
+            wordWrap: { width: boxWidth - (padding * 2) },
+            align: "left"
         };
 
-        const messageText = this.add.text(gameWidth * 0.5, gameHeight * 0.1, text, style)
-            .setOrigin(0.5)
-            .setScrollFactor(0);
+        const messageText = this.add.text(boxX + padding, boxY + padding, "", textStyle);
+        container.add(messageText);
 
-        this.time.delayedCall(3000, () => {
-            messageText.destroy();
+        // Effet de machine à écrire
+        let charIndex = 0;
+        const typeSpeed = 30; // ms par caractère
+
+        if (this.dialogueTimer) this.dialogueTimer.remove();
+
+        this.dialogueTimer = this.time.addEvent({
+            delay: typeSpeed,
+            callback: () => {
+                messageText.text += text[charIndex];
+                charIndex++;
+                if (charIndex >= text.length) {
+                    this.dialogueTimer.remove();
+                    // Auto-close après lecture (optionnel, ou sur clic)
+                    this.time.delayedCall(4000, () => {
+                        if (this.currentDialogueBox === container) {
+                            this.tweens.add({
+                                targets: container,
+                                alpha: 0,
+                                duration: 500,
+                                onComplete: () => {
+                                    if (this.currentDialogueBox === container) {
+                                        container.destroy();
+                                        this.currentDialogueBox = null;
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            },
+            repeat: text.length - 1
         });
+
+        // Fermeture au clic (Zone plein écran pour capturer le clic partout)
+        const closeZone = this.add.zone(0, 0, width, height).setOrigin(0).setInteractive();
+        closeZone.on('pointerdown', () => {
+            if (charIndex < text.length) {
+                // Affiche tout instantanément
+                this.dialogueTimer.remove();
+                messageText.text = text;
+                charIndex = text.length;
+            } else {
+                // Ferme la boîte
+                container.destroy();
+                this.currentDialogueBox = null;
+                closeZone.destroy();
+            }
+        });
+        container.add(closeZone);
     }
 
     selectPlayer() {
@@ -514,7 +667,7 @@ export class GameScene extends Phaser.Scene {
         const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
             .setInteractive()
             .setScrollFactor(0)
-            .setDepth(1000);
+            .setDepth(200000);
 
         // Titre
         const title = this.add.text(width / 2, height * 0.2, "Choisir un adversaire", {
@@ -524,7 +677,7 @@ export class GameScene extends Phaser.Scene {
         })
             .setOrigin(0.5)
             .setScrollFactor(0)
-            .setDepth(1001);
+            .setDepth(200001);
 
         // Liste des joueurs
         onlinePlayers.forEach((player, index) => {
@@ -539,7 +692,7 @@ export class GameScene extends Phaser.Scene {
                 .setPadding(20, 10, 20, 10)
                 .setInteractive()
                 .setScrollFactor(0)
-                .setDepth(1001)
+                .setDepth(200001)
                 .on('pointerdown', () => {
                     // Nettoie le menu
                     overlay.destroy();
@@ -547,7 +700,7 @@ export class GameScene extends Phaser.Scene {
                     onlinePlayers.forEach((_, i) => {
                         // Détruit tous les boutons de joueurs
                         this.children.getChildren()
-                            .filter(child => child.depth === 1001 && child.type === 'Text')
+                            .filter(child => child.depth === 200001 && child.type === 'Text')
                             .forEach(btn => btn.destroy());
                     });
 
@@ -568,7 +721,7 @@ export class GameScene extends Phaser.Scene {
             .setPadding(20, 10, 20, 10)
             .setInteractive()
             .setScrollFactor(0)
-            .setDepth(1001)
+            .setDepth(200001)
             .on('pointerdown', () => {
                 // Nettoie le menu
                 overlay.destroy();
@@ -576,7 +729,7 @@ export class GameScene extends Phaser.Scene {
                 cancelBtn.destroy();
                 onlinePlayers.forEach((_, i) => {
                     this.children.getChildren()
-                        .filter(child => child.depth === 1001 && child.type === 'Text')
+                        .filter(child => child.depth === 200001 && child.type === 'Text')
                         .forEach(btn => btn.destroy());
                 });
             });

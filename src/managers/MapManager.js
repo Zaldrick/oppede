@@ -1,6 +1,8 @@
 ﻿import MusicManager from '../MusicManager.js';
 import PlayerService from '../services/PlayerService.js';
 import Phaser from "phaser";
+import { MapEventManager } from './MapEventManager.js';
+import { MapPhysicsManager } from './MapPhysicsManager.js';
 
 export class MapManager {
   constructor(scene) {
@@ -11,7 +13,11 @@ export class MapManager {
     this.objectSprites = [];
     this.currentBackgroundImage = null;
     this.currentMusicKey = null;
-    this.activeEvents = [];
+    this.shakeTimer = null;
+
+    // Sub-managers
+    this.eventManager = new MapEventManager(scene, this);
+    this.physicsManager = new MapPhysicsManager(scene, this);
 
     // Configuration des cartes
     this.mapIds = {
@@ -21,7 +27,9 @@ export class MapManager {
       qwest: 3,
       lille: 4,
       metro: 5,
-      metroInterieur: 6
+      metroInterieur: 6,
+      douai: 7,
+      marin: 8
     };
 
     this.backgroundImages = {
@@ -29,9 +37,8 @@ export class MapManager {
       1: "backgroundext",
       2: "backgroundoppede",
       3: "qwest",
-      4: "qwest", // Placeholder
-      5: "qwest", // Placeholder
-      6: "qwest", // Placeholder
+      4: "qwest", // Placeholder for lille
+      5: "qwest"  // Placeholder for metro
     };
 
     this.mapMusic = {
@@ -42,6 +49,8 @@ export class MapManager {
       lille: "qwest",
       metro: "qwest",
       metroInterieur: "qwest",
+      douai: "qwest",
+      marin:"qwest"
     };
 
     this.teleportPoints = {
@@ -58,16 +67,27 @@ export class MapManager {
       ],
       qwest: [
         { x: 13 * 48 + 24, y: 13 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 },
-        { x: 15 * 48 + 24, y: 26 * 48 + 24, targetMap: "lille", targetX: 61 * 48 + 24, targetY: 62 * 48 + 24 }
+        { x: 15 * 48 + 24, y: 27 * 48, targetMap: "lille", targetX: 61 * 48 + 24, targetY: 61 * 48 + 24 }
       ],
       lille: [
         { x: 19 * 48 + 24, y:22 * 48 + 24, targetMap: "metro", targetX: 26 * 48 + 24, targetY: 29 * 48 + 24 },
-        { x: 61 * 48 + 24, y: 61 * 48 + 24, targetMap: "qwest", targetX: 15 * 48 + 24, targetY: 24 * 48 + 24 }
+        { x: 61 * 48 + 24, y: 60 * 48 + 24, targetMap: "qwest", targetX: 15 * 48 + 24, targetY: 25 * 48  }
       ],
       metro: [
         { x: 26 * 48 + 24, y: 31* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
         { x: 27 * 48 + 24, y: 31* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
-        { x: 26* 48+21, y: 15 * 48-10, targetMap: "lille",  targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+        { x: 26* 48+21, y: 15 * 48-10, targetMap: "metroInterieur",  targetX: 10 * 48 + 24, targetY: 7 * 48 + 24 }
+      ],
+      metroInterieur: [
+        { x: 10 * 48 + 24, y:9 * 48 + 24 , targetMap: "metro", targetX: 26* 48+21, targetY:16 * 48-10 },
+         { x: 40 * 48 + 24, y:9 * 48 + 24 , targetMap: "douai", targetX: 114* 48+21, targetY:21 * 48-10 }
+      ],
+      douai: [
+        { x: 114 * 48 + 24, y:20 * 48 + 24 , targetMap: "metroInterieur", targetX: 40* 48+21, targetY:7* 48+24 },
+        { x: 84* 48 + 24, y:17 * 48 + 24 , targetMap: "marin", targetX: 38* 48+21, targetY:4* 48 +4}
+      ],
+      marin: [
+        { x: 39 * 48 + 24, y:4 * 48 + 24 , targetMap: "douai", targetX: 85* 48+21, targetY:17* 48+24 }
       ]
     };
   }
@@ -90,6 +110,13 @@ export class MapManager {
   async changeMap(mapKey, spawnX, spawnY) {
     console.log(`[MapManager] changeMap called with key: ${mapKey}`);
     
+    // Stop any existing shake effect
+    if (this.shakeTimer) {
+        this.shakeTimer.remove();
+        this.shakeTimer = null;
+        this.scene.cameras.main.resetFX();
+    }
+
     // Ensure backgroundImages is defined
     if (!this.backgroundImages) {
         console.warn("[MapManager] backgroundImages was undefined. Re-initializing default values.");
@@ -115,6 +142,9 @@ export class MapManager {
       this.collisionLayer = null;
     }
 
+    this.physicsManager.clear();
+    this.eventManager.clearEvents();
+
     if (this.layers) {
         this.layers.forEach(layer => layer.destroy());
         this.layers = [];
@@ -123,14 +153,6 @@ export class MapManager {
     if (this.objectSprites) {
         this.objectSprites.forEach(sprite => sprite.destroy());
         this.objectSprites = [];
-    }
-
-    if (this.activeEvents) {
-        this.activeEvents.forEach(event => {
-            if (event.bubble) event.bubble.destroy();
-            event.destroy();
-        });
-        this.activeEvents = [];
     }
 
     if (this.map) {
@@ -236,8 +258,8 @@ export class MapManager {
       if (this.currentBackgroundImage) {
         this.currentBackgroundImage.destroy();
       }
-      // Profondeur très basse pour le fond (-100) pour laisser de la place aux couches négatives (-1, -2...)
-      this.currentBackgroundImage = this.scene.add.image(0, 0, backgroundImageKey).setOrigin(0).setDepth(-100);
+      // Profondeur très basse pour le fond (-100000) pour laisser de la place aux couches négatives (-10000, -20000...)
+      this.currentBackgroundImage = this.scene.add.image(0, 0, backgroundImageKey).setOrigin(0).setDepth(-100000);
     } else {
       console.warn(`Aucune image de fond trouvée pour mapId: ${mapId}`);
     }
@@ -248,30 +270,34 @@ export class MapManager {
         this.layers.push(layer);
         
         // Gestion de la profondeur via le nom de la couche (ex: "2", "-1")
+        // On multiplie par 10000 pour s'assurer que :
+        // - Les couches positives (toits) sont au-dessus du joueur (Y ~ 0-5000)
+        // - Les couches négatives (sol) sont en-dessous du joueur
         const depth = parseInt(layerData.name, 10);
         if (!isNaN(depth)) {
-            layer.setDepth(depth);
+            layer.setDepth(depth * 10000);
         }
 
         // Cas spécifique pour la collision (nom "Collision" ou "collision")
         if (layerData.name.toLowerCase() === "collision") {
             this.collisionLayer = layer;
             this.collisionLayer.setCollisionByProperty({ collision: true });
-            // On force la profondeur à 0 et on cache la couche
-            layer.setDepth(-999); 
+            // On force la profondeur très basse et on cache la couche
+            layer.setDepth(-99999); 
             layer.setVisible(false);
         }
     });
 
     if (!this.collisionLayer) {
-      console.error("La couche de collision n'a pas pu être créée.");
-      return;
+      console.warn("[MapManager] Attention: Aucune couche de tuiles 'Collision' trouvée. Vérifiez si vous utilisez uniquement des collisions d'objets.");
     }
 
     // Debug tile check (optional, kept from original)
-    var tile = this.collisionLayer.getTileAt(7, 8);
-    if (!tile) {
-      // console.warn("Aucune tuile trouvée aux coordonnées (7, 8) dans la couche Collision.");
+    if (this.collisionLayer) {
+        var tile = this.collisionLayer.getTileAt(7, 8);
+        if (!tile) {
+          // console.warn("Aucune tuile trouvée aux coordonnées (7, 8) dans la couche Collision.");
+        }
     }
 
     // Met à jour les limites du monde
@@ -287,15 +313,25 @@ export class MapManager {
       console.error("Player is not initialized! Cannot set position.");
     }
 
+    // Gestion des collisions personnalisées (Rectangles Tiled)
+    this.physicsManager.createCustomCollisions();
+
     // Ajoute des collisions pour la nouvelle carte
     if (player) {
-      this.scene.physics.add.collider(player, this.collisionLayer);
+      if (this.collisionLayer) {
+          this.scene.physics.add.collider(player, this.collisionLayer);
+      }
+      const customColliders = this.physicsManager.getColliders();
+      if (customColliders && customColliders.getLength() > 0) {
+          console.log(`[MapManager] Adding collider for ${customColliders.getLength()} custom zones`);
+          this.scene.physics.add.collider(player, customColliders);
+      }
     }
 
     // Gestion des couches d'objets (visuels)
     this.createObjectLayers();
 
-    await this.loadWorldEvents();
+    await this.eventManager.loadWorldEvents();
     
     // Vérification de sécurité : si la scène a été détruite ou n'est plus active
     if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) {
@@ -337,6 +373,11 @@ export class MapManager {
     }
 
     this.playMusicForMap(mapKey);
+
+    // Effet de tremblement pour le métro
+    if (mapKey === "metroInterieur") {
+        this.startMetroShake();
+    }
     }
 
     createObjectLayers() {
@@ -390,6 +431,8 @@ export class MapManager {
                         
                         // Hide if it's a collision tile, otherwise use object visibility
                         if (isCollision) {
+
+
                             sprite.setVisible(false);
                         } else {
                             sprite.setVisible(obj.visible);
@@ -401,337 +444,6 @@ export class MapManager {
             });
         });
     }
-
-    async loadWorldEvents() {
-        if (!this.map) return;
-
-        const eventsLayer = this.map.getObjectLayer("events");
-        if (!eventsLayer) {
-            console.warn("Pas de couche 'events' dans la map !");
-        }
-
-        const mapKey = this.map.key;
-        let worldEvents = [];
-        try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/api/world-events?mapKey=${mapKey}`);
-            worldEvents = await res.json();
-        } catch (e) {
-            console.error("Erreur lors du chargement des worldEvents :", e);
-        }
-
-        // Vérification de sécurité après l'appel asynchrone
-        // Si la map a été détruite pendant le fetch (changement de scène), on arrête tout
-        if (!this.map) return;
-
-        this.activeEvents = [];
-
-        // Traitement des événements existants depuis la base de données
-        if (eventsLayer) {
-            eventsLayer.objects.forEach(obj => {
-                const eventId = obj.properties?.find(p => p.name === "eventId")?.value;
-                const type = obj.type || obj.properties?.find(p => p.name === "type")?.value;
-                const x = obj.x, y = obj.y;
-
-                let dynamicEvent = null;
-                if (eventId) {
-                    dynamicEvent = worldEvents.find(e => e.properties?.chestId === eventId || e.properties?.doorId === eventId);
-                } else {
-                    dynamicEvent = worldEvents.find(e => e.x === x && e.y === y && e.type === type);
-                }
-                if (!dynamicEvent) return;
-
-                if (type === "chest") {
-                    const chest = this.scene.physics.add.sprite(x + obj.width / 2, y - obj.height / 2, "!Chest", 0);
-                    chest.setImmovable(true);
-                    chest.eventData = dynamicEvent;
-                    chest.setInteractive();
-                    this.activeEvents.push(chest);
-
-                    this.addCollisionIfNeeded(obj, chest);
-
-                    if (dynamicEvent.state.opened) {
-                        chest.setFrame(3);
-                    }
-                } else if (type === "npc") {
-                    this.createNPC(dynamicEvent, x, y);
-                }
-            });
-        }
-
-        // ✅ CHANGEMENT - Placer le marchand sur map3 (Oppède) au lieu de map
-        if (mapKey === "map3") {
-            this.createBoosterVendor();
-            this.createRalofNPC();
-        }
-
-        if (mapKey === "metro") {
-            this.createSubwayDoor();
-        }
-    }
-
-    createSubwayDoor() {
-        if (!this.map) return;
-
-        // Coordonnées: entre 21:15 et 22:15.
-        // Sprite 96x96. Centré sur X=22*48 (entre 21 et 22) et Y=15*48 (bas aligné avec tile 15)
-       // const doorX = 21* 48+20; // 1032 (milieu case 21) + 24 = 1056 (bord droit case 21 / bord gauche case 22)
-        //const doorY = 15*48+6;
-        // Wait, 21.5 * 48 = 1032. 22 * 48 = 1056.
-        // Case 21: 1008-1056. Center 1032.
-        // Case 22: 1056-1104. Center 1080.
-        // Midpoint: 1056.
-        
-        // Correction positionnement pour sprite 96x96 centré sur la jonction des cases 21 et 22
-        const finalX = 26 * 48+21; 
-        const finalY = 15 * 48-10;
-
-        const door = this.scene.physics.add.sprite(finalX, finalY, "subway_door", 0);
-        door.setImmovable(true);
-        door.setDepth(-1); // Au-dessus du sol
-
-        // Animations
-        if (!this.scene.anims.exists('subway_door_open')) {
-            this.scene.anims.create({
-                key: 'subway_door_open',
-                frames: this.scene.anims.generateFrameNumbers('subway_door', { start: 0, end: 7 }),
-                frameRate: 10,
-                repeat: 0
-            });
-        }
-        if (!this.scene.anims.exists('subway_door_close')) {
-            this.scene.anims.create({
-                key: 'subway_door_close',
-                frames: this.scene.anims.generateFrameNumbers('subway_door', { start: 7, end: 0 }),
-                frameRate: 10,
-                repeat: 0
-            });
-        }
-
-        // Zone de détection pour l'ouverture
-        const detectionZone = this.scene.add.zone(finalX, finalY, 100, 180); // Zone plus large
-        this.scene.physics.world.enable(detectionZone);
-        
-        // Gestion de l'ouverture/fermeture
-        door.isOpen = false;
-        
-        this.scene.physics.add.overlap(this.scene.playerManager.getPlayer(), detectionZone, () => {
-            if (!door.active) return; // Safety check
-            
-            if (!door.isOpen) {
-                try {
-                    door.play('subway_door_open');
-                    this.scene.sound.play('metro_open', { volume: 0.5 });
-                    door.isOpen = true;
-                } catch (e) {
-                    console.warn("Failed to play door open animation/sound", e);
-                }
-            }
-            door.lastOverlapTime = this.scene.time.now;
-        });
-
-        // Update loop pour fermer la porte
-        const updateListener = () => {
-            if (!door.active) {
-                // Clean up listener if door is destroyed
-                this.scene.events.off('update', updateListener);
-                return;
-            }
-
-            if (door.isOpen && this.scene.time.now - door.lastOverlapTime > 200) {
-                try {
-                    door.play('subway_door_close');
-                    this.scene.sound.play('metro_close', { volume: 0.5 });
-                    door.isOpen = false;
-                } catch (e) {
-                    console.warn("Failed to play door close animation/sound", e);
-                }
-            }
-        };
-        
-        this.scene.events.on('update', updateListener);
-
-        this.activeEvents.push(door);
-        //console.log(`Porte de métro créée à (${doorX}, ${doorY})`);
-    }
-
-
-    createBoosterVendor() {
-        if (!this.map) return;
-
-        // Position du PNJ vendeur sur la carte map3 (Oppède) - ajustez selon votre carte
-        const vendorX = 50 * 48 + 24;  // Ajustez la colonne selon votre carte
-        const vendorY = 7 * 48 + 24;   // Ajustez la ligne selon votre carte
-
-        // ✅ CHANGEMENT - Utiliser le sprite "marchand" au lieu de "player"
-        const vendor = this.scene.physics.add.sprite(vendorX, vendorY, "marchand", 0);
-        vendor.setImmovable(true);
-        vendor.setInteractive();
-        vendor.npcType = "booster_vendor";
-
-        // Animation d'idle pour le marchand avec frames spécifiques
-        this.scene.anims.create({
-            key: 'marchand_idle',
-            frames: this.scene.anims.generateFrameNumbers('marchand', { start: 0, end: 3 }),
-            frameRate: 2,
-            repeat: -1
-        });
-
-        vendor.play('marchand_idle');
-
-        // Ajouter collision avec le joueur
-        const player = this.scene.playerManager?.getPlayer();
-        if (player) {
-            this.scene.physics.add.collider(player, vendor);
-        }
-
-        // Ajouter à la liste des événements actifs
-        this.activeEvents.push(vendor);
-
-        // ✅ AMÉLIORATION - Indicateur visuel plus approprié pour un marchand
-        const bubble = this.scene.add.text(vendorX, vendorY - 35, "🛒", {
-            font: "24px Arial",
-            fill: "#fff",
-            stroke: "#000",
-            strokeThickness: 2
-        }).setOrigin(0.5);
-
-        // Animation de la bulle plus dynamique
-        this.scene.tweens.add({
-            targets: bubble,
-            y: vendorY - 45,
-            duration: 1500,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
-
-        // Effet de pulsation pour attirer l'attention
-        this.scene.tweens.add({
-            targets: bubble,
-            scale: { from: 1, to: 1.3 },
-            duration: 2000,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Power2'
-        });
-
-        vendor.bubble = bubble;
-
-        console.log(`🛒 Marchand de boosters créé à la position (${vendorX}, ${vendorY}) sur ${this.map?.key || 'unknown'}`);
-    }
-
-    createRalofNPC() {
-        if (!this.map) return;
-
-        // Position de Ralof sur la gauche de la map3
-        const ralofX = 6 * 48 + 24; 
-        const ralofY = 10 * 48 + 24;
-
-        // Ajustement de la position Y pour le sprite de 96px de haut (centré par défaut)
-        // On le remonte de 24px pour que les pieds soient alignés avec la tuile
-        const ralof = this.scene.physics.add.sprite(ralofX, ralofY - 24, "ralof", 0);
-        
-        ralof.setImmovable(true);
-        ralof.setInteractive();
-        ralof.npcType = "ralof";
-
-        // Animation d'idle pour Ralof
-        this.scene.anims.create({
-            key: 'ralof_idle',
-            frames: this.scene.anims.generateFrameNumbers('ralof', { start: 3, end: 3 }),
-            frameRate: 4,
-            repeat: -1,
-            yoyo: true
-        });
-
-        ralof.play('ralof_idle');
-
-        // Ajouter collision avec le joueur
-        const player = this.scene.playerManager?.getPlayer();
-        if (player) {
-            this.scene.physics.add.collider(player, ralof);
-        }
-
-        this.activeEvents.push(ralof);
-
-        // Indicateur visuel
-        const bubble = this.scene.add.text(ralofX, ralofY - 35, "?", {
-            font: "24px Arial",
-            fill: "#fff",
-            stroke: "#000",
-            strokeThickness: 2
-        }).setOrigin(0.5);
-
-        this.scene.tweens.add({
-            targets: bubble,
-            y: ralofY - 45,
-            duration: 1500,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.easeInOut'
-        });
-
-        ralof.bubble = bubble;
-        console.log(`Ralof créé à la position (${ralofX}, ${ralofY}) sur ${this.map?.key || 'unknown'}`);
-    }
-
-
-    createNPC(eventData, x, y) {
-        const npc = this.scene.physics.add.sprite(x + 24, y + 24, "player", 0);
-        npc.setImmovable(true);
-        npc.eventData = eventData;
-        npc.setInteractive();
-        npc.npcType = "dialogue";
-        this.activeEvents.push(npc);
-
-        this.addCollisionIfNeeded({ properties: [{ name: "Collision", value: true }] }, npc);
-    }
-
-    handleNPCInteraction(npc) {
-        if (npc.npcType === "ralof") {
-            const answer = window.prompt("What's my Name ?");
-            if (answer && answer.toLowerCase() === "ralof") {
-                this.changeMap("qwest", 13 * 48 + 24, 5 * 48 + 24);
-            }
-        } else if (npc.npcType === "booster_vendor") {
-            // ✅ AMÉLIORATION - Dialogue plus immersif
-            this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !");
-
-            // Son d'interaction (optionnel)
-            if (this.scene.sound) {
-                // Vous pouvez ajouter un son spécifique pour le marchand
-                // this.scene.sound.play("merchant_greeting", { volume: 0.3 });
-            }
-
-            // Ouvrir la boutique après un court délai
-            setTimeout(() => {
-                if (this.scene.shopManager) {
-                    this.scene.shopManager.openShop();
-                }
-            }, 1500);
-        } else if (npc.npcType === "dialogue" && npc.eventData) {
-            const dialogue = npc.eventData.properties?.dialogue || "Bonjour !";
-            this.scene.displayMessage(dialogue);
-
-            if (!npc.eventData.state.hasSpoken) {
-                // Marquer comme ayant parlé
-                fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${npc.eventData._id}/state`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ hasSpoken: true })
-                });
-                npc.eventData.state.hasSpoken = true;
-            }
-        }
-    }
-
-  addCollisionIfNeeded(obj, sprite) {
-    const hasCollision = obj.properties?.find(p => p.name === "Collision" && p.value === true);
-    const player = this.scene.playerManager?.getPlayer();
-    if (hasCollision && player) {
-      this.scene.physics.add.collider(player, sprite);
-    }
-  }
 
   createTeleportZones() {
     const player = this.scene.playerManager?.getPlayer();
@@ -790,42 +502,37 @@ export class MapManager {
     this.currentMusicKey = musicKey;
   }
 
-    getNearbyEventObject(playerX, playerY) {
-        if (!this.activeEvents) return null;
-        const threshold = 48;
-        return this.activeEvents.find(obj =>
-            Phaser.Math.Distance.Between(playerX, playerY, obj.x, obj.y) < threshold
-        );
-    }
+  startMetroShake() {
+      // Délai aléatoire entre 2 et 5 secondes
+      const delay = Phaser.Math.Between(1000, 3000);
+      
+      this.shakeTimer = this.scene.time.delayedCall(delay, () => {
+          // Vérifie si on est toujours sur la bonne map
+          if (this.map && this.map.key === "metroInterieur") {
+              // Durée entre 100ms et 200ms
+              const duration = Phaser.Math.Between(100, 200);
+              // Intensité très faible, uniquement verticale (y)
+              // x = 0, y = 0.0005 à 0.0015
+              const intensityY = 0.0005 + Math.random() * 0.001;
+              
+              this.scene.cameras.main.shake(duration, new Phaser.Math.Vector2(0, intensityY));
+              
+              // Relance le prochain tremblement
+              this.startMetroShake();
+          }
+      });
+  }
+
+  handleNPCInteraction(npc) {
+      this.eventManager.handleNPCInteraction(npc);
+  }
 
   handleChestInteraction(chest) {
-    const { eventData } = chest;
-    if (eventData.state.opened) {
-      this.scene.displayMessage("Ce coffre est déjà ouvert !");
-      return;
-    }
+      this.eventManager.handleChestInteraction(chest);
+  }
 
-    chest.anims.play('chest-open');
-    chest.once('animationcomplete', () => {
-      chest.setFrame(4);
-    });
-
-    this.scene.displayMessage(`Vous trouvez : ${eventData.properties.loot}`);
-
-    fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${eventData._id}/state`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opened: true })
-    });
-
-    this.scene.addItemToInventory({ nom: eventData.properties.loot, quantite: 1 });
-    eventData.state.opened = true;
-    // Play SFX for item obtained
-    try {
-      if (this.scene && this.scene.sound) {
-        this.scene.sound.play('item_get', { volume: 0.85 });
-      }
-    } catch (e) { /* ignore */ }
+  getNearbyEventObject(playerX, playerY) {
+      return this.eventManager.getNearbyEventObject(playerX, playerY);
   }
 
   compareTilemaps() {
@@ -865,7 +572,7 @@ export class MapManager {
   }
 
   getActiveEvents() {
-    return this.activeEvents;
+    return this.eventManager.activeEvents;
   }
 
   destroy() {
@@ -879,7 +586,8 @@ export class MapManager {
       this.currentBackgroundImage = null;
     }
     
-    this.activeEvents = [];
+    this.eventManager.clearEvents();
+    this.physicsManager.clear();
     this.map = null;
   }
 }

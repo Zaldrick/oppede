@@ -1,0 +1,461 @@
+import Phaser from "phaser";
+
+export class MapEventManager {
+    constructor(scene, mapManager) {
+        this.scene = scene;
+        this.mapManager = mapManager;
+        this.activeEvents = [];
+    }
+
+    async loadWorldEvents() {
+        const map = this.mapManager.map;
+        if (!map) return;
+
+        const eventsLayer = map.getObjectLayer("events");
+        if (!eventsLayer) {
+            console.warn("Pas de couche 'events' dans la map !");
+        }
+
+        const mapKey = map.key;
+        let worldEvents = [];
+        try {
+            const res = await fetch(`${process.env.REACT_APP_API_URL}/api/world-events?mapKey=${mapKey}`);
+            worldEvents = await res.json();
+        } catch (e) {
+            console.error("Erreur lors du chargement des worldEvents :", e);
+        }
+
+        // Vérification de sécurité après l'appel asynchrone
+        if (!this.mapManager.map || this.mapManager.map.key !== mapKey) return;
+
+        this.clearEvents();
+
+        // Traitement des événements existants depuis la base de données
+        if (eventsLayer) {
+            eventsLayer.objects.forEach(obj => {
+                const eventId = obj.properties?.find(p => p.name === "eventId")?.value;
+                const type = obj.type || obj.properties?.find(p => p.name === "type")?.value;
+                const x = obj.x, y = obj.y;
+
+                let dynamicEvent = null;
+                if (eventId) {
+                    dynamicEvent = worldEvents.find(e => e.properties?.chestId === eventId || e.properties?.doorId === eventId);
+                } else {
+                    dynamicEvent = worldEvents.find(e => e.x === x && e.y === y && e.type === type);
+                }
+                if (!dynamicEvent) return;
+
+                if (type === "chest") {
+                    const chest = this.scene.physics.add.sprite(x + obj.width / 2, y - obj.height / 2, "!Chest", 0);
+                    chest.setImmovable(true);
+                    chest.eventData = dynamicEvent;
+                    chest.setInteractive();
+                    this.activeEvents.push(chest);
+
+                    this.addCollisionIfNeeded(obj, chest);
+
+                    if (dynamicEvent.state.opened) {
+                        chest.setFrame(3);
+                    }
+                } else if (type === "npc") {
+                    this.createNPC(dynamicEvent, x, y);
+                }
+            });
+        }
+
+        // Spécifique map3 (Oppède)
+        if (mapKey === "map3") {
+            this.createBoosterVendor();
+            this.createRalofNPC();
+        }
+
+        // Spécifique metro
+        if (mapKey === "metro") {
+            this.createSubwayDoor();
+        }
+
+        // Populate Ambient NPCs
+        if (["lille", "douai", "metro", "metroInterieur"].includes(mapKey)) {
+            this.populateAmbientNPCs(mapKey);
+        }
+    }
+
+    populateAmbientNPCs(mapKey) {
+        const npcListLille = [
+            "adam", "alex", "amelia", "ash", "bob", "bouncer", 
+            "bruce", "dan", "edward", "fishmonger_1", "kid_abby", "kid_karen"
+        ];
+        const npcListDouai = [
+            "kid_mitty", "kid_oscar", "kid_romeo", "kid_tim", "lucy", "molly", 
+            "old_man_josh", "old_woman_jenny", "pier", "rob", "roki", "samuel"
+        ];
+        
+        let npcsToSpawn = [];
+        let startX = 0;
+        let startY = 0;
+
+        if (mapKey === "lille") {
+            npcsToSpawn = npcListLille;
+            startX = 25; startY = 25;
+        } else if (mapKey === "douai") {
+            npcsToSpawn = npcListDouai;
+            startX = 110; startY = 25;
+        } else if (mapKey === "metro") {
+            npcsToSpawn = [...npcListLille, ...npcListDouai];
+            startX = 30; startY = 30;
+        } else if (mapKey === "metroInterieur") {
+            npcsToSpawn = [...npcListLille, ...npcListDouai];
+            startX = 10; startY = 15;
+        }
+
+        npcsToSpawn.forEach((npcName, index) => {
+            // Simple placement logic: spread them out a bit
+            const x = (startX + (index % 5) * 2) * 48 + 24;
+            const y = (startY + Math.floor(index / 5) * 2) * 48 + 24;
+            
+            this.createAmbientNPC(npcName, x, y);
+        });
+    }
+
+    createAmbientNPC(npcName, x, y) {
+        const spriteKey = `npc_${npcName}`;
+        if (!this.scene.textures.exists(spriteKey)) return;
+
+        // Ajustement Y pour les sprites de 96px de haut (centrés par défaut)
+        // On remonte de 24px pour aligner les pieds
+        const npc = this.scene.physics.add.sprite(x, y - 24, spriteKey, 0);
+        
+        // Configuration de la Hitbox (plus petite, aux pieds)
+        // Sprite 48x96. On veut une hitbox de ~32x32 en bas.
+        npc.body.setSize(32, 32);
+        npc.body.setOffset(8, 64); // Centré horizontalement (48-32)/2 = 8. En bas (96-32) = 64.
+
+        npc.setImmovable(true);
+        npc.setInteractive();
+        npc.npcType = "ambient";
+        npc.npcName = npcName;
+        
+        // Add collision
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, npc);
+        }
+        
+        // Animation
+        const animKey = `${npcName}_idle`;
+        if (!this.scene.anims.exists(animKey)) {
+            this.scene.anims.create({
+                key: animKey,
+                frames: this.scene.anims.generateFrameNumbers(spriteKey, { start: 0, end: 3 }), // Assuming 4 frames for idle
+                frameRate: 4,
+                repeat: -1,
+                yoyo: true
+            });
+        }
+        npc.play(animKey);
+
+        this.activeEvents.push(npc);
+    }
+
+    clearEvents() {
+        if (this.activeEvents) {
+            this.activeEvents.forEach(event => {
+                if (event.bubble) event.bubble.destroy();
+                event.destroy();
+            });
+        }
+        this.activeEvents = [];
+    }
+
+    createSubwayDoor() {
+        if (!this.mapManager.map) return;
+
+        const finalX = 26 * 48 + 21; 
+        const finalY = 15 * 48 - 10;
+
+        const door = this.scene.physics.add.sprite(finalX, finalY, "subway_door", 0);
+        door.setImmovable(true);
+        door.setDepth(-1);
+
+        // Animations
+        if (!this.scene.anims.exists('subway_door_open')) {
+            this.scene.anims.create({
+                key: 'subway_door_open',
+                frames: this.scene.anims.generateFrameNumbers('subway_door', { start: 0, end: 7 }),
+                frameRate: 10,
+                repeat: 0
+            });
+        }
+        if (!this.scene.anims.exists('subway_door_close')) {
+            this.scene.anims.create({
+                key: 'subway_door_close',
+                frames: this.scene.anims.generateFrameNumbers('subway_door', { start: 7, end: 0 }),
+                frameRate: 10,
+                repeat: 0
+            });
+        }
+
+        // Zone de détection pour l'ouverture
+        const detectionZone = this.scene.add.zone(finalX, finalY, 100, 180);
+        this.scene.physics.world.enable(detectionZone);
+        
+        door.isOpen = false;
+        
+        this.scene.physics.add.overlap(this.scene.playerManager.getPlayer(), detectionZone, () => {
+            if (!door.active) return;
+            
+            if (!door.isOpen) {
+                try {
+                    door.play('subway_door_open');
+                    this.scene.sound.play('metro_open', { volume: 0.5 });
+                    door.isOpen = true;
+                } catch (e) {
+                    console.warn("Failed to play door open animation/sound", e);
+                }
+            }
+            door.lastOverlapTime = this.scene.time.now;
+        });
+
+        const updateListener = () => {
+            if (!door.active) {
+                this.scene.events.off('update', updateListener);
+                return;
+            }
+
+            if (door.isOpen && this.scene.time.now - door.lastOverlapTime > 200) {
+                try {
+                    door.play('subway_door_close');
+                    this.scene.sound.play('metro_close', { volume: 0.5 });
+                    door.isOpen = false;
+                } catch (e) {
+                    console.warn("Failed to play door close animation/sound", e);
+                }
+            }
+        };
+        
+        this.scene.events.on('update', updateListener);
+        this.activeEvents.push(door);
+    }
+
+    createBoosterVendor() {
+        if (!this.mapManager.map) return;
+
+        const vendorX = 50 * 48 + 24;
+        const vendorY = 7 * 48 + 24;
+
+        const vendor = this.scene.physics.add.sprite(vendorX, vendorY, "marchand", 0);
+        
+        // Hitbox fix for 48x48 sprite
+        vendor.body.setSize(32, 32);
+        vendor.body.setOffset(8, 16);
+
+        vendor.setImmovable(true);
+        vendor.setInteractive();
+        vendor.npcType = "booster_vendor";
+
+        if (!this.scene.anims.exists('marchand_idle')) {
+            this.scene.anims.create({
+                key: 'marchand_idle',
+                frames: this.scene.anims.generateFrameNumbers('marchand', { start: 0, end: 3 }),
+                frameRate: 2,
+                repeat: -1
+            });
+        }
+
+        vendor.play('marchand_idle');
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, vendor);
+        }
+
+        this.activeEvents.push(vendor);
+
+        const bubble = this.scene.add.text(vendorX, vendorY - 35, "🛒", {
+            font: "24px Arial",
+            fill: "#fff",
+            stroke: "#000",
+            strokeThickness: 2
+        }).setOrigin(0.5);
+
+        this.scene.tweens.add({
+            targets: bubble,
+            y: vendorY - 45,
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
+        this.scene.tweens.add({
+            targets: bubble,
+            scale: { from: 1, to: 1.3 },
+            duration: 2000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Power2'
+        });
+
+        vendor.bubble = bubble;
+        console.log(`🛒 Marchand de boosters créé à la position (${vendorX}, ${vendorY})`);
+    }
+
+    createRalofNPC() {
+        if (!this.mapManager.map) return;
+
+        const ralofX = 6 * 48 + 24; 
+        const ralofY = 10 * 48 + 24;
+
+        const ralof = this.scene.physics.add.sprite(ralofX, ralofY - 24, "ralof", 0);
+        
+        // Configuration de la Hitbox (plus petite, aux pieds)
+        ralof.body.setSize(32, 32);
+        ralof.body.setOffset(8, 64);
+
+        ralof.setImmovable(true);
+        ralof.setInteractive();
+        ralof.npcType = "ralof";
+
+        if (!this.scene.anims.exists('ralof_idle')) {
+            this.scene.anims.create({
+                key: 'ralof_idle',
+                frames: this.scene.anims.generateFrameNumbers('ralof', { start: 3, end: 3 }),
+                frameRate: 4,
+                repeat: -1,
+                yoyo: true
+            });
+        }
+
+        ralof.play('ralof_idle');
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (player) {
+            this.scene.physics.add.collider(player, ralof);
+        }
+
+        this.activeEvents.push(ralof);
+
+        const bubble = this.scene.add.text(ralofX, ralofY - 35, "?", {
+            font: "24px Arial",
+            fill: "#fff",
+            stroke: "#000",
+            strokeThickness: 2
+        }).setOrigin(0.5);
+
+        this.scene.tweens.add({
+            targets: bubble,
+            y: ralofY - 45,
+            duration: 1500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+
+        ralof.bubble = bubble;
+        console.log(`Ralof créé à la position (${ralofX}, ${ralofY})`);
+    }
+
+    createNPC(eventData, x, y) {
+        // Ajustement pour sprite 48x96 (Marin/Player)
+        const npc = this.scene.physics.add.sprite(x + 24, y, "player", 0);
+        
+        // Hitbox fix
+        npc.body.setSize(32, 32);
+        npc.body.setOffset(8, 64);
+
+        npc.setImmovable(true);
+        npc.eventData = eventData;
+        npc.setInteractive();
+        npc.npcType = "dialogue";
+        this.activeEvents.push(npc);
+
+        this.addCollisionIfNeeded({ properties: [{ name: "Collision", value: true }] }, npc);
+    }
+
+    handleNPCInteraction(npc) {
+        if (npc.npcType === "ralof") {
+            const answer = window.prompt("What's my Name ?");
+            if (answer && answer.toLowerCase() === "ralof") {
+                this.mapManager.changeMap("qwest", 13 * 48 + 24, 5 * 48 + 24);
+            }
+        } else if (npc.npcType === "booster_vendor") {
+            this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !");
+            setTimeout(() => {
+                if (this.scene.shopManager) {
+                    this.scene.shopManager.openShop();
+                }
+            }, 1500);
+        } else if (npc.npcType === "ambient") {
+            const dialogues = [
+                "Belle journée, n'est-ce pas ?",
+                "Je suis juste là pour le décor.",
+                "As-tu vu mon chat ?",
+                "Il paraît qu'il y a des trésors cachés.",
+                "J'attends le métro...",
+                "La vie est belle à Oppède.",
+                "Bonjour !",
+                "..."
+            ];
+            const randomDialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
+            this.scene.displayMessage(randomDialogue);
+        } else if (npc.npcType === "dialogue" && npc.eventData) {
+            const dialogue = npc.eventData.properties?.dialogue || "Bonjour !";
+            this.scene.displayMessage(dialogue);
+
+            if (!npc.eventData.state.hasSpoken) {
+                fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${npc.eventData._id}/state`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ hasSpoken: true })
+                });
+                npc.eventData.state.hasSpoken = true;
+            }
+        }
+    }
+
+    handleChestInteraction(chest) {
+        const { eventData } = chest;
+        if (eventData.state.opened) {
+            this.scene.displayMessage("Ce coffre est déjà ouvert !");
+            return;
+        }
+
+        chest.anims.play('chest-open');
+        chest.once('animationcomplete', () => {
+            chest.setFrame(4);
+        });
+
+        this.scene.displayMessage(`Vous trouvez : ${eventData.properties.loot}`);
+
+        fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${eventData._id}/state`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ opened: true })
+        });
+
+        this.scene.addItemToInventory({ nom: eventData.properties.loot, quantite: 1 });
+        eventData.state.opened = true;
+        
+        try {
+            if (this.scene && this.scene.sound) {
+                this.scene.sound.play('item_get', { volume: 0.85 });
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    addCollisionIfNeeded(obj, sprite) {
+        const hasCollision = obj.properties?.find(p => p.name === "Collision" && p.value === true);
+        const player = this.scene.playerManager?.getPlayer();
+        if (hasCollision && player) {
+            this.scene.physics.add.collider(player, sprite);
+        }
+    }
+
+    getNearbyEventObject(playerX, playerY) {
+        if (!this.activeEvents) return null;
+        const threshold = 48;
+        return this.activeEvents.find(obj =>
+            Phaser.Math.Distance.Between(playerX, playerY, obj.x, obj.y) < threshold
+        );
+    }
+}

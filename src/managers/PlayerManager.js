@@ -45,7 +45,7 @@ export class PlayerManager {
     this.player.setDepth(1); // Ensure player is above floor/walls (depth 0)
     this.player.setCollideWorldBounds(true);
     this.player.body.setMaxVelocity(CONFIG.maxSpeed, CONFIG.maxSpeed);
-    this.player.setImmovable(true);
+    // this.player.setImmovable(true); // REMOVED: Player must be movable to collide with static objects
     this.player.body.setSize(36, 36); // Hitbox plus petite pour les pieds
     this.player.body.setOffset(8, 60); // Décalage vers le bas (96 - 32 - 4) pour coller aux pieds
 

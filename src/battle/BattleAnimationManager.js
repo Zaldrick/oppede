@@ -23,7 +23,7 @@ export default class BattleAnimationManager {
     async playEntryTransition(width, height) {
         // Flash 1
         const flash1 = this.scene.add.rectangle(0, 0, width, height, 0xFFFFFF, 1).setOrigin(0);
-        flash1.setDepth(10000);
+        flash1.setDepth(300000);
         await new Promise(resolve => {
             this.scene.tweens.add({
                 targets: flash1,
@@ -38,7 +38,7 @@ export default class BattleAnimationManager {
         
         // Flash 2
         const flash2 = this.scene.add.rectangle(0, 0, width, height, 0xFFFFFF, 1).setOrigin(0);
-        flash2.setDepth(10000);
+        flash2.setDepth(300000);
         await new Promise(resolve => {
             this.scene.tweens.add({
                 targets: flash2,
@@ -51,7 +51,7 @@ export default class BattleAnimationManager {
         
         // Spiral
         const spiral = this.scene.add.graphics();
-        spiral.setDepth(10000);
+        spiral.setDepth(300000);
         const centerX = width * 0.5;
         const centerY = height * 0.5;
         const maxRadius = Math.sqrt(width * width + height * height);
@@ -446,7 +446,7 @@ export default class BattleAnimationManager {
                     this.scene.cameras.main.width,
                     this.scene.cameras.main.height,
                     0xFFFF00, 0.5
-                ).setOrigin(0).setDepth(9999);
+                ).setOrigin(0).setDepth(300000);
                 
                 this.scene.tweens.add({
                     targets: flash,

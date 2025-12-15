@@ -383,7 +383,7 @@ export default class BattleUIManager {
         const dialogHeight = height * 0.10;
 
         this.scene.dialogBox = this.scene.add.graphics();
-        this.scene.dialogBox.setDepth(10000);
+        this.scene.dialogBox.setDepth(300000);
         
         // Ombre du dialogue
         this.scene.dialogBox.fillStyle(0x000000, 0.2);
@@ -411,7 +411,7 @@ export default class BattleUIManager {
             fontStyle: 'bold',
             wordWrap: { width: dialogWidth * 0.92 }
         }).setOrigin(0, 0);
-        this.scene.dialogText.setDepth(10001);
+        this.scene.dialogText.setDepth(300001);
         this.scene.dialogText.setVisible(false);
 
         // Boutons du menu (grille 2x2) avec style moderne
