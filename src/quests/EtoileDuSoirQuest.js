@@ -191,9 +191,10 @@ export class EtoileDuSoirQuest {
       if (this.isPinCodeActive || this.scene.scene.isActive('PinCodeScene')) {
         return;
       }
-
+        await this.advanceQuest({ playerId, playerData, step: 2 });
       // IMPORTANT: on attend la fin du dialogue (fermeture) avant de lancer PinCodeScene
       this.scene.displayMessage('Un mémo est visible sur ce coffre: "Gimli ouvre la voie"', playerPseudo, () => {
+
         if (this.isPinCodeActive || this.scene.scene.isActive('PinCodeScene')) {
           return;
         }
@@ -204,7 +205,7 @@ export class EtoileDuSoirQuest {
           onSuccess: async () => {
             this.isPinCodeActive = false;
             this.scene.scene.resume('GameScene');
-            this.scene.displayMessage("Ca s'ouvre !", playerPseudo);
+            this.scene.displayMessage("Ca s'ouvre ! Mes clés !", playerPseudo);
 
             try {
               chestNpc.play('coffre_open');
@@ -301,6 +302,7 @@ export class EtoileDuSoirQuest {
     chest.setImmovable(true);
     chest.setInteractive();
     chest.npcType = 'quest_chest';
+    chest.facePlayerOnInteract = false;
 
     chest.body.setSize(32, 32);
     chest.body.setOffset(8, 16);

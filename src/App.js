@@ -33,8 +33,33 @@ const Game = () => {
             return; // Prevent recreating the game multiple times
         }
 
+        const rendererOverride = (() => {
+            try {
+                return new URLSearchParams(window.location.search).get('renderer');
+            } catch (e) {
+                return null;
+            }
+        })();
+
+        const isMobileDevice = (() => {
+            try {
+                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            } catch (e) {
+                return false;
+            }
+        })();
+
+        // Mobile prod can hit WebGL texture limits and end up with a black canvas.
+        // Default to CANVAS on mobile, but keep an override for debugging:
+        // - ?renderer=webgl
+        // - ?renderer=canvas
+        let phaserRendererType = Phaser.AUTO;
+        if (rendererOverride === 'webgl') phaserRendererType = Phaser.WEBGL;
+        else if (rendererOverride === 'canvas') phaserRendererType = Phaser.CANVAS;
+        else if (isMobileDevice) phaserRendererType = Phaser.CANVAS;
+
         const config = {
-            type: Phaser.AUTO,
+            type: phaserRendererType,
             parent: 'game-container',
             width: window.innerWidth,
             height: window.innerHeight,
@@ -66,6 +91,19 @@ const Game = () => {
         };
 
         phaserGameRef.current = new Phaser.Game(config);
+
+        // Surface WebGL context loss on devices (otherwise it often looks like a silent black screen).
+        try {
+            const canvas = phaserGameRef.current?.canvas;
+            if (canvas) {
+                canvas.addEventListener('webglcontextlost', (e) => {
+                    try { e.preventDefault(); } catch (err) {}
+                    console.error('[Phaser] WebGL context lost');
+                }, { passive: false });
+            }
+        } catch (e) {
+            // ignore
+        }
 
         // Listen for scene changes to toggle chat visibility
         phaserGameRef.current.events.on("scene-switch", (sceneKey) => {

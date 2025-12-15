@@ -83,6 +83,49 @@ export class GameScene extends Phaser.Scene {
 
     async create() {
         this.game.events.emit("scene-switch", "GameScene");
+
+        // Status overlay (useful on mobile prod where console is hard to access).
+        // Keep it lightweight and always on top.
+        const debugOverlayEnabled = (() => {
+            try {
+                return new URLSearchParams(window.location.search).get('debug') === '1';
+            } catch (e) {
+                return false;
+            }
+        })();
+
+        const setStatus = (msg) => {
+            try {
+                if (!this.__statusText) {
+                    this.__statusText = this.add.text(8, 8, '', {
+                        fontFamily: 'Arial',
+                        fontSize: '14px',
+                        color: '#ffffff',
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        padding: { x: 6, y: 4 },
+                    }).setScrollFactor(0).setDepth(999999).setVisible(false);
+                }
+                this.__statusText.setText(String(msg || ''));
+                if (debugOverlayEnabled) this.__statusText.setVisible(true);
+            } catch (e) {
+                // ignore
+            }
+        };
+
+        setStatus('GameScene: init…');
+
+        // Catch async errors that would otherwise just produce a black canvas.
+        try {
+            if (!this.__unhandledRejectionHandler) {
+                this.__unhandledRejectionHandler = (event) => {
+                    const reason = event?.reason;
+                    console.error('[GameScene] Unhandled promise rejection:', reason);
+                    setStatus(`Erreur (promise): ${reason?.message || String(reason)}`);
+                    try { this.__statusText?.setVisible(true); } catch (e) {}
+                };
+                window.addEventListener('unhandledrejection', this.__unhandledRejectionHandler);
+            }
+        } catch (e) {}
         
         // DEBUG: Log click coordinates
         this.input.on('pointerdown', (pointer) => {
@@ -101,11 +144,29 @@ export class GameScene extends Phaser.Scene {
         if (inputElement) chatElement.style.display = "block";
 
         try {
+            setStatus('GameScene: chargement données…');
             await this.preloadPromise;
+            setStatus('GameScene: init managers…');
             this.initializeManagers();
+            setStatus('GameScene: setup jeu / map…');
             await this.setupGame();
+            setStatus('GameScene: ok');
+
+            // Hide overlay in normal mode.
+            if (!debugOverlayEnabled) {
+                try { this.__statusText?.setVisible(false); } catch (e) {}
+            } else {
+                // In debug mode, leave it briefly then hide.
+                try {
+                    this.time.delayedCall(1200, () => {
+                        try { this.__statusText?.setVisible(false); } catch (e) {}
+                    });
+                } catch (e) {}
+            }
         } catch (error) {
             console.error("Error during preload. Aborting game initialization.");
+            setStatus(`Erreur init: ${error?.message || String(error)}`);
+            try { this.__statusText?.setVisible(true); } catch (e) {}
             return;
         }
         this.game.events.on('inventory:cacheUpdated', (newInventory) => {
@@ -147,6 +208,12 @@ export class GameScene extends Phaser.Scene {
         this.events.on('shutdown', () => {
             clearInterval(this.scorePollingInterval);
             try { if (typeof window !== 'undefined' && window.debugPlayCry) delete window.debugPlayCry; } catch (e) {}
+            try {
+                if (this.__unhandledRejectionHandler) {
+                    window.removeEventListener('unhandledrejection', this.__unhandledRejectionHandler);
+                    this.__unhandledRejectionHandler = null;
+                }
+            } catch (e) {}
         });
     }
 
@@ -481,28 +548,55 @@ export class GameScene extends Phaser.Scene {
         }
 
         const { width, height } = this.scale;
-        const padding = 20;
+        const cameraZoom = (this.cameras && this.cameras.main && this.cameras.main.zoom) ? this.cameras.main.zoom : 1;
+        const viewWidth = width ;
+        const viewHeight = height / cameraZoom;
+        const padding = 20 / cameraZoom;
         
         // Dimensions responsives
         const isLandscape = width > height;
-        const boxWidth = isLandscape ? Math.min(width * 0.6, 800) : width - (padding * 2);
-        const boxHeight = 150;
+        // All UI geometry is expressed in *world units* so it stays visible regardless of camera zoom.
+        // (screen size = world size * zoom)
+        const boxWidth = isLandscape ? Math.min(viewWidth * 0.6, 800 / cameraZoom) : viewWidth - (padding * 2);
+        const boxHeight = 150 / cameraZoom;
         
         // Positionnement
-        const boxX = (width - boxWidth) / 2;
+        const boxX = (viewWidth - boxWidth) / 2;
         let boxY;
 
+        const getBottomUiMarginPx = () => {
+            // The chat UI is a DOM overlay (React). In landscape it can cover the canvas,
+            // so we compute its real height and convert it to game units.
+            try {
+                const chatInputEl = document.getElementById('chat-input');
+                if (!chatInputEl) return 80;
+
+                const rect = chatInputEl.getBoundingClientRect();
+                const cssPixels = (rect?.height || 0) + 30; // input height + safe padding
+                const displayHeight = this.scale?.displaySize?.height || height;
+                const ratio = displayHeight ? (height / displayHeight) : 1;
+                return Math.max(80, cssPixels * ratio);
+            } catch (e) {
+                return 80;
+            }
+        };
+
         if (isLandscape) {
-            // PC / Paysage : En bas (au-dessus du chat input)
-            // On laisse une marge pour le chat input (~60px) + un peu d'espace
-            boxY = height - boxHeight - 80;
+            // PC / Paysage : en bas mais au-dessus du chat DOM
+            const bottomMarginWorld = getBottomUiMarginPx() / cameraZoom;
+            boxY = viewHeight - boxHeight - bottomMarginWorld;
         } else {
-            // Mobile / Portrait : En haut (pour éviter le joystick en bas)
+            // Mobile / Portrait : en haut (pour éviter le joystick en bas)
             boxY = padding * 2;
         }
 
+        // Clamp to keep the dialogue visible even on short heights / scaling differences
+        boxY = Math.max(padding, Math.min(boxY, viewHeight - boxHeight - padding));
+
         // Conteneur principal
-        const container = this.add.container(0, 0).setScrollFactor(0).setDepth(Number.MAX_SAFE_INTEGER);
+        // NOTE: avoid Number.MAX_SAFE_INTEGER; Phaser depth sorting can behave oddly with huge values.
+        const DIALOGUE_DEPTH = 200000;
+        const container = this.add.container(0, 0).setScrollFactor(0).setDepth(DIALOGUE_DEPTH);
         this.currentDialogueBox = container;
 
         // Fond de la boîte
@@ -513,6 +607,8 @@ export class GameScene extends Phaser.Scene {
         // Bordure
         bg.lineStyle(3, 0xc0b0a0, 1);
         bg.strokeRoundedRect(boxX, boxY, boxWidth, boxHeight, 10);
+        bg.setScrollFactor(0);
+        bg.setDepth(DIALOGUE_DEPTH);
         container.add(bg);
 
         // Nom de l'interlocuteur (si fourni)
@@ -525,7 +621,7 @@ export class GameScene extends Phaser.Scene {
             const namePadding = 10;
             
             const nameTextObj = this.add.text(nameX + namePadding, nameY + 2, speakerName, {
-                font: "bold 18px Arial",
+                font: `bold ${Math.max(10, Math.round(18 / cameraZoom))}px Arial`,
                 fill: "#FFD700" // Or
             });
             
@@ -535,6 +631,11 @@ export class GameScene extends Phaser.Scene {
             nameBg.fillRoundedRect(nameX, nameY, nameWidth, nameHeight, 5);
             nameBg.lineStyle(2, 0xc0b0a0, 1);
             nameBg.strokeRoundedRect(nameX, nameY, nameWidth, nameHeight, 5);
+
+            nameBg.setScrollFactor(0);
+            nameBg.setDepth(DIALOGUE_DEPTH);
+            nameTextObj.setScrollFactor(0);
+            nameTextObj.setDepth(DIALOGUE_DEPTH);
             
             container.add(nameBg);
             container.add(nameTextObj);
@@ -542,19 +643,23 @@ export class GameScene extends Phaser.Scene {
 
         // Texte
         const textStyle = {
-            font: "22px Arial",
+            font: `${Math.max(12, Math.round(22 / cameraZoom))}px Arial`,
             fill: "#ffffff",
             wordWrap: { width: boxWidth - (padding * 2) },
             align: "left"
         };
 
         const messageText = this.add.text(boxX + padding, boxY + padding + (speakerName ? 10 : 0), "", textStyle);
+        messageText.setScrollFactor(0);
+        messageText.setDepth(DIALOGUE_DEPTH);
         container.add(messageText);
 
         // Indicateur de suite (flèche clignotante)
-        const nextIcon = this.add.text(boxX + boxWidth - 30, boxY + boxHeight - 30, "▼", {
-            font: "20px Arial", fill: "#ffffff"
+        const nextIcon = this.add.text(boxX + boxWidth - (30 / cameraZoom), boxY + boxHeight - (30 / cameraZoom), "▼", {
+            font: `${Math.max(10, Math.round(20 / cameraZoom))}px Arial`, fill: "#ffffff"
         }).setOrigin(0.5).setVisible(false);
+        nextIcon.setScrollFactor(0);
+        nextIcon.setDepth(DIALOGUE_DEPTH);
         container.add(nextIcon);
 
         // Effet de machine à écrire
@@ -578,7 +683,7 @@ export class GameScene extends Phaser.Scene {
                 // Animation de la flèche
                 this.tweens.add({
                     targets: nextIcon,
-                    y: boxY + boxHeight - 25,
+                    y: boxY + boxHeight - (40 / cameraZoom),
                     duration: 500,
                     yoyo: true,
                     repeat: -1
@@ -599,12 +704,6 @@ export class GameScene extends Phaser.Scene {
                 // Nettoyage des écouteurs clavier temporaires
                 this.input.keyboard.off('keydown-SPACE', handleInput);
                 this.input.keyboard.off('keydown-ENTER', handleInput);
-
-                // Anti-spam: évite de relancer une interaction juste après fermeture
-                // (ex: même pression de touche qui ferme puis ré-interagit)
-                if (this.uiManager?.setInteractionCooldown) {
-                    this.uiManager.setInteractionCooldown(300);
-                }
                 
                 // Priorité aux enchaînements via onComplete (PNJ en 2 boîtes, etc.)
                 if (onComplete) onComplete();
@@ -643,7 +742,9 @@ export class GameScene extends Phaser.Scene {
             this.input.keyboard.on('keydown-ENTER', handleInput);
             
             // Fermeture au clic (Zone plein écran)
-            const closeZone = this.add.zone(0, 0, width, height).setOrigin(0).setInteractive();
+            const closeZone = this.add.zone(0, 0, viewWidth, viewHeight).setOrigin(0).setInteractive();
+            closeZone.setScrollFactor(0);
+            closeZone.setDepth(DIALOGUE_DEPTH);
             closeZone.on('pointerdown', handleInput);
             container.add(closeZone);
             container.sendToBack(closeZone); // Derrière le texte mais capture les clics hors boutons
@@ -686,38 +787,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     addItemToInventory(item) {
-        const normalizedItem = {
-            ...item,
-            quantite: Number(item?.quantite ?? item?.['quantité'] ?? item?.quantity ?? 1) || 1
-        };
-
-        PlayerService.addItemToInventory(normalizedItem);
-        const updatedInventory = PlayerService.getInventory();
-        this.inventory = Array.isArray(updatedInventory) ? [...updatedInventory] : [];
-        this.game.events.emit('inventory:cacheUpdated', this.inventory);
-        console.log("Updated inventory:", this.inventory);
-
-        // Persistance serveur si possible (sans hardcoder d'URL)
-        try {
-            const playerId = this.registry.get('playerData')?._id;
-            const apiUrl = process.env.REACT_APP_API_URL;
-            if (apiUrl && playerId && normalizedItem?.nom) {
-                fetch(`${apiUrl}/api/inventory/add-by-name`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ playerId, itemName: normalizedItem.nom, quantity: normalizedItem.quantite })
-                }).then(async (res) => {
-                    if (!res.ok) return;
-                    // Refresh cache depuis le serveur pour refléter l'item_id/_id, etc.
-                    try {
-                        const fresh = await PlayerService.fetchInventory(playerId);
-                        this.inventory = Array.isArray(fresh) ? [...fresh] : [];
-                        this.game.events.emit('inventory:cacheUpdated', this.inventory);
-                    } catch (e) { /* ignore */ }
-                });
-            }
-        } catch (e) { /* ignore */ }
-
+        PlayerService.addItemToInventory(item);
+        console.log("Updated inventory:", PlayerService.getInventory());
         // Play item sound (key item or normal)
         try {
             const isKey = item && (item.isKeyItem || (item.type && item.type === 'key_item') || (item.nom && String(item.nom).toLowerCase().includes('clé')));
