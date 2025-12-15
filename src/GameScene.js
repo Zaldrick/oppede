@@ -266,7 +266,7 @@ export class GameScene extends Phaser.Scene {
         // Charger les quêtes du joueur pour synchroniser l'état local.
         // IMPORTANT: ne doit jamais bloquer l'initialisation du jeu (sinon écran noir sur mobile).
         const apiUrl = getApiBaseUrl();
-        const syncQuestsPromise = (async () => {
+        (async () => {
             try {
                 setStatus('GameScene: sync quêtes…');
                 const questsRes = await fetchWithTimeout(`${apiUrl}/api/quests/${playerData._id}`, {}, 2500);
@@ -284,16 +284,25 @@ export class GameScene extends Phaser.Scene {
             }
         })();
 
-        // Diagnostic des cartes
-        setStatus('GameScene: diagnostic maps…');
-        this.mapManager.compareTilemaps();
-
-        // Give quests a short head-start (but do not block longer than 1.2s)
+        // Diagnostic des cartes (opt-in uniquement). Sur Android, des logs volumineux peuvent freezer.
         try {
-            await Promise.race([
-                syncQuestsPromise,
-                new Promise((resolve) => setTimeout(resolve, 1200)),
-            ]);
+            const debugMaps = (() => {
+                try {
+                    return new URLSearchParams(window.location.search).get('debugMaps') === '1';
+                } catch (e) {
+                    return false;
+                }
+            })();
+
+            if (debugMaps) {
+                setStatus('GameScene: diagnostic maps…');
+                // Run async to avoid blocking the render loop.
+                setTimeout(() => {
+                    try { this.mapManager.compareTilemaps(); } catch (e) {
+                        console.warn('[GameScene] compareTilemaps failed:', e);
+                    }
+                }, 0);
+            }
         } catch (e) {
             // ignore
         }
