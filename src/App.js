@@ -27,6 +27,14 @@ const Game = () => {
     const phaserGameRef = useRef(null);
     const { messages, sendMessage } = useChat(); // Use the chat hook to manage messages
     const [isChatVisible, setChatVisible] = useState(false); // State to control chat visibility
+    const [debugText, setDebugText] = useState("");
+    const debugEnabled = (() => {
+        try {
+            return new URLSearchParams(window.location.search).get('debug') === '1';
+        } catch (e) {
+            return false;
+        }
+    })();
 
     useEffect(() => {
         if (phaserGameRef.current) {
@@ -119,6 +127,28 @@ const Game = () => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!debugEnabled) return;
+
+        const update = () => {
+            try {
+                setDebugText(String(window.__phaserStatus || ""));
+            } catch (e) {
+                setDebugText('');
+            }
+        };
+
+        update();
+        window.addEventListener('phaser-status', update);
+        window.addEventListener('error', update);
+        window.addEventListener('unhandledrejection', update);
+        return () => {
+            window.removeEventListener('phaser-status', update);
+            window.removeEventListener('error', update);
+            window.removeEventListener('unhandledrejection', update);
+        };
+    }, [debugEnabled]);
+
 
     return (
         <div
@@ -132,6 +162,27 @@ const Game = () => {
                 position: "relative", // Ensure child elements are positioned relative to this container
             }}
         >
+            {debugEnabled && (
+                <div
+                    id="phaser-debug-overlay"
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        zIndex: 999999,
+                        padding: '6px 8px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        color: '#fff',
+                        background: 'rgba(0,0,0,0.65)',
+                        pointerEvents: 'none',
+                        whiteSpace: 'pre-wrap',
+                    }}
+                >
+                    {debugText || 'Debug actif (aucun status)'}
+                </div>
+            )}
             <div id="game-container" style={{ position: "relative", width: "100%", height: "100%" }}></div>
             {isChatVisible && <Chat messages={messages} onSendMessage={sendMessage} />}
         </div>

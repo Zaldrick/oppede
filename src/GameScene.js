@@ -107,6 +107,14 @@ export class GameScene extends Phaser.Scene {
                 }
                 this.__statusText.setText(String(msg || ''));
                 if (debugOverlayEnabled) this.__statusText.setVisible(true);
+
+                // Also surface status to the DOM (React overlay) for cases where the canvas is black.
+                try {
+                    if (typeof window !== 'undefined') {
+                        window.__phaserStatus = String(msg || '');
+                        window.dispatchEvent(new Event('phaser-status'));
+                    }
+                } catch (e) {}
             } catch (e) {
                 // ignore
             }
@@ -127,6 +135,15 @@ export class GameScene extends Phaser.Scene {
                     try { this.__statusText?.setVisible(true); } catch (e) {}
                 };
                 window.addEventListener('unhandledrejection', this.__unhandledRejectionHandler);
+            }
+
+            if (!this.__windowErrorHandler) {
+                this.__windowErrorHandler = (event) => {
+                    const msg = event?.message || event?.error?.message || 'Erreur JS';
+                    setStatus(`Erreur (window): ${msg}`);
+                    try { this.__statusText?.setVisible(true); } catch (e) {}
+                };
+                window.addEventListener('error', this.__windowErrorHandler);
             }
         } catch (e) {}
         
@@ -215,6 +232,10 @@ export class GameScene extends Phaser.Scene {
                 if (this.__unhandledRejectionHandler) {
                     window.removeEventListener('unhandledrejection', this.__unhandledRejectionHandler);
                     this.__unhandledRejectionHandler = null;
+                }
+                if (this.__windowErrorHandler) {
+                    window.removeEventListener('error', this.__windowErrorHandler);
+                    this.__windowErrorHandler = null;
                 }
             } catch (e) {}
         });
