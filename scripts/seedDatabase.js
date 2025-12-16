@@ -1074,6 +1074,70 @@ async function seedDatabase() {
         console.error(`Erreur lors de l'alimentation de la bdd :`, error.message);
         throw error;
     }
+
+
+    const docs = [
+      {
+        trainerId: 'metroInterieur:13:7:blocker',
+        mapKey: 'metroInterieur',
+
+        // Coordonnées en cases (tile)
+        tileX: 13,
+        tileY: 7,
+
+        // Sprite (par défaut: spritesheet "player")
+        spriteKey: 'player',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: "Qui t'as dit que le métro de Lille était safe ?",
+
+        // Team (speciesId = id PokéAPI)
+        team: [
+          { speciesId: 19, level: 8 }, // Rattata
+          { speciesId: 16, level: 7 }  // Pidgey
+        ],
+
+        // Après victoire
+        afterWinTileX: 13,
+        afterWinTileY: 8,
+        afterWinFacing: 'down',
+        initialFacing: 'left',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ];
+
+    for (const doc of docs) {
+      if (!doc.trainerId) {
+        console.warn('[seedDresseurs] trainerId manquant, doc ignoré');
+        continue;
+      }
+
+      const now = new Date();
+      await trainerNpcs.updateOne(
+        { trainerId: doc.trainerId },
+        {
+          $set: {
+            ...doc,
+            updatedAt: now
+          },
+          $setOnInsert: {
+            createdAt: doc.createdAt || now
+          }
+        },
+        { upsert: true }
+      );
+
+      console.log(`[seedDresseurs] Upsert OK: ${doc.trainerId}`);
+    }
+
+    console.log('[seedDresseurs] Terminé');
 }
 
 // Exécuter le script

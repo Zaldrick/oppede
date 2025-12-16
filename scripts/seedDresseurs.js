@@ -1,17 +1,8 @@
 const { MongoClient } = require('mongodb');
 
-// Charge .env si présent (local dev)
-try {
-  require('dotenv').config();
-} catch (e) {
-  // ignore
-}
-
 async function connectToDatabase() {
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    throw new Error('MONGO_URI manquant. Définis-le dans ton environnement ou dans un fichier .env');
-  }
+  // Même philosophie que scripts/seedDatabase.js : env si dispo, sinon fallback.
+  const uri = process.env.MONGO_URI || 'mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede';
 
   const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
   await client.connect();
@@ -73,15 +64,19 @@ async function seedDresseurs() {
       }
 
       const now = new Date();
+
+      // Éviter les conflits MongoDB ($set vs $setOnInsert)
+      const { createdAt, updatedAt, ...setDoc } = doc;
+
       await trainerNpcs.updateOne(
         { trainerId: doc.trainerId },
         {
           $set: {
-            ...doc,
+            ...setDoc,
             updatedAt: now
           },
           $setOnInsert: {
-            createdAt: doc.createdAt || now
+            createdAt: createdAt || now
           }
         },
         { upsert: true }
