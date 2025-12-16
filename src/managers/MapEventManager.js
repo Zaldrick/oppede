@@ -208,10 +208,18 @@ export class MapEventManager {
         // Animation
         const animKey = `${npcName}_idle`;
         if (!this.scene.anims.exists(animKey)) {
+            const isMobile = (() => {
+                try {
+                    const os = this.scene?.sys?.game?.device?.os;
+                    return !!(os?.android || os?.iOS);
+                } catch (e) {
+                    return false;
+                }
+            })();
             this.scene.anims.create({
                 key: animKey,
                 frames: this.scene.anims.generateFrameNumbers(spriteKey, { start: 0, end: 3 }), // Assuming 4 frames for idle
-                frameRate: 4,
+                frameRate: isMobile ? 2 : 4,
                 repeat: -1,
                 yoyo: true
             });

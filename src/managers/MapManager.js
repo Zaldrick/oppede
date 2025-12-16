@@ -402,6 +402,16 @@ export class MapManager {
     createObjectLayers() {
         if (!this.map.objects) return;
 
+      // Perf: object layers can be very expensive on mobile (lots of sprites / texture switches).
+      // Disable rendering by default; opt-in with ?showObjectLayers=1.
+      const showObjectLayers = (() => {
+        try {
+          return new URLSearchParams(window.location.search).get('showObjectLayers') === '1';
+        } catch (e) {
+          return false;
+        }
+      })();
+
         this.map.objects.forEach(layerData => {
             // Ignore la couche "events" qui est gérée séparément
             if (layerData.name === "events") return;
@@ -428,38 +438,56 @@ export class MapManager {
                         const tileProps = tileset.getTileProperties(frame);
                         const isCollision = tileProps && tileProps.collision;
 
+                        // If object layers are disabled, only keep collision objects (converted to static rects)
+                        // and skip rendering all other tile objects.
+                        if (!showObjectLayers) {
+                          if (isCollision && obj.width && obj.height) {
+                            // Tile objects use bottom-left origin; convert to center coords.
+                            const centerX = obj.x + (obj.width / 2);
+                            const centerY = obj.y - (obj.height / 2);
+                            const rect = this.scene.add.rectangle(centerX, centerY, obj.width, obj.height);
+                            rect.setVisible(false);
+                            this.scene.physics.add.existing(rect, true);
+
+                            // Ensure custom collider group exists and add.
+                            if (!this.physicsManager.customColliders) {
+                              this.physicsManager.customColliders = this.scene.physics.add.staticGroup();
+                            }
+                            this.physicsManager.customColliders.add(rect);
+                          }
+                          return;
+                        }
+
                         const sprite = this.scene.add.sprite(obj.x, obj.y, tileset.name, frame);
-                        
+
                         // Tiled objects are bottom-left origin
                         sprite.setOrigin(0, 1);
-                        
+
                         // Apply dimensions
                         if (obj.width && obj.height) {
-                            sprite.setDisplaySize(obj.width, obj.height);
+                          sprite.setDisplaySize(obj.width, obj.height);
                         }
-                        
+
                         // Apply rotation
                         if (obj.rotation) {
-                            sprite.setRotation(Phaser.Math.DegToRad(obj.rotation));
+                          sprite.setRotation(Phaser.Math.DegToRad(obj.rotation));
                         }
-                        
+
                         // Apply flips
                         const flippedH = (rawGid & 0x80000000) !== 0;
                         const flippedV = (rawGid & 0x40000000) !== 0;
                         if (flippedH) sprite.setFlipX(true);
                         if (flippedV) sprite.setFlipY(true);
-                        
+
                         sprite.setDepth(effectiveDepth);
-                        
+
                         // Hide if it's a collision tile, otherwise use object visibility
                         if (isCollision) {
-
-
-                            sprite.setVisible(false);
+                          sprite.setVisible(false);
                         } else {
-                            sprite.setVisible(obj.visible);
+                          sprite.setVisible(obj.visible);
                         }
-                        
+
                         this.objectSprites.push(sprite);
                     }
                 }
