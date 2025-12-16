@@ -841,43 +841,6 @@ export class GameScene extends Phaser.Scene {
 
     }
 
-
-    /**
-     * Force la fermeture de la boîte de dialogue courante (si présente).
-     * Utile avant de PAUSE la scène pour lancer une autre scène (ex: combat).
-     */
-    forceCloseDialogue({ clearQueue = true } = {}) {
-        try {
-            if (clearQueue) {
-                this.dialogueQueue = [];
-            }
-
-            if (this.dialogueTimer) {
-                this.dialogueTimer.remove();
-                this.dialogueTimer = null;
-            }
-
-            // Nettoyage des écouteurs clavier potentiellement attachés par displayMessage
-            try {
-                this.input?.keyboard?.off('keydown-SPACE');
-                this.input?.keyboard?.off('keydown-ENTER');
-            } catch (e) {
-                // ignore
-            }
-
-            if (this.currentDialogueBox) {
-                this.currentDialogueBox.destroy();
-                this.currentDialogueBox = null;
-            }
-
-            if (this.uiManager) {
-                this.uiManager.isDialogueActive = false;
-            }
-        } catch (e) {
-            // ignore
-        }
-    }
-
     selectPlayer() {
         const selectedPlayer = document.getElementById('player-dropdown').value;
         console.log('Joueur sélectionné :', selectedPlayer);

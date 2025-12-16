@@ -30,7 +30,7 @@ async function seedDresseurs() {
         tileY: 7,
 
         // Sprite (par défaut: spritesheet "player")
-        spriteKey: 'player',
+        spriteKey: 'npc_adam',
 
         // Comportement
         blocks: true,
@@ -39,6 +39,7 @@ async function seedDresseurs() {
         // Dialogue / identité
         name: 'Dresseur',
         dialogue: "Qui t'as dit que le métro de Lille était safe ?",
+        afterDialogue: "Je devrais peut-être m'inquiéter pour moi plutôt ...",
 
         // Team (speciesId = id PokéAPI)
         team: [
@@ -48,6 +49,76 @@ async function seedDresseurs() {
 
         // Après victoire
         afterWinTileX: 13,
+        afterWinTileY: 6,
+        afterWinFacing: 'down',
+        initialFacing: 'left',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        trainerId: 'metroInterieur:19:7:blocker',
+        mapKey: 'metroInterieur',
+
+        // Coordonnées en cases (tile)
+        tileX: 19,
+        tileY: 7,
+
+        // Sprite (par défaut: spritesheet "player")
+        spriteKey: 'npc_adam',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: 'Mais tu comptes aller où comme ça ma jolie ?',
+        afterDialogue: "Grr, J'ai pas l'habitude qu'on me réponde comme ça, t'es libre demain soir ?",
+
+        // Team (speciesId = id PokéAPI)
+        team: [
+          { speciesId: 88, level: 11 } // Tadmorv
+        ],
+
+        // Après victoire
+        afterWinTileX: 19,
+        afterWinTileY: 6,
+        afterWinFacing: 'down',
+        initialFacing: 'left',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        trainerId: 'metroInterieur:36:7:blocker',
+        mapKey: 'metroInterieur',
+
+        // Coordonnées en cases (tile)
+        tileX: 36,
+        tileY: 7,
+
+        // Sprite (par défaut: spritesheet "player")
+        spriteKey: 'npc_adam',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: "T'es là pour me contrôler mon ticket c'est ça ?",
+        afterDialogue: "Ah tu voulais juste passer ? Dfaçon j'ai pas de ticket ! ",
+
+        // Team (speciesId = id PokéAPI)
+        team: [
+          { speciesId: 52, level: 8 }, // Miaous
+          { speciesId: 27, level: 8 }, // Sablette
+          { speciesId: 66, level: 8 }  // Machoc
+        ],
+
+        // Après victoire
+        afterWinTileX: 36,
         afterWinTileY: 6,
         afterWinFacing: 'down',
         initialFacing: 'left',

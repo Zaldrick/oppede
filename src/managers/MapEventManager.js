@@ -66,6 +66,16 @@ export class MapEventManager {
             return;
         }
 
+        // npc_* spritesheets: use facing frames/idle anim
+        if (typeof npc.texture?.key === 'string' && npc.texture.key.startsWith('npc_')) {
+            const facing = (() => {
+                if (Math.abs(dx) > Math.abs(dy)) return dx < 0 ? 'left' : 'right';
+                return dy < 0 ? 'up' : 'down';
+            })();
+            this.setNpcFacing(npc, facing);
+            return;
+        }
+
         // Generic fallback: flip horizontally towards the player (works for most NPC sprites).
         if (typeof npc.setFlipX === 'function') {
             npc.setFlipX(dx < 0);
@@ -189,6 +199,104 @@ export class MapEventManager {
         }
     }
 
+    getNpcIdleRangeForFacing(facing, textureKey) {
+        const safeFacing = ['down', 'left', 'right', 'up'].includes((facing || '').toLowerCase())
+            ? (facing || '').toLowerCase()
+            : 'down';
+
+        const texture = textureKey ? this.scene?.textures?.get(textureKey) : null;
+        const frameTotal = texture ? texture.frameTotal : 0;
+
+        // Spritesheet layout (1 row): 6 frames per direction
+        // order: right (0-5), up (6-11), left (12-17), down (18-23)
+        const rangesByFacing6 = {
+            right: { start: 0, end: 5 },
+            up: { start: 6, end: 11 },
+            left: { start: 12, end: 17 },
+            down: { start: 18, end: 23 }
+        };
+
+        if (frameTotal >= 24) {
+            return rangesByFacing6[safeFacing];
+        }
+
+        // Fallback for older 4-frame sheets
+        return { start: 0, end: Math.max(0, Math.min(3, frameTotal - 1)) };
+    }
+
+    ensureNpcIdleAnimation(textureKey, facing) {
+        if (!textureKey) return null;
+        const safeFacing = ['down', 'left', 'right', 'up'].includes((facing || '').toLowerCase())
+            ? (facing || '').toLowerCase()
+            : 'down';
+
+        const animKey = `${textureKey}_idle_${safeFacing}`;
+        if (this.scene.anims.exists(animKey)) return animKey;
+
+        const range = this.getNpcIdleRangeForFacing(safeFacing, textureKey);
+        const isMobile = (() => {
+            try {
+                const os = this.scene?.sys?.game?.device?.os;
+                return !!(os?.android || os?.iOS);
+            } catch (e) {
+                return false;
+            }
+        })();
+
+        try {
+            this.scene.anims.create({
+                key: animKey,
+                frames: this.scene.anims.generateFrameNumbers(textureKey, { start: range.start, end: range.end }),
+                frameRate: isMobile ? 3 : 6,
+                repeat: -1,
+                yoyo: true
+            });
+            return animKey;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    setNpcFacing(npc, facing) {
+        if (!npc || typeof npc.setFrame !== 'function') return;
+
+        const textureKey = npc.texture?.key;
+        if (!textureKey) return;
+
+        // Player spritesheet uses fixed idle frames.
+        if (textureKey === 'player') {
+            npc.setFrame(this.getPlayerIdleFrameForFacing(facing || 'down'));
+            return;
+        }
+
+        // npc_* sheets: apply direction by frame range start + play idle animation
+        if (typeof textureKey === 'string' && textureKey.startsWith('npc_')) {
+            const range = this.getNpcIdleRangeForFacing(facing || 'down', textureKey);
+            try {
+                npc.setFrame(range.start);
+            } catch (e) {
+                // ignore
+            }
+
+            const animKey = this.ensureNpcIdleAnimation(textureKey, facing || 'down');
+            if (animKey) {
+                try {
+                    npc.play(animKey);
+                } catch (e) {
+                    // ignore
+                }
+            }
+            return;
+        }
+
+        // Generic fallback: flip for left/right
+        if (typeof npc.setFlipX === 'function') {
+            const f = (facing || '').toLowerCase();
+            if (f === 'left') npc.setFlipX(true);
+            if (f === 'right') npc.setFlipX(false);
+        }
+    }
+
     applyTrainerNpcState(npc, { defeated, afterWinTile, afterWinFacing, initialFacing }) {
         if (!npc) return;
 
@@ -197,14 +305,10 @@ export class MapEventManager {
             if (afterWinTile) {
                 npc.setPosition(afterWinTile.x * 48 + 24, afterWinTile.y * 48 + 24 - 24);
             }
-            if (npc.texture?.key === 'player' && typeof npc.setFrame === 'function') {
-                npc.setFrame(this.getPlayerIdleFrameForFacing(afterWinFacing || 'down'));
-            }
+            this.setNpcFacing(npc, afterWinFacing || 'down');
         } else {
             npc.trainerDefeated = false;
-            if (npc.texture?.key === 'player' && typeof npc.setFrame === 'function') {
-                npc.setFrame(this.getPlayerIdleFrameForFacing(initialFacing || 'down'));
-            }
+            this.setNpcFacing(npc, initialFacing || 'down');
         }
     }
 
@@ -267,7 +371,7 @@ export class MapEventManager {
             if (!trainerId || tileX === undefined || tileY === undefined) continue;
 
             const xPx = tileX * 48 + 24;
-            const yPx = tileY * 48 + 24 - 24;
+            const yPx = tileY * 48 ;
 
             const npc = this.scene.physics.add.sprite(xPx, yPx, def?.spriteKey || 'player', 0);
             npc.body.setSize(32, 32);
@@ -279,6 +383,7 @@ export class MapEventManager {
             npc.trainerId = trainerId;
             npc.trainerName = def?.name || 'Dresseur';
             npc.trainerDialogue = def?.dialogue || '...';
+            npc.trainerAfterDialogue = def?.afterDialogue || null;
             npc.trainerTeam = Array.isArray(def?.team) ? def.team : [];
             npc.trainerAfterWinTile = (def?.afterWinTileX !== undefined && def?.afterWinTileY !== undefined)
                 ? { x: def.afterWinTileX, y: def.afterWinTileY }
@@ -331,7 +436,28 @@ export class MapEventManager {
             startX = 30; startY = 30;
         } else if (mapKey === "metroInterieur") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
-            startX = 10; startY = 15;
+
+            // Placement manuel des PNJ (coordonnées en tuiles + direction du regard)
+            // Format demandé: x:y + direction
+            const placements = [
+                { tileX: 6, tileY: 7, facing: 'right' },
+                { tileX: 8, tileY: 6, facing: 'down' },
+                { tileX: 10, tileY: 6, facing: 'down' },
+                { tileX: 11, tileY: 6, facing: 'down' },
+                { tileX: 16, tileY: 6, facing: 'right' },
+                { tileX: 17, tileY: 6, facing: 'left' },
+                { tileX: 23, tileY: 6, facing: 'down' },
+                { tileX: 28, tileY: 7, facing: 'up' }
+            ];
+
+            placements.forEach((p, i) => {
+                const npcName = npcsToSpawn[i];
+                if (!npcName) return;
+                const x = p.tileX * 48 + 24;
+                const y = p.tileY * 48 + 24;
+                this.createAmbientNPC(npcName, x, y, p.facing);
+            });
+            return;
         }
 
         npcsToSpawn.forEach((npcName, index) => {
@@ -343,7 +469,7 @@ export class MapEventManager {
         });
     }
 
-    createAmbientNPC(npcName, x, y) {
+    createAmbientNPC(npcName, x, y, facing = 'down') {
         const spriteKey = `npc_${npcName}`;
         if (!this.scene.textures.exists(spriteKey)) return;
 
@@ -366,8 +492,33 @@ export class MapEventManager {
             this.ambientGroup.add(npc);
         }
         
-        // Animation
-        const animKey = `${npcName}_idle`;
+        // Animation (spritesheet sur 1 ligne: 6 frames par direction)
+        // Ordre: droite (0-5), haut (6-11), gauche (12-17), bas (18-23)
+        const safeFacing = ['down', 'left', 'right', 'up'].includes(facing) ? facing : 'down';
+        const animKey = `${npcName}_idle_${safeFacing}`;
+
+        const texture = this.scene.textures.get(spriteKey);
+        const frameTotal = texture ? texture.frameTotal : 0;
+
+        const rangesByFacing6 = {
+            right: { start: 0, end: 5 },
+            up: { start: 6, end: 11 },
+            left: { start: 12, end: 17 },
+            down: { start: 18, end: 23 }
+        };
+
+        // Fallback: si la texture n'a pas assez de frames, on reste sur 0-3 (comportement historique)
+        const range = frameTotal >= 24
+            ? rangesByFacing6[safeFacing]
+            : { start: 0, end: Math.max(0, Math.min(3, frameTotal - 1)) };
+
+        // Force le frame initial selon la direction (même si l'anim est lente)
+        try {
+            npc.setFrame(range.start);
+        } catch (e) {
+            // ignore
+        }
+
         if (!this.scene.anims.exists(animKey)) {
             const isMobile = (() => {
                 try {
@@ -379,7 +530,7 @@ export class MapEventManager {
             })();
             this.scene.anims.create({
                 key: animKey,
-                frames: this.scene.anims.generateFrameNumbers(spriteKey, { start: 0, end: 3 }), // Assuming 4 frames for idle
+                frames: this.scene.anims.generateFrameNumbers(spriteKey, { start: range.start, end: range.end }),
                 frameRate: isMobile ? 2 : 4,
                 repeat: -1,
                 yoyo: true
@@ -755,6 +906,10 @@ export class MapEventManager {
         } else if (npc.npcType === 'pokemon_trainer') {
             // Déjà battu -> il s'est écarté, pas de combat
             if (npc.trainerDefeated) {
+                const afterText = npc.trainerAfterDialogue;
+                if (afterText) {
+                    this.scene.displayMessage(afterText, npc.trainerName || 'Dresseur');
+                }
                 return;
             }
 

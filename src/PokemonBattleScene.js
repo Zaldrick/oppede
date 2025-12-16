@@ -617,7 +617,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             fill: '#7F8C8D',
             fontFamily: 'Arial',
             fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3); // Caché au début
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(10001); // Caché au début
 
         // Fond de la barre XP (gris clair)
         container.fillStyle(0xBDC3C7, 1);
@@ -654,7 +654,7 @@ export class PokemonBattleScene extends Phaser.Scene {
             xpBarHeight - 2,
             3
         );
-        xpBarFill.setAlpha(0).setDepth(3); // Caché au début
+        xpBarFill.setAlpha(0).setDepth(10001); // Caché au début
 
         this.playerXPBar = xpBarFill;
         this.playerXPBarProps = {

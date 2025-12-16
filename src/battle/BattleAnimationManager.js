@@ -258,9 +258,12 @@ export default class BattleAnimationManager {
         await this.scene.wait(200);
         
         const opponent = this.scene.battleState.opponentActive;
-        this.scene.menuManager.showDialog(`Un ${getPokemonDisplayName(opponent)} sauvage apparaît !`);
-        await this.scene.wait(1500);
-        this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
+        await this.scene.menuManager.showDialog(`Un ${getPokemonDisplayName(opponent)} sauvage apparaît !`);
+        if (this.scene?.menuManager?.showPrompt) {
+            this.scene.menuManager.showPrompt(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
+        } else {
+            await this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
+        }
     }
 
     /**
@@ -666,8 +669,7 @@ export default class BattleAnimationManager {
             await this.scene.wait(300);
 
             // 5. Message de level-up
-            this.scene.menuManager.showDialog(`${getPokemonDisplayName(player)} passe niveau ${currentLevel} !`);
-            await this.scene.wait(1500);
+            await this.scene.menuManager.showDialog(`${getPokemonDisplayName(player)} passe niveau ${currentLevel} !`);
 
             // 6. Vider la barre (reset à 0%)
             currentXP = nextLevelXP;
@@ -711,6 +713,10 @@ export default class BattleAnimationManager {
                 const progress = Math.min(elapsed / duration, 1);
                 const currentPercent = startPercent + (endPercent - startPercent) * progress;
 
+                // Keep XP bar visible even if the dialog box overlaps the player UI.
+                const dialogDepth = this.scene.dialogBox?.depth ?? 0;
+                const desiredDepth = Math.max(3, dialogDepth + 1);
+
                 this.scene.playerXPBar.clear();
                 this.scene.playerXPBar.fillGradientStyle(0x3498DB, 0x3498DB, 0x2980B9, 0x2980B9, 1, 1, 1, 1);
                 this.scene.playerXPBar.fillRoundedRect(
@@ -720,7 +726,7 @@ export default class BattleAnimationManager {
                     props.height - 2,
                     3
                 );
-                this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+                this.scene.playerXPBar.setDepth(desiredDepth); // 🔧 FIXE: Réappliquer depth après clear()
 
                 if (progress < 1) {
                     requestAnimationFrame(updateXP);
@@ -744,6 +750,9 @@ export default class BattleAnimationManager {
         ];
 
         for (const flash of flashColors) {
+            const dialogDepth = this.scene.dialogBox?.depth ?? 0;
+            const desiredDepth = Math.max(3, dialogDepth + 1);
+
             // Flash sur la barre XP
             this.scene.playerXPBar.clear();
             this.scene.playerXPBar.fillStyle(flash.color, 1);
@@ -754,7 +763,7 @@ export default class BattleAnimationManager {
                 this.scene.playerXPBarProps.height - 2,
                 3
             );
-            this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+            this.scene.playerXPBar.setDepth(desiredDepth); // 🔧 FIXE: Réappliquer depth après clear()
             
             await this.scene.wait(flash.duration);
         }

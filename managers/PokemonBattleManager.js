@@ -24,13 +24,20 @@ class PokemonBattleManager {
 
     toClientPokemonPayload(pokemon) {
         if (!pokemon) return null;
+
+        // ✅ Le niveau des Pokémon sauvages/dresseur doit rester celui généré.
+        // Les Pokémon du joueur (collection pokemonPlayer) utilisent l'XP comme source de vérité.
+        const isPlayerOwned = !!pokemon.owner_id;
+        const hasExperience = pokemon.experience !== undefined && pokemon.experience !== null;
+        const resolvedLevel = (isPlayerOwned && hasExperience)
+            ? this.calculateLevel(pokemon.experience)
+            : (pokemon.level || 1);
+
         return {
             _id: pokemon._id || 'wild',
             species_id: pokemon.species_id,
             name: pokemon.nickname || pokemon.speciesData?.name_fr || pokemon.speciesData?.name,
-            level: (pokemon.experience !== undefined && pokemon.experience !== null)
-                ? this.calculateLevel(pokemon.experience)
-                : (pokemon.level || 1),
+            level: resolvedLevel,
             experience: pokemon.experience || 0,
             currentHP: pokemon.currentHP,
             maxHP: pokemon.stats?.maxHP,
@@ -39,6 +46,66 @@ class PokemonBattleManager {
             moveset: pokemon.moveset || [],
             sprites: pokemon.speciesData?.sprites
         };
+    }
+
+    /**
+     * Distribue l'XP à chaque K.O. d'un Pokémon adverse.
+     * Le tracking de participation est géré dans PokemonBattleLogicManager.
+     */
+    async awardXpForDefeatedOpponent(battleState, defeatedPokemon, playerId, battleId) {
+        try {
+            if (!defeatedPokemon) return [];
+            const db = await this.databaseManager.connectToDatabase();
+            const pokemonCollection = db.collection('pokemonPlayer');
+
+            const battleLogic = this.activeBattles.get(battleId) || this.activeBattles.get(battleId.toString());
+
+            // Résoudre la liste des participants depuis BattleLogic
+            let participants = [];
+            if (battleLogic) {
+                const participantIds = battleLogic.getParticipants();
+                participants = battleState.player_team.filter(p => p && p._id && participantIds.includes(p._id.toString()));
+            }
+            // Fallback: Pokémon actif uniquement
+            if (!participants || participants.length === 0) {
+                const activePokemon = battleState.player_team[battleState.player_active_index] || battleState.player_team[0];
+                participants = [activePokemon].filter(p => p && p.currentHP > 0);
+            }
+
+            const xpGains = battleLogic
+                ? battleLogic.calculateExperienceGain(defeatedPokemon, participants, playerId)
+                : new PokemonBattleLogicManager().calculateExperienceGain(defeatedPokemon, participants, playerId);
+
+            for (const xpResult of xpGains) {
+                const newXP = (xpResult.currentXP || 0) + (xpResult.xpGained || 0);
+                const newLevel = this.calculateLevel(newXP);
+                const oldLevel = xpResult.currentLevel || 1;
+
+                const pokemonId = typeof xpResult.pokemonId === 'string'
+                    ? new ObjectId(xpResult.pokemonId)
+                    : xpResult.pokemonId;
+
+                await pokemonCollection.updateOne(
+                    { _id: pokemonId },
+                    { $set: { experience: newXP } }
+                );
+
+                xpResult.newLevel = newLevel;
+                xpResult.leveledUp = newLevel > oldLevel;
+
+                // Mettre à jour l'objet en mémoire (utile si le joueur switch plus tard)
+                const pokemon = participants.find(p => p && p._id && p._id.toString() === xpResult.pokemonId.toString());
+                if (pokemon) {
+                    pokemon.experience = newXP;
+                    pokemon.level = newLevel;
+                }
+            }
+
+            return xpGains;
+        } catch (e) {
+            console.error('[Battle] Erreur awardXpForDefeatedOpponent:', e);
+            return [];
+        }
     }
 
     getNextAliveIndex(team, currentIndex) {
@@ -191,7 +258,10 @@ class PokemonBattleManager {
                         _id: p._id || 'wild',
                         species_id: p.species_id,
                         name: p.nickname || p.speciesData?.name_fr || p.speciesData?.name,
-                        level: (p.experience !== undefined && p.experience !== null) ? this.calculateLevel(p.experience) : (p.level || 1),
+                        // ✅ Ne pas dériver le niveau des adversaires (wild/trainer) depuis experience=0
+                        level: (battleType === 'pvp' && p.experience !== undefined && p.experience !== null)
+                            ? this.calculateLevel(p.experience)
+                            : (p.level || 1),
                         experience: p.experience || 0, // 🆕 Pour Pokémon sauvages
                         currentHP: p.currentHP,
                         maxHP: p.stats.maxHP, // Utiliser la stat calculée
@@ -367,6 +437,15 @@ class PokemonBattleManager {
                 // Vérifier fin de combat
                 const battleEnd = battleLogic.isBattleOver();
 
+                // 🆕 Distribuer l'XP à chaque K.O. adverse (et pas uniquement à la fin)
+                let xpGains = [];
+                const opponentJustFainted = opponentPokemon && opponentPokemon.currentHP <= 0;
+                const playerStillAlive = playerPokemon && playerPokemon.currentHP > 0;
+                if (opponentJustFainted && playerStillAlive && (battleState.battle_type === 'wild' || battleState.battle_type === 'trainer')) {
+                    // Note: en combat dresseur, on donne l'XP à chaque K.O. (pas seulement à la fin).
+                    xpGains = await this.awardXpForDefeatedOpponent(battleState, opponentPokemon, playerId, battleId);
+                }
+
                 // 🆕 Combat dresseur: si l'adversaire est K.O. mais le combat continue, envoyer le prochain Pokémon
                 let opponentSwitched = false;
                 let newOpponentActiveIndex = null;
@@ -381,6 +460,9 @@ class PokemonBattleManager {
                                 opponentSwitched = true;
                                 newOpponentActiveIndex = battleState.opponent_active_index;
                                 newOpponentActive = this.toClientPokemonPayload(battleState.opponent_team[battleState.opponent_active_index]);
+
+                                // ✅ Reset participation pour le nouveau Pokémon adverse (seulement le Pokémon joueur présent au moment de l'envoi)
+                                battleLogic.resetParticipantsForNewOpponent(battleState.player_team[battleState.player_active_index]);
                             } catch (e) {
                                 console.warn('[Battle] Auto-switch adverse (post-turn) a échoué:', e.message);
                             }
@@ -408,8 +490,11 @@ class PokemonBattleManager {
                 // Si combat terminé, update HP et distribuer XP
                 if (battleEnd.isOver) {
                     console.log('[Battle] ✅ Combat terminé, winner:', battleEnd.winner);
-                    const xpGains = await this.updatePokemonHPAndXP(battleState, battleEnd.winner, playerId, battleId);
-                    console.log('[Battle] ✅ XP calculés:', xpGains);
+
+                    // ✅ L'XP est déjà distribuée au moment du K.O. final via awardXpForDefeatedOpponent.
+                    // Ici on persiste seulement les HP.
+                    await this.updatePokemonHPAndXP(battleState, null, playerId, battleId);
+                    console.log('[Battle] ✅ HP persistés (XP déjà traitée sur K.O.)');
                     this.activeBattles.delete(battleId);
                     
                     // Retourner aussi les gains XP
@@ -443,7 +528,8 @@ class PokemonBattleManager {
                     state: battleState.state,
                     opponentSwitched,
                     newOpponentActiveIndex,
-                    newOpponentActive
+                    newOpponentActive,
+                    xpGains
                 });
 
             } catch (error) {

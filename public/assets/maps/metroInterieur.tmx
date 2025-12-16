@@ -102,7 +102,7 @@
    </properties>
   </object>
   <object id="7" x="541.538" y="381.031" width="1363.02" height="50.25"/>
-  <object id="9" x="621.5" y="267.375" width="41.375" height="45.4545"/>
+  <object id="9" x="621.5" y="267.375" width="41.375" height="56.7878"/>
   <object id="10" name="poteau" x="369.182" y="256.659" width="8.63636" height="59.1818">
    <properties>
     <property name="collision" type="bool" value="true"/>

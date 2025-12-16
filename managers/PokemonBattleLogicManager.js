@@ -42,6 +42,17 @@ class PokemonBattleLogicManager {
         this.participants = new Set(); // 🆕 Tracker les Pokémon qui ont participé
     }
 
+    /**
+     * Réinitialise la participation (utilisé quand un nouveau Pokémon adverse entre en combat)
+     * @param {Object|null} playerActivePokemon
+     */
+    resetParticipantsForNewOpponent(playerActivePokemon = null) {
+        this.participants = new Set();
+        if (playerActivePokemon && playerActivePokemon._id) {
+            this.participants.add(playerActivePokemon._id.toString());
+        }
+    }
+
     // Utilitaire pour récupérer le nom à afficher (préférence FR)
     getDisplayName(pokemon) {
         if (!pokemon) return 'Unknown';
@@ -472,6 +483,10 @@ class PokemonBattleLogicManager {
 
         if (side === 'player') {
             this.battleState.player_active_index = newIndex;
+            // 🆕 Un switch compte comme participation à ce « segment » de combat
+            if (newPokemon && newPokemon._id) {
+                this.participants.add(newPokemon._id.toString());
+            }
         } else {
             this.battleState.opponent_active_index = newIndex;
         }
