@@ -406,7 +406,10 @@ export class MapManager {
             // Ignore la couche "events" qui est gérée séparément
             if (layerData.name === "events") return;
 
-            const depth = parseInt(layerData.name, 10) || 10; // Default depth if not a number
+            // Keep depth rules consistent with tile layers (which use depth * 10000).
+            // Object layers in Tiled are often named like "2" or "-1".
+            const depth = parseInt(layerData.name, 10);
+            const effectiveDepth = Number.isFinite(depth) ? depth * 10000 : 10 * 10000;
             
             layerData.objects.forEach(obj => {
                 if (obj.gid) {
@@ -446,7 +449,7 @@ export class MapManager {
                         if (flippedH) sprite.setFlipX(true);
                         if (flippedV) sprite.setFlipY(true);
                         
-                        sprite.setDepth(depth);
+                        sprite.setDepth(effectiveDepth);
                         
                         // Hide if it's a collision tile, otherwise use object visibility
                         if (isCollision) {

@@ -9,6 +9,10 @@ export class MapEventManager {
         this.mapManager = mapManager;
         this.activeEvents = [];
 
+        // Ambient NPC optimization: use a single collider vs player.
+        this.ambientGroup = null;
+        this.ambientCollider = null;
+
         // Router de quêtes (1 handler par quête) pour éviter que MapEventManager devienne un fourre-tout
         this.questRouter = new QuestRouter({
             scene: this.scene,
@@ -16,6 +20,21 @@ export class MapEventManager {
             eventManager: this,
             handlers: [new EtoileDuSoirQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })]
         });
+    }
+
+    ensureAmbientGroup() {
+        if (!this.scene?.physics) return;
+        if (!this.ambientGroup) {
+            this.ambientGroup = this.scene.physics.add.group({
+                immovable: true,
+                allowGravity: false,
+            });
+        }
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (player && !this.ambientCollider) {
+            this.ambientCollider = this.scene.physics.add.collider(player, this.ambientGroup);
+        }
     }
 
     faceNpcToPlayer(npc) {
@@ -167,6 +186,8 @@ export class MapEventManager {
         const spriteKey = `npc_${npcName}`;
         if (!this.scene.textures.exists(spriteKey)) return;
 
+        this.ensureAmbientGroup();
+
         // Ajustement Y pour les sprites de 96px de haut (centrés par défaut)
         // On remonte de 24px pour aligner les pieds
         const npc = this.scene.physics.add.sprite(x, y - 24, spriteKey, 0);
@@ -180,11 +201,8 @@ export class MapEventManager {
         npc.setInteractive();
         npc.npcType = "ambient";
         npc.npcName = npcName;
-        
-        // Add collision
-        const player = this.scene.playerManager?.getPlayer();
-        if (player) {
-            this.scene.physics.add.collider(player, npc);
+        if (this.ambientGroup) {
+            this.ambientGroup.add(npc);
         }
         
         // Animation
@@ -204,6 +222,20 @@ export class MapEventManager {
     }
 
     clearEvents() {
+        try {
+            if (this.ambientCollider) {
+                this.ambientCollider.destroy();
+                this.ambientCollider = null;
+            }
+            if (this.ambientGroup) {
+                // Children are destroyed via activeEvents cleanup; destroy group only.
+                this.ambientGroup.destroy(false);
+                this.ambientGroup = null;
+            }
+        } catch (e) {
+            // ignore
+        }
+
         if (this.activeEvents) {
             this.activeEvents.forEach(event => {
                 if (event.bubble) event.bubble.destroy();
