@@ -192,6 +192,71 @@ export class MapManager {
     const mapData = this.scene.cache.tilemap.get(mapKey);
     if (mapData && mapData.data) {
         const rawData = mapData.data;
+
+      // Ensure tileset images referenced by this TMJ are actually loaded.
+      // On some Android devices, missing/failed tileset textures result in black (no tile layers), while sprites still render.
+      try {
+        const debugEnabled = (() => {
+          try { return new URLSearchParams(window.location.search).get('debug') === '1'; } catch (e) { return false; }
+        })();
+
+        const requiredTilesetImages = Array.isArray(rawData.tilesets)
+          ? rawData.tilesets.filter(ts => ts && ts.name && ts.image)
+          : [];
+
+        const missingTilesets = requiredTilesetImages.filter(ts => !this.scene.textures.exists(ts.name));
+        if (missingTilesets.length > 0) {
+          if (debugEnabled) {
+            setStatus(`Map ${mapKey}: chargement tilesets (${missingTilesets.length})…`);
+          }
+
+          await new Promise((resolve) => {
+            const loader = this.scene.load;
+            const wasLoading = typeof loader.isLoading === 'function' ? loader.isLoading() : false;
+
+            const onError = (file) => {
+              try {
+                const key = file?.key || '';
+                const url = file?.src || file?.url || '';
+                console.warn('[MapManager] Tileset image load error:', key, url);
+                if (debugEnabled) setStatus(`Tileset load error: ${key}`);
+              } catch (e) {}
+            };
+
+            const onComplete = () => {
+              try {
+                loader.off('loaderror', onError);
+              } catch (e) {}
+
+              if (debugEnabled) {
+                const stillMissing = missingTilesets.filter(ts => !this.scene.textures.exists(ts.name)).map(ts => ts.name);
+                if (stillMissing.length > 0) {
+                  setStatus(`Tilesets manquants: ${stillMissing.slice(0, 6).join(', ')}${stillMissing.length > 6 ? '…' : ''}`);
+                }
+              }
+              resolve();
+            };
+
+            loader.once('complete', onComplete);
+            loader.on('loaderror', onError);
+
+            missingTilesets.forEach((ts) => {
+              const img = String(ts.image || '');
+              // TMJ image paths are typically relative to /assets/maps/
+              const cleaned = img.replace(/^\.\//, '');
+              const url = img.startsWith('/') ? img : `/assets/maps/${cleaned}`;
+              loader.image(ts.name, url);
+            });
+
+            if (!wasLoading) {
+              loader.start();
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('[MapManager] ensure tileset textures failed', e);
+      }
+
         // Vérification des tilesets externes
         if (rawData.tilesets) {
             const externalTilesets = rawData.tilesets.filter(t => t.source);
