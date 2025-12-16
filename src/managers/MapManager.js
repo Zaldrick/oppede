@@ -39,8 +39,11 @@ export class MapManager {
       1: "backgroundext",
       2: "backgroundoppede",
       3: "qwest",
-      4: "qwest", // Placeholder for lille
-      5: "qwest"  // Placeholder for metro
+      4: "defaut", // Placeholder for lille
+      5: "defaut",  // Placeholder for metro
+      6: "defaut",
+      7: "defaut",
+      8: "marin"
     };
 
     this.mapMusic = {
@@ -112,6 +115,15 @@ export class MapManager {
 
   async changeMap(mapKey, spawnX, spawnY) {
     console.log(`[MapManager] changeMap called with key: ${mapKey}`);
+
+    // Prevent dialogue UI from persisting across teleports/map loads
+    try {
+      if (typeof this.scene?.forceCloseDialogue === 'function') {
+        this.scene.forceCloseDialogue({ clearQueue: true });
+      }
+    } catch (e) {
+      // ignore
+    }
 
     const setStatus = (msg) => {
       try {

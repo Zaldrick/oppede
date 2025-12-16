@@ -22,6 +22,36 @@ class PokemonBattleManager {
         console.log('[BattleManager] Initialisé');
     }
 
+    toClientPokemonPayload(pokemon) {
+        if (!pokemon) return null;
+        return {
+            _id: pokemon._id || 'wild',
+            species_id: pokemon.species_id,
+            name: pokemon.nickname || pokemon.speciesData?.name_fr || pokemon.speciesData?.name,
+            level: (pokemon.experience !== undefined && pokemon.experience !== null)
+                ? this.calculateLevel(pokemon.experience)
+                : (pokemon.level || 1),
+            experience: pokemon.experience || 0,
+            currentHP: pokemon.currentHP,
+            maxHP: pokemon.stats?.maxHP,
+            stats: pokemon.stats,
+            types: pokemon.speciesData?.types,
+            moveset: pokemon.moveset || [],
+            sprites: pokemon.speciesData?.sprites
+        };
+    }
+
+    getNextAliveIndex(team, currentIndex) {
+        if (!Array.isArray(team) || team.length === 0) return -1;
+        for (let offset = 1; offset <= team.length; offset++) {
+            const idx = (currentIndex + offset) % team.length;
+            if (idx === currentIndex) continue;
+            const mon = team[idx];
+            if (mon && mon.currentHP > 0) return idx;
+        }
+        return -1;
+    }
+
     /**
      * Configure les routes Express
      */
@@ -214,7 +244,20 @@ class PokemonBattleManager {
 
                 // Pokémon actifs
                 const playerPokemon = battleState.player_team[battleState.player_active_index];
-                const opponentPokemon = battleState.opponent_team[battleState.opponent_active_index];
+                let opponentPokemon = battleState.opponent_team[battleState.opponent_active_index];
+
+                // 🆕 Combat dresseur: si le Pokémon adverse actif est déjà K.O., envoyer le suivant automatiquement
+                if (battleState.battle_type === 'trainer' && opponentPokemon && opponentPokemon.currentHP <= 0) {
+                    const nextIdx = this.getNextAliveIndex(battleState.opponent_team, battleState.opponent_active_index);
+                    if (nextIdx >= 0) {
+                        try {
+                            battleLogic.switchPokemon('opponent', nextIdx);
+                        } catch (e) {
+                            console.warn('[Battle] Auto-switch adverse (pre-turn) a échoué:', e.message);
+                        }
+                        opponentPokemon = battleState.opponent_team[battleState.opponent_active_index];
+                    }
+                }
 
                 // Move du joueur
                 let playerMove;
@@ -247,7 +290,7 @@ class PokemonBattleManager {
                 if (playerPokemon.currentHP <= 0) {
                     return res.status(400).json({ error: 'Le Pokémon du joueur est K.O.' });
                 }
-                if (opponentPokemon.currentHP <= 0) {
+                if (!opponentPokemon || opponentPokemon.currentHP <= 0) {
                     return res.status(400).json({ error: 'Le Pokémon adverse est K.O.' });
                 }
 
@@ -266,8 +309,8 @@ class PokemonBattleManager {
 
                 let playerResult, opponentResult;
 
-        // Exécuter les tours
-        if (firstAttacker === 'player') {
+            // Exécuter les tours
+            if (firstAttacker === 'player') {
             // Joueur attaque en premier
             console.log('[Battle] Joueur attaque avec', playerMove.name);
             console.log('[Battle] AVANT attaque - Adversaire HP:', opponentPokemon.currentHP);
@@ -294,7 +337,7 @@ class PokemonBattleManager {
                     message: `${opponentPokemon.nickname || opponentPokemon.speciesData?.name} est K.O. et ne peut pas attaquer!`
                 };
             }
-        } else {
+            } else {
             // Adversaire attaque en premier
             console.log('[Battle] Adversaire attaque avec', opponentMove.name);
             opponentResult = battleLogic.processTurn(opponentPokemon, playerPokemon, opponentMove, 'opponent');
@@ -319,8 +362,31 @@ class PokemonBattleManager {
                     message: `${playerPokemon.nickname || playerPokemon.speciesData?.name} est K.O. et ne peut pas attaquer!`
                 };
             }
-        }                // Vérifier fin de combat
+                }
+
+                // Vérifier fin de combat
                 const battleEnd = battleLogic.isBattleOver();
+
+                // 🆕 Combat dresseur: si l'adversaire est K.O. mais le combat continue, envoyer le prochain Pokémon
+                let opponentSwitched = false;
+                let newOpponentActiveIndex = null;
+                let newOpponentActive = null;
+                if (!battleEnd.isOver && battleState.battle_type === 'trainer') {
+                    const currentOpp = battleState.opponent_team[battleState.opponent_active_index];
+                    if (currentOpp && currentOpp.currentHP <= 0) {
+                        const nextIdx = this.getNextAliveIndex(battleState.opponent_team, battleState.opponent_active_index);
+                        if (nextIdx >= 0) {
+                            try {
+                                battleLogic.switchPokemon('opponent', nextIdx);
+                                opponentSwitched = true;
+                                newOpponentActiveIndex = battleState.opponent_active_index;
+                                newOpponentActive = this.toClientPokemonPayload(battleState.opponent_team[battleState.opponent_active_index]);
+                            } catch (e) {
+                                console.warn('[Battle] Auto-switch adverse (post-turn) a échoué:', e.message);
+                            }
+                        }
+                    }
+                }
 
                 // Sauvegarder en BDD (réutiliser la connexion db existante)
                 const battlesCollection2 = db.collection('battles');
@@ -332,6 +398,8 @@ class PokemonBattleManager {
                             turn_count: battleState.turn_count,
                             battle_log: battleState.battle_log,
                             state: battleState.state,
+                            player_active_index: battleState.player_active_index,
+                            opponent_active_index: battleState.opponent_active_index,
                             updated_at: new Date()
                         }
                     }
@@ -372,7 +440,10 @@ class PokemonBattleManager {
                     opponentHP: opponentPokemon.currentHP,
                     isOver: battleEnd.isOver,
                     winner: battleEnd.winner,
-                    state: battleState.state
+                    state: battleState.state,
+                    opponentSwitched,
+                    newOpponentActiveIndex,
+                    newOpponentActive
                 });
 
             } catch (error) {

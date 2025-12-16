@@ -167,9 +167,23 @@ export class PlayerManager {
         newAnim = "walk-up";
         this.lastDirection = "up";
       }
-      const forceCoeff = this.isSpeedBoosted ? 2.5 : 1.5;
-      this.player.setVelocityX(Math.cos(Phaser.Math.DegToRad(angle)) * joystick.force * forceCoeff);
-      this.player.setVelocityY(Math.sin(Phaser.Math.DegToRad(angle)) * joystick.force * forceCoeff);
+
+      // Le plugin renvoie généralement une force normalisée (0..1). On remap pour que
+      // la vitesse max soit atteinte avec un très petit glissement du pouce.
+      const deadzone = 0.06;
+      const maxSpeedAtForce = 0.22; // ~22% de la course pour atteindre 100% vitesse
+      const rawForce = typeof joystick.force === 'number' ? joystick.force : 0;
+
+      if (rawForce <= deadzone) {
+        this.player.setVelocity(0);
+      } else {
+        const normalized = Phaser.Math.Clamp((rawForce - deadzone) / Math.max(0.001, (maxSpeedAtForce - deadzone)), 0, 1);
+        // Légère courbe pour rendre la montée plus rapide au début sans perdre le contrôle.
+        const eased = Math.pow(normalized, 0.6);
+        const rad = Phaser.Math.DegToRad(angle);
+        this.player.setVelocityX(Math.cos(rad) * speed * eased);
+        this.player.setVelocityY(Math.sin(rad) * speed * eased);
+      }
     }
 
     // Animation

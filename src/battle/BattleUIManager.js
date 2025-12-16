@@ -13,10 +13,19 @@ export default class BattleUIManager {
         this.scene = scene;
     }
 
+    isCanvasRenderer() {
+        try {
+            return this.scene?.game?.renderer?.type === Phaser.CANVAS;
+        } catch (e) {
+            return false;
+        }
+    }
+
     /**
      * Crée l'UI de l'adversaire (HAUT GAUCHE) - COPIÉ EXACTEMENT depuis PokemonBattleScene.js
      */
     async createOpponentUI(width, height) {
+        const UI_BASE_DEPTH = 20;
         const boxX = width * 0.08;
         const boxY = height * 0.08;
         const boxWidth = width * 0.38;
@@ -25,14 +34,19 @@ export default class BattleUIManager {
         // Container avec ombre portée et dégradé
         const container = this.scene.add.graphics();
         container.setName('opponentContainer');
+        container.setDepth(UI_BASE_DEPTH);
         container.setAlpha(0);
         
         // Ombre portée (décalée)
         container.fillStyle(0x000000, 0.15);
         container.fillRoundedRect(boxX + 4, boxY + 4, boxWidth, boxHeight, 12);
         
-        // Fond avec dégradé subtil
-        container.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xF5F5F5, 0xF5F5F5, 1, 1, 1, 1);
+        // Fond avec dégradé subtil (fallback CANVAS: fillStyle)
+        if (this.isCanvasRenderer()) {
+            container.fillStyle(0xFFFFFF, 1);
+        } else {
+            container.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xF5F5F5, 0xF5F5F5, 1, 1, 1, 1);
+        }
         container.fillRoundedRect(boxX, boxY, boxWidth, boxHeight, 12);
         
         // Bordure extérieure épaisse
@@ -61,7 +75,7 @@ export default class BattleUIManager {
             fill: '#2C3E50',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0);
+        }).setOrigin(0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
         
         // Texte niveau
         const levelText = this.scene.add.text(levelBadgeX, levelBadgeY, opponent.level, {
@@ -69,7 +83,7 @@ export default class BattleUIManager {
             fill: '#FFFFFF',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0);
+        }).setOrigin(0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Nom du Pokémon
         const nameText = this.scene.add.text(boxX + boxWidth * 0.08, boxY + boxHeight * 0.25, getPokemonDisplayName(opponent).toUpperCase(), {
@@ -79,7 +93,7 @@ export default class BattleUIManager {
             fontFamily: 'Arial',
             stroke: '#FFFFFF',
             strokeThickness: 1
-        }).setOrigin(0, 0.5).setAlpha(0);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Label PS avec icône cœur
         const psLabel = this.scene.add.text(boxX + boxWidth * 0.08, boxY + boxHeight * 0.65, '♥', {
@@ -87,7 +101,7 @@ export default class BattleUIManager {
             fill: '#E74C3C',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0, 0.5).setAlpha(0);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Barre HP
         const hpBarX = boxX + boxWidth * 0.18;
@@ -120,7 +134,11 @@ export default class BattleUIManager {
         }
         
         const hpBarFill = this.scene.add.graphics();
-        hpBarFill.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
+        if (this.isCanvasRenderer()) {
+            hpBarFill.fillStyle(hpColor1, 1);
+        } else {
+            hpBarFill.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
+        }
         hpBarFill.fillRoundedRect(
             hpBarX + 2,
             hpBarY - hpBarHeight/2 + 2,
@@ -128,7 +146,7 @@ export default class BattleUIManager {
             hpBarHeight - 4,
             4
         );
-        hpBarFill.setAlpha(0).setDepth(3);
+        hpBarFill.setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
         
         this.scene.opponentHPBar = hpBarFill;
         this.scene.opponentHPBarProps = { x: hpBarX, y: hpBarY, width: hpBarWidth, height: hpBarHeight, maxHP: opponent.maxHP };
@@ -141,6 +159,7 @@ export default class BattleUIManager {
      * Crée l'UI du joueur (BAS DROITE) - COPIÉ EXACTEMENT depuis PokemonBattleScene.js
      */
     async createPlayerUI(width, height) {
+        const UI_BASE_DEPTH = 20;
         const boxX = width * 0.50;
         const boxY = height * 0.44;
         const boxWidth = width * 0.47;
@@ -148,7 +167,7 @@ export default class BattleUIManager {
 
         // Container avec ombre portée et dégradé
         const container = this.scene.add.graphics();
-        container.setDepth(2);
+        container.setDepth(UI_BASE_DEPTH);
         container.setName('playerContainer');
         container.setAlpha(0);
         
@@ -156,8 +175,12 @@ export default class BattleUIManager {
         container.fillStyle(0x000000, 0.15);
         container.fillRoundedRect(boxX + 4, boxY + 4, boxWidth, boxHeight, 12);
         
-        // Fond avec dégradé
-        container.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xEBF5FB, 0xEBF5FB, 1, 1, 1, 1);
+        // Fond avec dégradé (fallback CANVAS: fillStyle)
+        if (this.isCanvasRenderer()) {
+            container.fillStyle(0xFFFFFF, 1);
+        } else {
+            container.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xEBF5FB, 0xEBF5FB, 1, 1, 1, 1);
+        }
         container.fillRoundedRect(boxX, boxY, boxWidth, boxHeight, 12);
         
         // Bordure extérieure épaisse
@@ -201,7 +224,7 @@ export default class BattleUIManager {
             fill: '#2C3E50',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0).setDepth(3);
+        }).setOrigin(0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
         
         // Texte niveau (avec fallback)
         const displayLevel = player.level || 1;
@@ -210,7 +233,7 @@ export default class BattleUIManager {
             fill: '#FFFFFF',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0.5).setAlpha(0).setDepth(3);
+        }).setOrigin(0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Nom du Pokémon
         const nameText = this.scene.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.25, getPokemonDisplayName(player).toUpperCase(), {
@@ -220,7 +243,7 @@ export default class BattleUIManager {
             fontFamily: 'Arial',
             stroke: '#FFFFFF',
             strokeThickness: 1
-        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Label PS
         const psLabel = this.scene.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.60, '♥', {
@@ -228,7 +251,7 @@ export default class BattleUIManager {
             fill: '#E74C3C',
             fontStyle: 'bold',
             fontFamily: 'Arial'
-        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Barre HP
         const hpBarX = boxX + boxWidth * 0.14;
@@ -260,7 +283,11 @@ export default class BattleUIManager {
         }
         
         const hpBarFill = this.scene.add.graphics();
-        hpBarFill.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
+        if (this.isCanvasRenderer()) {
+            hpBarFill.fillStyle(hpColor1, 1);
+        } else {
+            hpBarFill.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
+        }
         hpBarFill.fillRoundedRect(
             hpBarX + 2,
             hpBarY - hpBarHeight/2 + 2,
@@ -268,7 +295,7 @@ export default class BattleUIManager {
             hpBarHeight - 4,
             4
         );
-        hpBarFill.setAlpha(0).setDepth(3);
+        hpBarFill.setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
         
         this.scene.playerHPBar = hpBarFill;
         this.scene.playerHPBarProps = { x: hpBarX, y: hpBarY, width: hpBarWidth, height: hpBarHeight, maxHP: player.maxHP };
@@ -279,7 +306,7 @@ export default class BattleUIManager {
             fill: '#2C3E50',
             fontFamily: 'Arial',
             fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // ========== BARRE D'XP ==========
         const xpBarX = boxX + boxWidth * 0.06;
@@ -293,7 +320,7 @@ export default class BattleUIManager {
             fill: '#7F8C8D',
             fontFamily: 'Arial',
             fontStyle: 'bold'
-        }).setOrigin(0, 0.5).setAlpha(0).setDepth(3);
+        }).setOrigin(0, 0.5).setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         // Fond de la barre XP
         container.fillStyle(0xBDC3C7, 1);
@@ -321,7 +348,11 @@ export default class BattleUIManager {
 
         // Barre XP
         const xpBarFill = this.scene.add.graphics();
-        xpBarFill.fillGradientStyle(0x3498DB, 0x3498DB, 0x2980B9, 0x2980B9, 1, 1, 1, 1);
+        if (this.isCanvasRenderer()) {
+            xpBarFill.fillStyle(0x3498DB, 1);
+        } else {
+            xpBarFill.fillGradientStyle(0x3498DB, 0x3498DB, 0x2980B9, 0x2980B9, 1, 1, 1, 1);
+        }
         xpBarFill.fillRoundedRect(
             xpBarX + boxWidth * 0.10 + 1,
             xpBarY - xpBarHeight/2 + 1,
@@ -329,7 +360,7 @@ export default class BattleUIManager {
             xpBarHeight - 2,
             3
         );
-        xpBarFill.setAlpha(0).setDepth(3);
+        xpBarFill.setAlpha(0).setDepth(UI_BASE_DEPTH + 1);
 
         this.scene.playerXPBar = xpBarFill;
         this.scene.playerXPBarProps = {
@@ -352,6 +383,7 @@ export default class BattleUIManager {
      * Crée le menu principal de combat moderne (BAS avec FIGHT, SAC, FUIR, POKÉMON)
      */
     createMainMenu(width, height) {
+        const UI_BASE_DEPTH = 20;
         const menuX = width * 0.02;
         const menuY = height * 0.69;
         const menuWidth = width * 0.96;
@@ -359,13 +391,18 @@ export default class BattleUIManager {
 
         // Fond du menu avec ombre et dégradé
         this.scene.mainMenuBg = this.scene.add.graphics();
+        this.scene.mainMenuBg.setDepth(UI_BASE_DEPTH);
         
         // Ombre portée
         this.scene.mainMenuBg.fillStyle(0x000000, 0.2);
         this.scene.mainMenuBg.fillRoundedRect(menuX + 5, menuY + 5, menuWidth, menuHeight, 15);
         
-        // Fond avec dégradé (blanc vers gris clair)
-        this.scene.mainMenuBg.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xECF0F1, 0xECF0F1, 1, 1, 1, 1);
+        // Fond avec dégradé (fallback CANVAS: fillStyle)
+        if (this.isCanvasRenderer()) {
+            this.scene.mainMenuBg.fillStyle(0xFFFFFF, 1);
+        } else {
+            this.scene.mainMenuBg.fillGradientStyle(0xFFFFFF, 0xFFFFFF, 0xECF0F1, 0xECF0F1, 1, 1, 1, 1);
+        }
         this.scene.mainMenuBg.fillRoundedRect(menuX, menuY, menuWidth, menuHeight, 15);
         
         // Bordure extérieure épaisse
@@ -437,6 +474,7 @@ export default class BattleUIManager {
             const btnY = startY + btn.y * (buttonHeight + verticalSpacing);
 
             const btnContainer = this.scene.add.container(btnX, btnY);
+            btnContainer.setDepth(UI_BASE_DEPTH + 1);
             
             // Ombre du bouton
             const shadow = this.scene.add.graphics();
@@ -447,7 +485,11 @@ export default class BattleUIManager {
             // Fond du bouton avec dégradé
             const buttonBg = this.scene.add.graphics();
             const darkColor = this.darkenColor(btn.color, 0.8);
-            buttonBg.fillGradientStyle(btn.color, btn.color, darkColor, darkColor, 1, 1, 1, 1);
+            if (this.isCanvasRenderer()) {
+                buttonBg.fillStyle(btn.color, 1);
+            } else {
+                buttonBg.fillGradientStyle(btn.color, btn.color, darkColor, darkColor, 1, 1, 1, 1);
+            }
             buttonBg.fillRoundedRect(0, 0, buttonWidth, buttonHeight, 10);
             
             // Bordure du bouton
@@ -511,6 +553,7 @@ export default class BattleUIManager {
      * Crée le sélecteur de moves avec design moderne - pleine largeur
      */
     async createMoveSelector() {
+        const UI_BASE_DEPTH = 20;
         const width = this.scene.cameras.main.width;
         const height = this.scene.cameras.main.height;
 
@@ -556,6 +599,7 @@ export default class BattleUIManager {
             const btnY = menuY + spacing + row * (btnHeight + spacing);
 
             const moveButton = await this.createMoveButton(move, btnX, btnY, btnWidth, btnHeight);
+            moveButton.setDepth(UI_BASE_DEPTH + 1);
             moveButton.setVisible(false);
             this.scene.moveButtons.push(moveButton);
         }
@@ -567,6 +611,7 @@ export default class BattleUIManager {
         const backBtnY = menuY + menuHeight - backBtnHeight + spacing;
 
         const backContainer = this.scene.add.container(backBtnX, backBtnY);
+        backContainer.setDepth(UI_BASE_DEPTH + 1);
         
         // Ombre
         const shadow = this.scene.add.graphics();
@@ -576,7 +621,11 @@ export default class BattleUIManager {
         
         // Fond gris avec dégradé
         const buttonBg = this.scene.add.graphics();
-        buttonBg.fillGradientStyle(0xBDC3C7, 0xBDC3C7, 0x7F8C8D, 0x7F8C8D, 1, 1, 1, 1);
+        if (this.isCanvasRenderer()) {
+            buttonBg.fillStyle(0xBDC3C7, 1);
+        } else {
+            buttonBg.fillGradientStyle(0xBDC3C7, 0xBDC3C7, 0x7F8C8D, 0x7F8C8D, 1, 1, 1, 1);
+        }
         buttonBg.fillRoundedRect(0, 0, backBtnWidth, backBtnHeight, 10);
         buttonBg.lineStyle(3, 0xFFFFFF, 0.9);
         buttonBg.strokeRoundedRect(0, 0, backBtnWidth, backBtnHeight, 10);
@@ -630,6 +679,7 @@ export default class BattleUIManager {
 
         const minDim = Math.min(this.scene.cameras.main.width, this.scene.cameras.main.height);
         const container = this.scene.add.container(x, y);
+        container.setDepth(21);
         
         // Ombre du bouton
         const shadow = this.scene.add.graphics();
@@ -642,7 +692,11 @@ export default class BattleUIManager {
         const darkTypeColor = this.darkenColor(typeColor, 0.7);
         
         const buttonBg = this.scene.add.graphics();
-        buttonBg.fillGradientStyle(typeColor, typeColor, darkTypeColor, darkTypeColor, 1, 1, 1, 1);
+        if (this.isCanvasRenderer()) {
+            buttonBg.fillStyle(typeColor, 1);
+        } else {
+            buttonBg.fillGradientStyle(typeColor, typeColor, darkTypeColor, darkTypeColor, 1, 1, 1, 1);
+        }
         buttonBg.fillRoundedRect(0, 0, width, height, 10);
         
         // Bordure blanche brillante
@@ -826,6 +880,48 @@ export default class BattleUIManager {
                         alpha: 1,
                         duration: 500
                     });
+                }
+            });
+        }
+    }
+
+    /**
+     * 🆕 Met à jour complètement l'UI de l'adversaire (utile en combat dresseur quand le serveur envoie le Pokémon suivant)
+     * @param {Object} pokemon - Nouveau Pokémon actif adverse
+     */
+    async updateCompleteOpponentUI(pokemon) {
+        const { width, height } = this.scene.scale;
+
+        // 🔧 FIXE: Réinitialiser le pourcentage HP pour le nouvel adversaire
+        this.scene.currentOpponentHPPercent = undefined;
+
+        // Détruire anciens éléments UI
+        const oldContainer = this.scene.children.getByName('opponentContainer');
+        if (oldContainer && oldContainer.destroy) {
+            oldContainer.destroy();
+        }
+
+        if (this.scene.opponentUIElements) {
+            this.scene.opponentUIElements.forEach(el => {
+                if (el && el.destroy) el.destroy();
+            });
+        }
+
+        // Recréer l'UI complète
+        await this.createOpponentUI(width, height);
+
+        // Animer l'apparition
+        const container = this.scene.children.getByName('opponentContainer');
+        if (container) {
+            container.setAlpha(0);
+            this.scene.tweens.add({ targets: container, alpha: 1, duration: 500 });
+        }
+
+        if (this.scene.opponentUIElements) {
+            this.scene.opponentUIElements.forEach(el => {
+                if (el) {
+                    el.setAlpha(0);
+                    this.scene.tweens.add({ targets: el, alpha: 1, duration: 500 });
                 }
             });
         }

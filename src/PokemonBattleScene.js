@@ -389,17 +389,39 @@ export class PokemonBattleScene extends Phaser.Scene {
     createBackground(width, height) {
         // Dégradé de fond principal (bleu ciel vers beige sable)
         const graphics = this.add.graphics();
+
+        // Sur certains devices / en émulation mobile, Phaser peut tourner en CANVAS.
+        // Or `fillGradientStyle` n'est pas fiable en CANVAS (souvent rendu noir).
+        const isCanvasRenderer = (() => {
+            try {
+                return this.game?.renderer?.type === Phaser.CANVAS;
+            } catch (e) {
+                return false;
+            }
+        })();
         
         // Ciel avec plusieurs nuances
-        graphics.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xB0E0E6, 0xB0E0E6, 1, 1, 1, 1);
+        if (isCanvasRenderer) {
+            graphics.fillStyle(0x87CEEB, 1);
+        } else {
+            graphics.fillGradientStyle(0x87CEEB, 0x87CEEB, 0xB0E0E6, 0xB0E0E6, 1, 1, 1, 1);
+        }
         graphics.fillRect(0, 0, width, height * 0.25);
         
         // Transition horizon
-        graphics.fillGradientStyle(0xB0E0E6, 0xB0E0E6, 0xF5DEB3, 0xF5DEB3, 1, 1, 1, 1);
+        if (isCanvasRenderer) {
+            graphics.fillStyle(0xF5DEB3, 1);
+        } else {
+            graphics.fillGradientStyle(0xB0E0E6, 0xB0E0E6, 0xF5DEB3, 0xF5DEB3, 1, 1, 1, 1);
+        }
         graphics.fillRect(0, height * 0.25, width, height * 0.08);
         
         // Sol (beige/sable avec dégradé)
-        graphics.fillGradientStyle(0xF5DEB3, 0xF5DEB3, 0xDAA520, 0xDAA520, 1, 1, 1, 1);
+        if (isCanvasRenderer) {
+            graphics.fillStyle(0xF5DEB3, 1);
+        } else {
+            graphics.fillGradientStyle(0xF5DEB3, 0xF5DEB3, 0xDAA520, 0xDAA520, 1, 1, 1, 1);
+        }
         graphics.fillRect(0, height * 0.33, width, height * 0.67);
         
         // Ligne d'horizon brillante

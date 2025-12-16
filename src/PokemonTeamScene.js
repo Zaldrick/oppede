@@ -158,12 +158,27 @@ export class PokemonTeamScene extends Phaser.Scene {
      */
     startWildBattle() {
         console.log('[PokemonTeam] Lancement combat sauvage');
-        
-        // Pas de transition - la BattleScene gère son propre spiral
-        this.scene.start('PokemonBattleScene', {
+
+        // ✅ Flow cohérent: pause la scène appelante puis launch la battle.
+        // Ça évite de recréer la scène au retour (et les effets de bord associés).
+        const returnSceneKey = this.scene.key || 'PokemonTeamScene';
+        try {
+            if (this.scene.isActive(returnSceneKey)) {
+                this.scene.pause(returnSceneKey);
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        if (this.scene.isActive('PokemonBattleScene')) {
+            console.warn('[PokemonTeam] PokemonBattleScene déjà active, skip');
+            return;
+        }
+
+        this.scene.launch('PokemonBattleScene', {
             playerId: this.currentPlayer,
             battleType: 'wild',
-            returnScene: 'PokemonTeamScene'
+            returnScene: returnSceneKey
         });
     }
 

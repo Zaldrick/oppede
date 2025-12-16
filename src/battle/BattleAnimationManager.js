@@ -475,6 +475,9 @@ export default class BattleAnimationManager {
     async animateHPDrain(hpBar, hpText, newHP, maxHP) {
         if (!hpBar) return;
 
+        // Préserver la profondeur actuelle (en portrait, l'UI peut sinon repasser sous les sprites)
+        const depthBefore = hpBar.depth;
+
         const hpPercent = Math.max(0, (newHP / maxHP) * 100);
         const props = hpBar === this.scene.playerHPBar ? this.scene.playerHPBarProps : this.scene.opponentHPBarProps;
         
@@ -516,7 +519,9 @@ export default class BattleAnimationManager {
                     props.height - 4,
                     4
                 );
-                hpBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+                if (typeof depthBefore === 'number') {
+                    hpBar.setDepth(depthBefore);
+                }
 
                 if (hpText) {
                     hpText.setText(`${Math.max(0, Math.floor(newHP))}/${maxHP}`);

@@ -208,6 +208,29 @@ export class MapEventManager {
         }
     }
 
+    /**
+     * Marque un dresseur comme battu dans l'état local (sans recharger la map)
+     * et met à jour son sprite (position + facing + flag trainerDefeated).
+     */
+    markTrainerDefeated(trainerId) {
+        if (!trainerId) return;
+        if (!this.defeatedTrainerIds) this.defeatedTrainerIds = new Set();
+        this.defeatedTrainerIds.add(trainerId);
+
+        // Mettre à jour le PNJ déjà spawné si présent
+        const npc = (this.activeEvents || []).find(
+            (e) => e && e.npcType === 'pokemon_trainer' && e.trainerId === trainerId
+        );
+        if (!npc) return;
+
+        this.applyTrainerNpcState(npc, {
+            defeated: true,
+            afterWinTile: npc.trainerAfterWinTile,
+            afterWinFacing: npc.trainerAfterWinFacing,
+            initialFacing: npc.trainerInitialFacing
+        });
+    }
+
     async spawnTrainerNPCsForMap(mapKey) {
         if (!this.scene?.physics) return;
         if (!mapKey) return;
@@ -228,6 +251,12 @@ export class MapEventManager {
         } catch (e) {
             console.warn('[MapEventManager] Impossible de charger /api/trainer-npcs:', e);
             this.trainerNpcDefinitions = [];
+        }
+
+        try {
+            console.log(`[MapEventManager] trainerNpcs chargés pour ${mapKey}: ${this.trainerNpcDefinitions.length}`);
+        } catch (e) {
+            // ignore
         }
 
         // Spawner chaque dresseur
@@ -742,10 +771,34 @@ export class MapEventManager {
                 // sécurité si la scène a changé entre-temps
                 if (!this.scene?.scene) return;
 
-                this.scene.scene.start('PokemonBattleScene', {
+                // Fermer la boîte de dialogue d'intro avant de passer en combat
+                // (sinon elle reste affichée quand on revient via resume)
+                if (typeof this.scene.forceCloseDialogue === 'function') {
+                    this.scene.forceCloseDialogue({ clearQueue: true });
+                }
+
+                // ✅ Cohérent avec un flow "combat" propre:
+                // - on PAUSE la scène courante (GameScene)
+                // - on LAUNCH la BattleScene en overlay
+                // Ainsi, au retour, on RESUME sans recréer le socket / re-newPlayer.
+                const returnSceneKey = this.scene.scene.key || 'GameScene';
+                try {
+                    if (this.scene.scene.isActive(returnSceneKey)) {
+                        this.scene.scene.pause(returnSceneKey);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+
+                if (this.scene.scene.isActive('PokemonBattleScene')) {
+                    console.warn('[MapEventManager] PokemonBattleScene déjà active, skip');
+                    return;
+                }
+
+                this.scene.scene.launch('PokemonBattleScene', {
                     playerId,
                     battleType: 'trainer',
-                    returnScene: 'GameScene',
+                    returnScene: returnSceneKey,
                     trainerBattle: {
                         trainerId: npc.trainerId,
                         mapKey: this.mapManager?.map?.key || null,

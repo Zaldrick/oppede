@@ -436,6 +436,8 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("item_get", "/assets/sounds/Item_Get.wav?v=1");
         this.load.audio("keyitem_get", "/assets/sounds/KeyItem_Get.wav?v=1");
         this.load.image("qwest", "/assets/qwest.png");
+        this.load.image("defaut", "/assets/defaut.png");
+        this.load.image("defaut", "/assets/marin.png");
         this.load.image("backgroundext", "/assets/maps/exterieur.png");
         this.load.image("backgroundoppede", "/assets/maps/oppede.png");
         // Utilisation de Marin.png pour le nouveau système d'animation (48x96)
@@ -837,6 +839,43 @@ export class GameScene extends Phaser.Scene {
             repeat: text.length - 1
         });
 
+    }
+
+
+    /**
+     * Force la fermeture de la boîte de dialogue courante (si présente).
+     * Utile avant de PAUSE la scène pour lancer une autre scène (ex: combat).
+     */
+    forceCloseDialogue({ clearQueue = true } = {}) {
+        try {
+            if (clearQueue) {
+                this.dialogueQueue = [];
+            }
+
+            if (this.dialogueTimer) {
+                this.dialogueTimer.remove();
+                this.dialogueTimer = null;
+            }
+
+            // Nettoyage des écouteurs clavier potentiellement attachés par displayMessage
+            try {
+                this.input?.keyboard?.off('keydown-SPACE');
+                this.input?.keyboard?.off('keydown-ENTER');
+            } catch (e) {
+                // ignore
+            }
+
+            if (this.currentDialogueBox) {
+                this.currentDialogueBox.destroy();
+                this.currentDialogueBox = null;
+            }
+
+            if (this.uiManager) {
+                this.uiManager.isDialogueActive = false;
+            }
+        } catch (e) {
+            // ignore
+        }
     }
 
     selectPlayer() {

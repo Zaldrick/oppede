@@ -31,6 +31,9 @@ export class UIManager {
     this.dialogueNextIcon = null;
     this.lastDialogueAdvance = 0;
 
+    // Mobile: allow joystick + buttons simultaneously (multi-touch)
+    this.extraPointersAdded = false;
+
     // Anti-spam: small cooldown after a dialogue closes to avoid instantly
     // re-triggering an interaction on the same key press.
     this.interactionCooldownUntil = 0;
@@ -52,6 +55,13 @@ export class UIManager {
     // Si la largeur est supérieure à la hauteur (mode paysage/desktop), on n'affiche pas les contrôles tactiles
     if (gameWidth > gameHeight) {
         return;
+    }
+
+    // Sur téléphone, on a besoin d'au moins 2 doigts (joystick + bouton B/A).
+    // Phaser n'active qu'un pointer par défaut.
+    if (!this.extraPointersAdded && this.scene?.input?.addPointer) {
+      this.scene.input.addPointer(2);
+      this.extraPointersAdded = true;
     }
 
     const joystickPlugin = this.scene.plugins.get('rexvirtualjoystickplugin');

@@ -195,6 +195,13 @@ export class EtoileDuSoirQuest {
       // IMPORTANT: on attend la fin du dialogue (fermeture) avant de lancer PinCodeScene
       this.scene.displayMessage('Un mémo est visible sur ce coffre: "Gimli ouvre la voie"', playerPseudo, () => {
 
+        // Safety: ensure no lingering dialogue box before pausing GameScene
+        try {
+          if (typeof this.scene?.forceCloseDialogue === 'function') {
+            this.scene.forceCloseDialogue({ clearQueue: true });
+          }
+        } catch (e) {}
+
         if (this.isPinCodeActive || this.scene.scene.isActive('PinCodeScene')) {
           return;
         }

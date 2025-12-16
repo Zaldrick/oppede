@@ -49,22 +49,14 @@ const Game = () => {
             }
         })();
 
-        const isMobileDevice = (() => {
-            try {
-                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            } catch (e) {
-                return false;
-            }
-        })();
-
-        // Mobile prod can hit WebGL texture limits and end up with a black canvas.
-        // Default to CANVAS on mobile, but keep an override for debugging:
+        // Renderer selection
+        // Use AUTO by default (prefers WebGL, falls back to Canvas).
+        // Keep an override for debugging / forcing a renderer:
         // - ?renderer=webgl
         // - ?renderer=canvas
         let phaserRendererType = Phaser.AUTO;
         if (rendererOverride === 'webgl') phaserRendererType = Phaser.WEBGL;
         else if (rendererOverride === 'canvas') phaserRendererType = Phaser.CANVAS;
-        else if (isMobileDevice) phaserRendererType = Phaser.CANVAS;
 
         const config = {
             type: phaserRendererType,

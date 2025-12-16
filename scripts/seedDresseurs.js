@@ -48,7 +48,7 @@ async function seedDresseurs() {
 
         // Après victoire
         afterWinTileX: 13,
-        afterWinTileY: 8,
+        afterWinTileY: 6,
         afterWinFacing: 'down',
         initialFacing: 'left',
 

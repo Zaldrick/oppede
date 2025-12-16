@@ -33,13 +33,12 @@ class PlayerManager {
         const playersCollection = db.collection('players');
         const playerData = await playersCollection.findOne({ pseudo });
 
-        if (existingPlayerSocketId) {
-            // D�connecter l'ancienne connexion
+        if (existingPlayerSocketId && existingPlayerSocketId !== socket.id) {
+            // D�connecter l'ancienne connexion (m�me pseudo, autre socket)
+            // IMPORTANT: ne pas envoyer 'disconnectMessage' car le client force un retour au menu.
+            // On coupe simplement l'ancienne socket pour �viter les doubles sessions.
             delete this.players[existingPlayerSocketId];
-            this.io.to(existingPlayerSocketId).emit('disconnectMessage', {
-                message: 'Connexion d�tect�e sur un autre appareil.',
-            });
-            this.io.sockets.sockets.get(existingPlayerSocketId)?.disconnect();
+            this.io.sockets.sockets.get(existingPlayerSocketId)?.disconnect(true);
         }
 
         this.players[socket.id] = {

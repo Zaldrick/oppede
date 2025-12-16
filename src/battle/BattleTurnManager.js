@@ -49,8 +49,19 @@ export default class BattleTurnManager {
             await this.animateTurn(result);
             await this.updateBattleState(result);
 
+            // 🆕 Combat dresseur: si le serveur a envoyé le Pokémon suivant, recréer l'UI et le sprite adverses
+            await this.handleOpponentAutoSwitch(result);
+
             if (result.isOver) {
                 console.log('[BattleTurnManager] Combat terminé - winner:', result.winner);
+
+                // Message de fin (sinon la transition ressemble à un "reload")
+                if (result.winner === 'player') {
+                    this.scene.menuManager.showDialog('Vous avez gagné !');
+                } else {
+                    this.scene.menuManager.showDialog('Vous avez perdu...');
+                }
+                await this.scene.wait(1200);
                 
                 if (result.winner === 'player' && result.xpGains && result.xpGains.length > 0) {
                     console.log('[BattleTurnManager] ✅ XP à distribuer:', result.xpGains.length, 'gains');
@@ -249,6 +260,30 @@ export default class BattleTurnManager {
                 } else {
                     console.log('[BattleTurnManager] Pas de gains XP ou perdant');
                 }
+
+                // 🔧 IMPORTANT: terminer officiellement le combat côté serveur
+                // (supprime l'activeBattle et, pour les dresseurs, marque le PNJ comme battu)
+                try {
+                    if (this.scene?.battleManager?.endBattle && this.scene?.battleId && result?.winner) {
+                        await this.scene.battleManager.endBattle(this.scene.battleId, result.winner);
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] Erreur endBattle (non bloquant):', e);
+                }
+
+                // ✅ Combat dresseur: mettre à jour le PNJ côté client sans recharger la map
+                try {
+                    if (result.winner === 'player' && this.scene?.battleType === 'trainer' && this.scene?.trainerBattle?.trainerId) {
+                        const returnSceneKey = this.scene.returnScene || 'GameScene';
+                        const returnScene = this.scene.scene?.get ? this.scene.scene.get(returnSceneKey) : null;
+                        const eventManager = returnScene?.mapManager?.eventManager;
+                        if (eventManager?.markTrainerDefeated) {
+                            eventManager.markTrainerDefeated(this.scene.trainerBattle.trainerId);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] Impossible de maj PNJ dresseur (non bloquant):', e);
+                }
                 
                 await this.scene.returnToSceneWithTransition();
             } else {
@@ -258,6 +293,15 @@ export default class BattleTurnManager {
                     if (alivePokemon.length === 0) {
                         this.scene.menuManager.showDialog('Vous n\'avez plus de Pokémon ! Vous avez perdu...');
                         await this.scene.wait(2000);
+
+                        // Terminer officiellement le combat côté serveur
+                        try {
+                            if (this.scene?.battleManager?.endBattle && this.scene?.battleId) {
+                                await this.scene.battleManager.endBattle(this.scene.battleId, 'opponent');
+                            }
+                        } catch (e) {
+                            console.warn('[BattleTurnManager] Erreur endBattle (lose) non bloquant:', e);
+                        }
                         await this.scene.returnToSceneWithTransition();
                     } else {
                         this.scene.turnInProgress = false;
@@ -282,6 +326,75 @@ export default class BattleTurnManager {
                 this.scene.menuManager.hideDialog();
                 this.scene.turnInProgress = false;
             }, 2000);
+        }
+    }
+
+    /**
+     * 🆕 Si le serveur auto-switch l'adversaire (combat dresseur), on met à jour l'état local
+     * et on recrée sprite + UI (car animateKO détruit le sprite/ombre et cache la box).
+     */
+    async handleOpponentAutoSwitch(result) {
+        if (!result || !result.opponentSwitched || !result.newOpponentActive) return;
+
+        // Mettre à jour l'état local
+        const newOpponent = result.newOpponentActive;
+        this.scene.battleState.opponentActive = newOpponent;
+
+        if (Array.isArray(this.scene.battleState.opponentTeam) && Number.isInteger(result.newOpponentActiveIndex)) {
+            const idx = result.newOpponentActiveIndex;
+            this.scene.battleState.opponentTeam[idx] = newOpponent;
+        }
+
+        // 🔧 Reset de l'animation HP adverse pour éviter un "glitch" sur la nouvelle barre
+        this.scene.currentOpponentHPPercent = undefined;
+
+        // Nettoyer les refs adverses (KO détruit parfois le sprite mais laisse les refs)
+        try {
+            if (this.scene.opponentSpriteData) {
+                this.scene.spriteManager.destroySprite(this.scene.opponentSpriteData);
+            }
+        } catch (e) {
+            // ignore
+        }
+        this.scene.opponentSpriteData = null;
+        this.scene.opponentSprite = null;
+        this.scene.opponentGifContainer = null;
+
+        if (this.scene.opponentShadow) {
+            try { this.scene.opponentShadow.destroy(); } catch (e) { /* ignore */ }
+            this.scene.opponentShadow = null;
+        }
+
+        // Message d'envoi du Pokémon suivant (simple)
+        this.scene.menuManager.showDialog(`${getPokemonDisplayName(newOpponent)} entre en combat !`);
+        await this.scene.wait(900);
+
+        // Recréer UI + sprite
+        if (this.scene.uiManager && this.scene.uiManager.updateCompleteOpponentUI) {
+            await this.scene.uiManager.updateCompleteOpponentUI(newOpponent);
+        } else if (this.scene.uiManager && this.scene.uiManager.createOpponentUI) {
+            const { width, height } = this.scene.scale;
+            await this.scene.uiManager.createOpponentUI(width, height);
+        }
+
+        const { width, height } = this.scene.scale;
+        await this.scene.spriteManager.createOpponentSprite(width, height);
+        if (this.scene.opponentSpriteData) {
+            await this.scene.spriteManager.fadeInSprite(this.scene.opponentSpriteData, this.scene.opponentShadow, 500);
+        }
+
+        // Mettre à jour la barre HP adverse à 100% (si nécessaire)
+        try {
+            if (this.scene.opponentHPBar && this.scene.opponentHPBarProps) {
+                await this.scene.animManager.animateHPDrain(
+                    this.scene.opponentHPBar,
+                    null,
+                    newOpponent.currentHP,
+                    newOpponent.maxHP
+                );
+            }
+        } catch (e) {
+            // ignore
         }
     }
 
@@ -461,6 +574,15 @@ export default class BattleTurnManager {
             if (alivePokemon.length === 0) {
                 this.scene.menuManager.showDialog('Vous n\'avez plus de Pokémon ! Vous avez perdu...');
                 await this.scene.wait(2000);
+
+                // Terminer officiellement le combat côté serveur
+                try {
+                    if (this.scene?.battleManager?.endBattle && this.scene?.battleId) {
+                        await this.scene.battleManager.endBattle(this.scene.battleId, 'opponent');
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] Erreur endBattle (opponentTurn lose) non bloquant:', e);
+                }
                 await this.scene.returnToSceneWithTransition();
             } else {
                 this.scene.turnInProgress = false;

@@ -42,7 +42,7 @@ async function seedDatabase() {
             { pseudo: "Admin", dailyTeam: "1", dailyScore: 10, totalScore: 1000, posX: 38* 48+21, posY: 73* 48+24, mapId: 7, isActif: false, updatedAt: new Date() },
             { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
-            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 6,isActif:false, updatedAt: new Date() },
+            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:false, updatedAt: new Date() },
             { pseudo: "Jo", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Soso", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Caro", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
@@ -52,7 +52,7 @@ async function seedDatabase() {
             { pseudo: "Romain", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Charlotte", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
             { pseudo: "Nico", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
-            { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 0, posX: 500.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() },
+            { pseudo: "Mehdi", dailyTeam: "1", dailyScore: 10, totalScore: 0, posX: 10 * 48 + 24, posY: 7 * 48 + 24, mapId: 6, isActif: true, updatedAt: new Date() },
             { pseudo: "Yorushima", dailyTeam: "1", dailyScore: 10, totalScore: 500, posX: 500.0, posY: 360.0, mapId: 2, isActif: true, updatedAt: new Date() }
         ];
 
@@ -1075,69 +1075,6 @@ async function seedDatabase() {
         throw error;
     }
 
-
-    const docs = [
-      {
-        trainerId: 'metroInterieur:13:7:blocker',
-        mapKey: 'metroInterieur',
-
-        // Coordonnées en cases (tile)
-        tileX: 13,
-        tileY: 7,
-
-        // Sprite (par défaut: spritesheet "player")
-        spriteKey: 'player',
-
-        // Comportement
-        blocks: true,
-        facePlayerOnInteract: false,
-
-        // Dialogue / identité
-        name: 'Dresseur',
-        dialogue: "Qui t'as dit que le métro de Lille était safe ?",
-
-        // Team (speciesId = id PokéAPI)
-        team: [
-          { speciesId: 19, level: 8 }, // Rattata
-          { speciesId: 16, level: 7 }  // Pidgey
-        ],
-
-        // Après victoire
-        afterWinTileX: 13,
-        afterWinTileY: 8,
-        afterWinFacing: 'down',
-        initialFacing: 'left',
-
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
-
-    for (const doc of docs) {
-      if (!doc.trainerId) {
-        console.warn('[seedDresseurs] trainerId manquant, doc ignoré');
-        continue;
-      }
-
-      const now = new Date();
-      await trainerNpcs.updateOne(
-        { trainerId: doc.trainerId },
-        {
-          $set: {
-            ...doc,
-            updatedAt: now
-          },
-          $setOnInsert: {
-            createdAt: doc.createdAt || now
-          }
-        },
-        { upsert: true }
-      );
-
-      console.log(`[seedDresseurs] Upsert OK: ${doc.trainerId}`);
-    }
-
-    console.log('[seedDresseurs] Terminé');
 }
 
 // Exécuter le script
