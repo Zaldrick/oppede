@@ -64,6 +64,9 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.opponentId = data.opponentId || null;
         this.returnScene = data.returnScene || 'PokemonTeamScene';
         this.restoreBattleState = data.restoreBattleState || null; // 🆕 État à restaurer
+
+        // 🆕 Données combat dresseur (PNJ)
+        this.trainerBattle = data.trainerBattle || null;
         
         // 🔧 FIXE: Reset des états d'animation HP pour éviter le glitch visuel
         this.currentPlayerHPPercent = undefined;
@@ -200,7 +203,8 @@ export class PokemonBattleScene extends Phaser.Scene {
                 const battleData = await this.battleManager.startBattle(
                     this.playerId,
                     this.opponentId,
-                    this.battleType
+                    this.battleType,
+                    this.battleType === 'trainer' ? { trainer: this.trainerBattle } : undefined
                 );
 
                 this.battleId = battleData.battleId;

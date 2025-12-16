@@ -31,7 +31,7 @@ class PokemonBattleManager {
         // Démarrer un nouveau combat
         app.post('/api/battle/start', async (req, res) => {
             try {
-                const { playerId, opponentId, battleType = 'wild' } = req.body;
+                const { playerId, opponentId, battleType = 'wild', trainer } = req.body;
 
                 if (!playerId) {
                     return res.status(400).json({ error: 'playerId requis' });
@@ -68,6 +68,30 @@ class PokemonBattleManager {
                     // Recalculer stats proprement pour wildMon
                     wildMon.stats = this.calculateStats(wildMon, wildMon.speciesData);
                     opponentTeam = [wildMon];
+                } else if (battleType === 'trainer') {
+                    const trainerId = trainer?.trainerId;
+                    const trainerTeamSpec = trainer?.team;
+
+                    if (!trainerId) {
+                        return res.status(400).json({ error: 'trainer.trainerId requis pour combat de dresseur' });
+                    }
+                    if (!Array.isArray(trainerTeamSpec) || trainerTeamSpec.length === 0) {
+                        return res.status(400).json({ error: 'trainer.team requis (array non vide) pour combat de dresseur' });
+                    }
+
+                    opponentTeam = [];
+                    for (const member of trainerTeamSpec) {
+                        const speciesId = member?.speciesId;
+                        const level = member?.level;
+                        if (!speciesId || !level) {
+                            return res.status(400).json({ error: 'Chaque Pokémon du dresseur doit avoir speciesId et level' });
+                        }
+
+                        const trainerMon = await this.generateTrainerPokemon(speciesId, level);
+                        trainerMon.stats = this.calculateStats(trainerMon, trainerMon.speciesData);
+                        trainerMon.currentHP = trainerMon.stats.maxHP;
+                        opponentTeam.push(trainerMon);
+                    }
                 } else {
                     // Combat PvP: charger l'équipe adverse
                     if (!opponentId) {
@@ -94,6 +118,11 @@ class PokemonBattleManager {
                     player_id: new ObjectId(playerId),
                     opponent_id: opponentId ? new ObjectId(opponentId) : null,
                     battle_type: battleType,
+                    trainer_npc: battleType === 'trainer' ? {
+                        trainerId: trainer?.trainerId,
+                        mapKey: trainer?.mapKey || null,
+                        name: trainer?.name || null
+                    } : null,
                     player_team_ids: playerTeam.map(p => p._id),
                     opponent_team_ids: opponentTeam.map(p => p._id || null),
                     player_active_index: 0,
@@ -388,6 +417,11 @@ class PokemonBattleManager {
                 const db = await this.databaseManager.connectToDatabase();
                 const battlesCollection = db.collection('battles');
 
+                const battleDoc = await battlesCollection.findOne({ _id: new ObjectId(battleId) });
+                if (!battleDoc) {
+                    return res.status(404).json({ error: 'Combat introuvable' });
+                }
+
                 await battlesCollection.updateOne(
                     { _id: new ObjectId(battleId) },
                     {
@@ -397,6 +431,29 @@ class PokemonBattleManager {
                         }
                     }
                 );
+
+                // Si c'est un combat de dresseur et que le joueur gagne, marquer le PNJ comme battu (par joueur)
+                try {
+                    if (winner === 'player' && battleDoc.battle_type === 'trainer' && battleDoc.trainer_npc?.trainerId) {
+                        await db.collection('trainerNpcDefeats').updateOne(
+                            {
+                                player_id: battleDoc.player_id,
+                                trainerId: battleDoc.trainer_npc.trainerId
+                            },
+                            {
+                                $set: {
+                                    player_id: battleDoc.player_id,
+                                    trainerId: battleDoc.trainer_npc.trainerId,
+                                    mapKey: battleDoc.trainer_npc.mapKey || null,
+                                    defeated_at: new Date()
+                                }
+                            },
+                            { upsert: true }
+                        );
+                    }
+                } catch (e) {
+                    console.warn('[Battle] Impossible d\'enregistrer trainerNpcDefeat:', e);
+                }
 
                 // Supprimer de la mémoire
                 this.activeBattles.delete(battleId);
@@ -691,6 +748,43 @@ class PokemonBattleManager {
             moveset: [
                 { name: 'Charge', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 35 },
                 { name: 'Groz\'Yeux', type: 'normal', category: 'status', power: 0, accuracy: 100, pp: 30 },
+                { name: 'Vive-Attaque', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 30 },
+                { name: 'Tornade', type: 'flying', category: 'special', power: 40, accuracy: 100, pp: 35 }
+            ],
+            stats: speciesData.stats,
+            speciesData
+        };
+    }
+
+    /**
+     * Génère un Pokémon dresseur (espèce + niveau imposés)
+     */
+    async generateTrainerPokemon(speciesId, level) {
+        const numericSpeciesId = parseInt(speciesId);
+        const numericLevel = parseInt(level);
+
+        const speciesData = await this.getSpeciesData(numericSpeciesId);
+        if (!speciesData) {
+            throw new Error(`Species introuvable pour speciesId=${speciesId}`);
+        }
+
+        return {
+            species_id: numericSpeciesId,
+            nickname: null,
+            level: numericLevel,
+            currentHP: 1, // sera recalculé après calculateStats
+            maxHP: 1,
+            experience: 0,
+            ivs: {
+                hp: 15, attack: 15, defense: 15,
+                sp_attack: 15, sp_defense: 15, speed: 15
+            },
+            evs: { hp: 0, attack: 0, defense: 0, sp_attack: 0, sp_defense: 0, speed: 0 },
+            nature: 'Hardy',
+            // Moveset simple (placeholder) pour que le combat fonctionne sans dépendre de la DB de moves
+            moveset: [
+                { name: 'Charge', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 35 },
+                { name: "Groz'Yeux", type: 'normal', category: 'status', power: 0, accuracy: 100, pp: 30 },
                 { name: 'Vive-Attaque', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 30 },
                 { name: 'Tornade', type: 'flying', category: 'special', power: 40, accuracy: 100, pp: 35 }
             ],

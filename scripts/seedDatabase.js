@@ -39,7 +39,7 @@ async function seedDatabase() {
 
         // Données pour la collection players
         const players = [
-            { pseudo: "Admin", dailyTeam: "1", dailyScore: 10, totalScore: 1000, posX: 2424.0, posY: 360.0, mapId: 2, isActif: false, updatedAt: new Date() },
+            { pseudo: "Admin", dailyTeam: "1", dailyScore: 10, totalScore: 1000, posX: 38* 48+21, posY: 73* 48+24, mapId: 7, isActif: false, updatedAt: new Date() },
             { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, updatedAt: new Date() },
             { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 6,isActif:false, updatedAt: new Date() },

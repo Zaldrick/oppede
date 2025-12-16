@@ -318,6 +318,28 @@ class DatabaseManager {
             }
         });
 
+        // Routes pour PNJ dresseurs (progression par joueur)
+        app.get('/api/trainer-npcs/defeated', async (req, res) => {
+            const { playerId, mapKey } = req.query;
+            if (!playerId) return res.status(400).json({ error: 'playerId is required' });
+
+            try {
+                const db = await this.connectToDatabase();
+                const query = { player_id: new ObjectId(playerId) };
+                if (mapKey) query.mapKey = mapKey;
+
+                const docs = await db.collection('trainerNpcDefeats')
+                    .find(query)
+                    .project({ _id: 0, trainerId: 1 })
+                    .toArray();
+
+                res.json({ defeatedTrainerIds: docs.map(d => d.trainerId).filter(Boolean) });
+            } catch (err) {
+                console.error('[trainer-npcs/defeated] Database error:', err);
+                res.status(500).json({ error: 'Database error' });
+            }
+        });
+
         // Routes pour les cartes
         app.get('/api/cards', async (req, res) => {
             try {

@@ -862,8 +862,54 @@ export class GameScene extends Phaser.Scene {
     }
 
     addItemToInventory(item) {
+        // Update local cache immediately (UI/quests read from GameScene.inventory)
         PlayerService.addItemToInventory(item);
-        console.log("Updated inventory:", PlayerService.getInventory());
+        this.inventory = Array.isArray(PlayerService.getInventory()) ? [...PlayerService.getInventory()] : [];
+        try {
+            this.game?.events?.emit('inventory:cacheUpdated', this.inventory);
+        } catch (e) { /* ignore */ }
+
+        console.log("Updated inventory:", this.inventory);
+
+        // Persist to backend when possible (quests/rewards must survive reload)
+        try {
+            const apiUrl = process.env.REACT_APP_API_URL;
+            const playerData = this.registry.get('playerData');
+            const playerId = playerData ? playerData._id : null;
+
+            const itemName = item && item.nom;
+            const quantityToAdd = Number(item?.quantite ?? item?.['quantité'] ?? item?.quantity ?? 1) || 1;
+
+            if (apiUrl && playerId && itemName) {
+                fetch(`${apiUrl}/api/inventory/add-by-name`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId, itemName, quantity: quantityToAdd })
+                })
+                    .then(async (res) => {
+                        if (!res.ok) {
+                            const body = await res.text().catch(() => '');
+                            throw new Error(`HTTP ${res.status} ${body}`);
+                        }
+
+                        // Refresh from server to keep schema consistent and avoid desync.
+                        try {
+                            const refreshed = await PlayerService.fetchInventory(playerId);
+                            this.inventory = Array.isArray(refreshed) ? refreshed : [];
+                            this.game?.events?.emit('inventory:cacheUpdated', this.inventory);
+                        } catch (e) {
+                            // Keep optimistic local inventory if refresh fails.
+                            console.warn('[GameScene] Inventory refresh failed after add-by-name', e);
+                        }
+                    })
+                    .catch((e) => {
+                        console.warn('[GameScene] Failed to persist inventory add-by-name', e);
+                    });
+            }
+        } catch (e) {
+            console.warn('[GameScene] addItemToInventory persistence error', e);
+        }
+
         // Play item sound (key item or normal)
         try {
             const isKey = item && (item.isKeyItem || (item.type && item.type === 'key_item') || (item.nom && String(item.nom).toLowerCase().includes('clé')));

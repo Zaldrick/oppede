@@ -11,7 +11,8 @@
 
 export default class PokemonBattleManager {
     constructor() {
-        this.baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+        // Ne pas hardcoder d'URL/port: config via REACT_APP_API_URL (recommandé) ou fallback same-origin.
+        this.baseUrl = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
         this.currentBattle = null;
     }
 
@@ -19,10 +20,11 @@ export default class PokemonBattleManager {
      * Démarre un nouveau combat
      * @param {string} playerId - ID du joueur
      * @param {string|null} opponentId - ID de l'adversaire (null pour combat sauvage)
-     * @param {string} battleType - "wild" ou "pvp"
+     * @param {string} battleType - "wild" | "pvp" | "trainer"
+     * @param {Object} options - payload additionnel (ex: { trainer: {...} })
      * @returns {Promise<Object>} - Données du combat
      */
-    async startBattle(playerId, opponentId = null, battleType = 'wild') {
+    async startBattle(playerId, opponentId = null, battleType = 'wild', options = {}) {
         try {
             console.log('[BattleManager Client] Démarrage combat:', { playerId, battleType });
 
@@ -34,7 +36,8 @@ export default class PokemonBattleManager {
                 body: JSON.stringify({
                     playerId,
                     opponentId,
-                    battleType
+                    battleType,
+                    ...(options || {})
                 })
             });
 

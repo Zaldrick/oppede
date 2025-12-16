@@ -9,6 +9,9 @@ export class MapEventManager {
         this.mapManager = mapManager;
         this.activeEvents = [];
 
+        // Progression (PNJ dresseurs battus) pour le joueur courant
+        this.defeatedTrainerIds = new Set();
+
         // Ambient NPC optimization: use a single collider vs player.
         this.ambientGroup = null;
         this.ambientCollider = null;
@@ -84,6 +87,27 @@ export class MapEventManager {
             console.error("Erreur lors du chargement des worldEvents :", e);
         }
 
+        // Charger la liste des dresseurs déjà battus (par joueur) pour cette map
+        try {
+            const playerData = this.scene.registry.get('playerData');
+            const playerId = playerData ? playerData._id : null;
+            this.defeatedTrainerIds = new Set();
+
+            if (playerId && process.env.REACT_APP_API_URL) {
+                const r = await fetch(
+                    `${process.env.REACT_APP_API_URL}/api/trainer-npcs/defeated?playerId=${playerId}&mapKey=${mapKey}`
+                );
+                if (r.ok) {
+                    const data = await r.json();
+                    const ids = Array.isArray(data?.defeatedTrainerIds) ? data.defeatedTrainerIds : [];
+                    this.defeatedTrainerIds = new Set(ids);
+                }
+            }
+        } catch (e) {
+            console.warn('[MapEventManager] Impossible de charger trainer-npcs/defeated:', e);
+            this.defeatedTrainerIds = new Set();
+        }
+
         // Vérification de sécurité après l'appel asynchrone
         if (!this.mapManager.map || this.mapManager.map.key !== mapKey) return;
 
@@ -142,6 +166,95 @@ export class MapEventManager {
         if (["lille", "douai", "metro", "metroInterieur"].includes(mapKey)) {
             this.populateAmbientNPCs(mapKey);
         }
+
+        // PNJ dresseurs bloquants (scriptés)
+        this.spawnTrainerNPCsForMap(mapKey);
+    }
+
+    getPlayerIdleFrameForFacing(facing) {
+        // Player idle frames (see PlayerManager CONFIG): right 56, up 62, left 68, down 74.
+        switch ((facing || '').toLowerCase()) {
+            case 'right':
+                return 56;
+            case 'up':
+                return 62;
+            case 'left':
+                return 68;
+            case 'down':
+            default:
+                return 74;
+        }
+    }
+
+    applyTrainerNpcState(npc, { defeated, afterWinTile, afterWinFacing, initialFacing }) {
+        if (!npc) return;
+
+        if (defeated) {
+            npc.trainerDefeated = true;
+            if (afterWinTile) {
+                npc.setPosition(afterWinTile.x * 48 + 24, afterWinTile.y * 48 + 24 - 24);
+            }
+            if (npc.texture?.key === 'player' && typeof npc.setFrame === 'function') {
+                npc.setFrame(this.getPlayerIdleFrameForFacing(afterWinFacing || 'down'));
+            }
+        } else {
+            npc.trainerDefeated = false;
+            if (npc.texture?.key === 'player' && typeof npc.setFrame === 'function') {
+                npc.setFrame(this.getPlayerIdleFrameForFacing(initialFacing || 'down'));
+            }
+        }
+    }
+
+    spawnTrainerNPCsForMap(mapKey) {
+        if (!this.scene?.physics) return;
+        if (!mapKey) return;
+
+        // Pour l'instant: 1 dresseur bloquant dans metroInterieur
+        if (mapKey !== 'metroInterieur') return;
+
+        const player = this.scene.playerManager?.getPlayer();
+        if (!player) return;
+
+        // ID stable: map + tile coords (important pour la persistance)
+        const trainerId = 'metroInterieur:13:7:blocker';
+
+        const npc = this.scene.physics.add.sprite(13 * 48 + 24, 7 * 48 + 24 - 24, 'player', 0);
+
+        // Hitbox pieds (comme les ambient NPC)
+        npc.body.setSize(32, 32);
+        npc.body.setOffset(8, 64);
+        npc.setImmovable(true);
+        npc.setInteractive();
+
+        npc.npcType = 'pokemon_trainer';
+        npc.trainerId = trainerId;
+        npc.trainerName = 'Dresseur';
+        npc.trainerDialogue = "Qui t'as dit que le métro de Lille était safe ?";
+
+        // Équipe: Ratata lvl 8 + Roucoul lvl 7 (ids PokéAPI: 19, 16)
+        npc.trainerTeam = [
+            { speciesId: 19, level: 8 },
+            { speciesId: 16, level: 7 }
+        ];
+
+        npc.trainerAfterWinTile = { x: 13, y: 8 };
+        npc.trainerAfterWinFacing = 'down';
+        npc.trainerInitialFacing = 'left';
+        npc.facePlayerOnInteract = false; // on conserve sa pose (il "garde" le passage)
+
+        // Collisions -> il bloque le passage
+        this.scene.physics.add.collider(player, npc);
+
+        // Appliquer état (déjà battu ?)
+        const defeated = this.defeatedTrainerIds?.has(trainerId);
+        this.applyTrainerNpcState(npc, {
+            defeated,
+            afterWinTile: npc.trainerAfterWinTile,
+            afterWinFacing: npc.trainerAfterWinFacing,
+            initialFacing: npc.trainerInitialFacing
+        });
+
+        this.activeEvents.push(npc);
     }
 
     populateAmbientNPCs(mapKey) {
@@ -555,7 +668,6 @@ export class MapEventManager {
     }
 
     handleNPCInteraction(npc) {
-        const playerPseudo = this.scene.registry.get("playerPseudo") || "Moi";
         const playerData = this.scene.registry.get("playerData");
         const playerId = playerData ? playerData._id : null;
 
@@ -592,6 +704,37 @@ export class MapEventManager {
             ];
             const randomDialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
             this.scene.displayMessage(randomDialogue, npc.npcName || "Habitant");
+        } else if (npc.npcType === 'pokemon_trainer') {
+            // Déjà battu -> il s'est écarté, pas de combat
+            if (npc.trainerDefeated) {
+                return;
+            }
+
+            if (!playerId) {
+                this.scene.displayMessage('Impossible de lancer le combat (joueur non chargé).', 'Erreur');
+                return;
+            }
+
+            // Dialogue d'intro
+            this.scene.displayMessage(npc.trainerDialogue || '...');
+
+            // Lancer le combat après un court délai
+            setTimeout(() => {
+                // sécurité si la scène a changé entre-temps
+                if (!this.scene?.scene) return;
+
+                this.scene.scene.start('PokemonBattleScene', {
+                    playerId,
+                    battleType: 'trainer',
+                    returnScene: 'GameScene',
+                    trainerBattle: {
+                        trainerId: npc.trainerId,
+                        mapKey: this.mapManager?.map?.key || null,
+                        name: npc.trainerName || null,
+                        team: npc.trainerTeam || []
+                    }
+                });
+            }, 1200);
         } else if (npc.npcType === "dialogue" && npc.eventData) {
             const dialogue = npc.eventData.properties?.dialogue || "Bonjour !";
             this.scene.displayMessage(dialogue, npc.eventData.properties?.speaker || "PNJ");
