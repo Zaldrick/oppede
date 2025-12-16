@@ -12,6 +12,9 @@ export class MapEventManager {
         // Progression (PNJ dresseurs battus) pour le joueur courant
         this.defeatedTrainerIds = new Set();
 
+        // Définitions de dresseurs chargées depuis la BDD pour la map courante
+        this.trainerNpcDefinitions = [];
+
         // Ambient NPC optimization: use a single collider vs player.
         this.ambientGroup = null;
         this.ambientCollider = null;
@@ -167,8 +170,8 @@ export class MapEventManager {
             this.populateAmbientNPCs(mapKey);
         }
 
-        // PNJ dresseurs bloquants (scriptés)
-        this.spawnTrainerNPCsForMap(mapKey);
+        // PNJ dresseurs (chargés depuis BDD)
+        await this.spawnTrainerNPCsForMap(mapKey);
     }
 
     getPlayerIdleFrameForFacing(facing) {
@@ -205,56 +208,72 @@ export class MapEventManager {
         }
     }
 
-    spawnTrainerNPCsForMap(mapKey) {
+    async spawnTrainerNPCsForMap(mapKey) {
         if (!this.scene?.physics) return;
         if (!mapKey) return;
-
-        // Pour l'instant: 1 dresseur bloquant dans metroInterieur
-        if (mapKey !== 'metroInterieur') return;
 
         const player = this.scene.playerManager?.getPlayer();
         if (!player) return;
 
-        // ID stable: map + tile coords (important pour la persistance)
-        const trainerId = 'metroInterieur:13:7:blocker';
+        // Charger définitions depuis backend
+        try {
+            this.trainerNpcDefinitions = [];
+            if (process.env.REACT_APP_API_URL) {
+                const r = await fetch(`${process.env.REACT_APP_API_URL}/api/trainer-npcs?mapKey=${mapKey}`);
+                if (r.ok) {
+                    const docs = await r.json();
+                    this.trainerNpcDefinitions = Array.isArray(docs) ? docs : [];
+                }
+            }
+        } catch (e) {
+            console.warn('[MapEventManager] Impossible de charger /api/trainer-npcs:', e);
+            this.trainerNpcDefinitions = [];
+        }
 
-        const npc = this.scene.physics.add.sprite(13 * 48 + 24, 7 * 48 + 24 - 24, 'player', 0);
+        // Spawner chaque dresseur
+        for (const def of this.trainerNpcDefinitions) {
+            const trainerId = def?.trainerId;
+            const tileX = def?.tileX;
+            const tileY = def?.tileY;
+            if (!trainerId || tileX === undefined || tileY === undefined) continue;
 
-        // Hitbox pieds (comme les ambient NPC)
-        npc.body.setSize(32, 32);
-        npc.body.setOffset(8, 64);
-        npc.setImmovable(true);
-        npc.setInteractive();
+            const xPx = tileX * 48 + 24;
+            const yPx = tileY * 48 + 24 - 24;
 
-        npc.npcType = 'pokemon_trainer';
-        npc.trainerId = trainerId;
-        npc.trainerName = 'Dresseur';
-        npc.trainerDialogue = "Qui t'as dit que le métro de Lille était safe ?";
+            const npc = this.scene.physics.add.sprite(xPx, yPx, def?.spriteKey || 'player', 0);
+            npc.body.setSize(32, 32);
+            npc.body.setOffset(8, 64);
+            npc.setImmovable(true);
+            npc.setInteractive();
 
-        // Équipe: Ratata lvl 8 + Roucoul lvl 7 (ids PokéAPI: 19, 16)
-        npc.trainerTeam = [
-            { speciesId: 19, level: 8 },
-            { speciesId: 16, level: 7 }
-        ];
+            npc.npcType = 'pokemon_trainer';
+            npc.trainerId = trainerId;
+            npc.trainerName = def?.name || 'Dresseur';
+            npc.trainerDialogue = def?.dialogue || '...';
+            npc.trainerTeam = Array.isArray(def?.team) ? def.team : [];
+            npc.trainerAfterWinTile = (def?.afterWinTileX !== undefined && def?.afterWinTileY !== undefined)
+                ? { x: def.afterWinTileX, y: def.afterWinTileY }
+                : null;
+            npc.trainerAfterWinFacing = def?.afterWinFacing || 'down';
+            npc.trainerInitialFacing = def?.initialFacing || 'down';
+            npc.facePlayerOnInteract = def?.facePlayerOnInteract === false ? false : true;
 
-        npc.trainerAfterWinTile = { x: 13, y: 8 };
-        npc.trainerAfterWinFacing = 'down';
-        npc.trainerInitialFacing = 'left';
-        npc.facePlayerOnInteract = false; // on conserve sa pose (il "garde" le passage)
+            // Blocage du chemin
+            if (def?.blocks !== false) {
+                this.scene.physics.add.collider(player, npc);
+            }
 
-        // Collisions -> il bloque le passage
-        this.scene.physics.add.collider(player, npc);
+            // Appliquer état (déjà battu ?)
+            const defeated = this.defeatedTrainerIds?.has(trainerId);
+            this.applyTrainerNpcState(npc, {
+                defeated,
+                afterWinTile: npc.trainerAfterWinTile,
+                afterWinFacing: npc.trainerAfterWinFacing,
+                initialFacing: npc.trainerInitialFacing
+            });
 
-        // Appliquer état (déjà battu ?)
-        const defeated = this.defeatedTrainerIds?.has(trainerId);
-        this.applyTrainerNpcState(npc, {
-            defeated,
-            afterWinTile: npc.trainerAfterWinTile,
-            afterWinFacing: npc.trainerAfterWinFacing,
-            initialFacing: npc.trainerInitialFacing
-        });
-
-        this.activeEvents.push(npc);
+            this.activeEvents.push(npc);
+        }
     }
 
     populateAmbientNPCs(mapKey) {

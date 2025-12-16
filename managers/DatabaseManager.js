@@ -340,6 +340,25 @@ class DatabaseManager {
             }
         });
 
+        // Liste des PNJ dresseurs (définition), filtrée par map
+        app.get('/api/trainer-npcs', async (req, res) => {
+            const { mapKey } = req.query;
+            if (!mapKey) return res.status(400).json({ error: 'mapKey is required' });
+
+            try {
+                const db = await this.connectToDatabase();
+                const docs = await db
+                    .collection('trainerNpcs')
+                    .find({ mapKey })
+                    .sort({ tileY: 1, tileX: 1 })
+                    .toArray();
+                res.json(docs);
+            } catch (err) {
+                console.error('[trainer-npcs] Database error:', err);
+                res.status(500).json({ error: 'Database error' });
+            }
+        });
+
         // Routes pour les cartes
         app.get('/api/cards', async (req, res) => {
             try {
