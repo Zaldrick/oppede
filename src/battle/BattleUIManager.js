@@ -567,10 +567,10 @@ export default class BattleUIManager {
 
         // Ajouter des moves par défaut pour compléter
         const defaultMoves = [
-            { name: 'Charge', type: 'normal', category: 'physical', power: 40, pp: 35, maxPP: 35 },
-            { name: 'Groz\'Yeux', type: 'normal', category: 'status', power: 0, pp: 30, maxPP: 30 },
-            { name: 'Vive-Attaque', type: 'normal', category: 'physical', power: 40, pp: 30, maxPP: 30 },
-            { name: 'Cru-Aile', type: 'flying', category: 'physical', power: 60, pp: 35, maxPP: 35 }
+            { name: 'tackle', type: 'normal', category: 'physical', power: 40, pp: 35, maxPP: 35 },
+            { name: 'leer', type: 'normal', category: 'status', power: 0, pp: 30, maxPP: 30 },
+            { name: 'quick-attack', type: 'normal', category: 'physical', power: 40, pp: 30, maxPP: 30 },
+            { name: 'wing-attack', type: 'flying', category: 'physical', power: 60, pp: 35, maxPP: 35 }
         ];
         
         while (moveset.length < 4) {

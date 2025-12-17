@@ -2,6 +2,7 @@ import Phaser from "phaser";
 
 import { QuestRouter } from "../quests/QuestRouter";
 import { EtoileDuSoirQuest } from "../quests/EtoileDuSoirQuest";
+import { BesoinDunTicketQuest } from "../quests/BesoinDunTicketQuest";
 
 export class MapEventManager {
     constructor(scene, mapManager) {
@@ -24,8 +25,21 @@ export class MapEventManager {
             scene: this.scene,
             mapManager: this.mapManager,
             eventManager: this,
-            handlers: [new EtoileDuSoirQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })]
+            handlers: [
+                new EtoileDuSoirQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new BesoinDunTicketQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
+            ]
         });
+    }
+
+    update() {
+        try {
+            if (this.questRouter && typeof this.questRouter.update === 'function') {
+                this.questRouter.update();
+            }
+        } catch (e) {
+            // ignore
+        }
     }
 
     ensureAmbientGroup() {
@@ -41,6 +55,106 @@ export class MapEventManager {
         if (player && !this.ambientCollider) {
             this.ambientCollider = this.scene.physics.add.collider(player, this.ambientGroup);
         }
+    }
+
+    getAmbientDialoguePool(mapKey, npcName) {
+        const key = (mapKey || '').toLowerCase();
+        const name = (npcName || '').toLowerCase();
+
+        const isKid = name.startsWith('kid_') || name.includes('kid');
+        const isFishmonger = name.includes('fishmonger');
+
+        const pools = {
+            lille: {
+                general: [
+                    "T'as vu le métro ? Ici c'est plus calme.",
+                    "À Lille, on marche vite, mais on reste polis.",
+                    "Le vent du Nord, ça réveille.",
+                    "Je te jure, y'a toujours un truc qui se passe sur la Grand'Place.",
+                    "Fais gaffe aux toits, il pleut sans prévenir.",
+                    "Si tu cherches un raccourci, c'est rarement une bonne idée."
+                ],
+                kid: [
+                    "Je fais la course jusqu'au prochain lampadaire !",
+                    "J'ai perdu un caillou super précieux...",
+                    "Chut, je joue à cache-cache.",
+                    "Je connais un endroit secret à Lille."
+                ],
+                fish: [
+                    "Poisson du jour ! Enfin... pas ici.",
+                    "Ça sent la mer... ou c'est mon imagination ?",
+                    "Un bon plat chaud et ça repart."
+                ]
+            },
+            metro: {
+                general: [
+                    "Le métro, c'est un monde à part.",
+                    "J'attends depuis dix minutes...",
+                    "On dirait qu'il manque toujours un ticket quelque part.",
+                    "Si ça bippe pas, c'est que c'est pas bon.",
+                    "Fais pas attention, je surveille juste les gens."
+                ],
+                kid: [
+                    "J'aime bien les rames, ça fait du bruit !",
+                    "Je veux m'asseoir côté fenêtre.",
+                    "On arrive bientôt ?"
+                ],
+                fish: [
+                    "Ici, y'a pas de poisson... triste.",
+                    "J'ai faim, j'aurais dû prendre un sandwich."
+                ]
+            },
+            metrointerieur: {
+                general: [
+                    "On respire pas pareil sous terre.",
+                    "T'entends ? Ça gronde...",
+                    "Fais attention où tu mets les pieds.",
+                    "C'est plus sombre ici, hein ?",
+                    "Je reste là. Je bouge pas."
+                ],
+                kid: [
+                    "J'aime pas quand ça fait écho...",
+                    "J'ai froid.",
+                    "On peut remonter ?"
+                ],
+                fish: [
+                    "Ça sent pas la mer, ici.",
+                    "Même le poisson aurait peur ici."
+                ]
+            },
+            douai: {
+                general: [
+                    "À Douai, on prend le temps.",
+                    "Les rues ici, je les connais par cœur.",
+                    "T'as entendu parler de l'étoile du soir ?",
+                    "Le coin est tranquille, mais pas trop."
+                ],
+                kid: [
+                    "Je joue près de la place.",
+                    "Tu connais un jeu avec des cartes ?",
+                    "J'ai vu un truc briller !"
+                ],
+                fish: [
+                    "Le marché, c'est la vie.",
+                    "Ça me manque de crier mes prix."
+                ]
+            }
+        };
+
+        const selected = pools[key] || {
+            general: [
+                "Bonjour !",
+                "...",
+                "Belle journée, n'est-ce pas ?",
+                "Il paraît qu'il y a des trésors cachés."
+            ],
+            kid: ["Salut !"],
+            fish: ["..."],
+        };
+
+        if (isFishmonger) return selected.fish;
+        if (isKid) return selected.kid;
+        return selected.general;
     }
 
     faceNpcToPlayer(npc) {
@@ -170,8 +284,8 @@ export class MapEventManager {
             this.createSubwayDoor();
         }
 
-        // Spécifique Douai (Quête Etoile du Soir)
-        if (mapKey === "douai") {
+        // Quêtes (spawn/cleanup) pour la map courante
+        if (this.questRouter) {
             this.questRouter.spawnForMap(mapKey);
         }
 
@@ -427,22 +541,58 @@ export class MapEventManager {
 
         if (mapKey === "lille") {
             npcsToSpawn = npcListLille;
-            startX = 25; startY = 25;
+
+            // Placement manuel des PNJ d'ambiance (coordonnées en tuiles + direction + dialogue)
+            const placements = [
+                { tileX: 21, tileY: 20, facing: 'up', dialogue: '...' },
+                { tileX: 22, tileY: 20, facing: 'up', dialogue: '...' },
+                { tileX: 18, tileY: 33, facing: 'left', dialogue: '...' },
+                { tileX: 24, tileY: 62, facing: 'right', dialogue: '...' },
+                { tileX: 25, tileY: 62, facing: 'left', dialogue: '...' },
+                { tileX: 12, tileY: 48, facing: 'down', dialogue: '...' },
+                { tileX: 12, tileY: 49, facing: 'up', dialogue: '...' },
+                { tileX: 71, tileY: 64, facing: 'left', dialogue: '...' }
+            ];
+
+            // Alterner les sprites / éviter les doublons: on prend des npcName uniques.
+            const used = new Set();
+            let cursor = 0;
+            const pickNextUnique = () => {
+                for (let tries = 0; tries < npcsToSpawn.length; tries++) {
+                    const name = npcsToSpawn[cursor % npcsToSpawn.length];
+                    cursor++;
+                    if (!name) continue;
+                    if (used.has(name)) continue;
+                    if (!this.scene.textures.exists(`npc_${name}`)) continue;
+                    used.add(name);
+                    return name;
+                }
+                return null;
+            };
+
+            placements.forEach((p) => {
+                const npcName = pickNextUnique();
+                if (!npcName) return;
+                const x = p.tileX * 48 + 24;
+                const y = p.tileY * 48 + 24;
+                this.createAmbientNPC(npcName, x, y, p.facing, p.dialogue);
+            });
+            return;
         } else if (mapKey === "douai") {
             npcsToSpawn = npcListDouai;
             startX = 110; startY = 25;
         } else if (mapKey === "metro") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
 
-            // Placement manuel des PNJ (coordonnées en tuiles + direction du regard)
+            // Placement manuel des PNJ (coordonnées en tuiles + direction du regard + dialogue)
             const placements = [
-                { tileX: 24, tileY: 26, facing: 'down' },
-                { tileX: 10, tileY: 26, facing: 'up' },
-                { tileX: 20, tileY: 20, facing: 'down' },
-                { tileX: 8, tileY: 17, facing: 'up' },
-                { tileX: 19, tileY: 10, facing: 'down' },
-                { tileX: 22, tileY: 7, facing: 'left' },
-                { tileX: 26, tileY: 7, facing: 'down' }
+                { tileX: 24, tileY: 21, facing: 'down', dialogue: '...' },
+                { tileX: 10, tileY: 21, facing: 'up', dialogue: '...' },
+                { tileX: 20, tileY: 15.4, facing: 'down', dialogue: '...' },
+                { tileX: 8, tileY: 12, facing: 'up', dialogue: '...' },
+                { tileX: 19, tileY: 5, facing: 'down', dialogue: '...' },
+                { tileX: 22, tileY: 2, facing: 'left', dialogue: '...' },
+                { tileX: 26, tileY: 2, facing: 'down', dialogue: '...' }
             ];
 
             placements.forEach((p, i) => {
@@ -450,23 +600,23 @@ export class MapEventManager {
                 if (!npcName) return;
                 const x = p.tileX * 48 + 24;
                 const y = p.tileY * 48 + 24;
-                this.createAmbientNPC(npcName, x, y, p.facing);
+                this.createAmbientNPC(npcName, x, y, p.facing, p.dialogue);
             });
             return;
         } else if (mapKey === "metroInterieur") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
 
-            // Placement manuel des PNJ (coordonnées en tuiles + direction du regard)
+            // Placement manuel des PNJ (coordonnées en tuiles + direction du regard + dialogue)
             // Format demandé: x:y + direction
             const placements = [
-                { tileX: 6, tileY: 7, facing: 'right' },
-                { tileX: 8, tileY: 6, facing: 'down' },
-                { tileX: 10, tileY: 6, facing: 'down' },
-                { tileX: 11, tileY: 6, facing: 'down' },
-                { tileX: 16, tileY: 6, facing: 'right' },
-                { tileX: 17, tileY: 6, facing: 'left' },
-                { tileX: 23, tileY: 6, facing: 'down' },
-                { tileX: 28, tileY: 7, facing: 'up' }
+                { tileX: 6, tileY: 7, facing: 'right', dialogue: '...' },
+                { tileX: 8, tileY: 6, facing: 'down', dialogue: '...' },
+                { tileX: 10, tileY: 6, facing: 'right', dialogue: '...' },
+                { tileX: 11, tileY: 6, facing: 'left', dialogue: '...' },
+                { tileX: 16, tileY: 6, facing: 'right', dialogue: '...' },
+                { tileX: 17, tileY: 6, facing: 'left', dialogue: '...' },
+                { tileX: 23, tileY: 6, facing: 'down', dialogue: '...' },
+                { tileX: 28, tileY: 7, facing: 'up', dialogue: '...' }
             ];
 
             placements.forEach((p, i) => {
@@ -474,7 +624,7 @@ export class MapEventManager {
                 if (!npcName) return;
                 const x = p.tileX * 48 + 24;
                 const y = p.tileY * 48 + 24;
-                this.createAmbientNPC(npcName, x, y, p.facing);
+                this.createAmbientNPC(npcName, x, y, p.facing, p.dialogue);
             });
             return;
         }
@@ -488,7 +638,7 @@ export class MapEventManager {
         });
     }
 
-    createAmbientNPC(npcName, x, y, facing = 'down') {
+    createAmbientNPC(npcName, x, y, facing = 'down', dialogue = null) {
         const spriteKey = `npc_${npcName}`;
         if (!this.scene.textures.exists(spriteKey)) return;
 
@@ -507,6 +657,7 @@ export class MapEventManager {
         npc.setInteractive();
         npc.npcType = "ambient";
         npc.npcName = npcName;
+        npc.ambientDialogue = typeof dialogue === 'string' ? dialogue : null;
         if (this.ambientGroup) {
             this.ambientGroup.add(npc);
         }
@@ -588,7 +739,7 @@ export class MapEventManager {
         if (!this.mapManager.map) return;
 
         const finalX = 26 * 48 + 21; 
-        const finalY = 15 * 48 - 10;
+        const finalY = 10 * 48 - 10;
 
         const door = this.scene.physics.add.sprite(finalX, finalY, "subway_door", 0);
         door.setImmovable(true);
@@ -910,17 +1061,19 @@ export class MapEventManager {
                 }
             }, 1500);
         } else if (npc.npcType === "ambient") {
-            const dialogues = [
-                "Belle journée, n'est-ce pas ?",
-                "Je suis juste là pour le décor.",
-                "As-tu vu mon chat ?",
-                "Il paraît qu'il y a des trésors cachés.",
-                "J'attends le métro...",
-                "La vie est belle à Oppède.",
-                "Bonjour !",
-                "..."
-            ];
-            const randomDialogue = dialogues[Math.floor(Math.random() * dialogues.length)];
+            const manual = (typeof npc.ambientDialogue === 'string' && npc.ambientDialogue.trim().length > 0)
+                ? npc.ambientDialogue
+                : null;
+
+            if (manual) {
+                this.scene.displayMessage(manual, npc.npcName || "Habitant");
+                return;
+            }
+
+            // Fallback pour les PNJ d'ambiance auto-spawn / anciens placements
+            const currentMapKey = this.mapManager?.map?.key || this.scene.registry.get('currentMapKey') || '';
+            const pool = this.getAmbientDialoguePool(currentMapKey, npc.npcName);
+            const randomDialogue = pool[Math.floor(Math.random() * pool.length)];
             this.scene.displayMessage(randomDialogue, npc.npcName || "Habitant");
         } else if (npc.npcType === 'pokemon_trainer') {
             // Déjà battu -> il s'est écarté, pas de combat

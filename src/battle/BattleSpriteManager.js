@@ -11,6 +11,7 @@
 
 import SpriteLoader from '../utils/spriteLoader';
 import getPokemonDisplayName from '../utils/getDisplayName';
+import { getCustomCloneSpriteUrls } from '../utils/customPokemonClones';
 
 export default class BattleSpriteManager {
     constructor(scene) {
@@ -137,15 +138,18 @@ export default class BattleSpriteManager {
         const opponent = this.scene.battleState.opponentActive;
         const opponentSpriteX = width * 0.68;
         const opponentSpriteY = height * 0.26;
-        
-        if (opponent.sprites && opponent.sprites.frontCombat) {
+
+        const customSprites = getCustomCloneSpriteUrls(opponent);
+        const spriteUrl = customSprites?.frontCombat || opponent?.sprites?.frontCombat;
+
+        if (spriteUrl) {
             try {
                 // 🆕 Utiliser la méthode générique
                 const result = await SpriteLoader.displaySpriteAuto(
                     this.scene,
                     opponentSpriteX,
                     opponentSpriteY,
-                    opponent.sprites.frontCombat,
+                    spriteUrl,
                     getPokemonDisplayName(opponent).substring(0, 2),
                     2.5,
                     5, // depth
@@ -215,17 +219,23 @@ export default class BattleSpriteManager {
                     } else {
                         const referenceHeight = 1080;
                         const screenScale = height / referenceHeight;
-                        const baseScale = 4 ; 
+                        const baseScale = 0.5 ; 
                         finalScale = baseScale * screenScale;
+                                            // Sécurité : si le sprite devient vraiment trop grand
+                    if (result.sprite.displayHeight > maxHeight) {
+                        const clampScale = maxHeight / result.sprite.height;
+                        result.sprite.setScale(clampScale);
                     }
-
-                    // Reset des contraintes précédentes
-                    result.gifContainer.style.width = 'auto';
+                    }
+                    // Pour les GIFs, on force la taille CSS
+                    result.gifContainer.style.width = 'auto'; // Garder ratio
                     result.gifContainer.style.height = 'auto';
-                    result.gifContainer.style.minHeight = '0'; 
-                    result.gifContainer.style.maxWidth = 'none';
-                    result.gifContainer.style.maxHeight = 'none';
+                    // Max limits
+                    result.gifContainer.style.maxWidth = `${maxWidth}px`;
+                    result.gifContainer.style.maxHeight = `${maxHeight}px`;
                     
+                    // Min limits (pour éviter les GIFs minuscules sur 4K)
+                    result.gifContainer.style.minHeight = `${height * 0.25}px`;
                     // Application de l'échelle
                     result.gifContainer.style.transform = `scale(${finalScale})`;
                     result.gifContainer.style.transformOrigin = 'center center';
@@ -271,15 +281,18 @@ export default class BattleSpriteManager {
         const player = this.scene.battleState.playerActive;
         const playerSpriteX = width * 0.22;
         const playerSpriteY = height * 0.45;
-        
-        if (player.sprites && player.sprites.backCombat) {
+
+        const customSprites = getCustomCloneSpriteUrls(player);
+        const spriteUrl = customSprites?.backCombat || player?.sprites?.backCombat;
+
+        if (spriteUrl) {
             try {
                 // 🆕 Utiliser la méthode générique
                 const result = await SpriteLoader.displaySpriteAuto(
                     this.scene,
                     playerSpriteX,
                     playerSpriteY,
-                    player.sprites.backCombat,
+                    spriteUrl,
                     getPokemonDisplayName(player).substring(0, 2),
                     3,
                     1, // depth
@@ -403,14 +416,17 @@ export default class BattleSpriteManager {
         if (this.scene.playerSprite) this.scene.playerSprite.destroy();
         if (this.scene.playerShadow) this.scene.playerShadow.destroy();
         
-        if (pokemon.sprites && pokemon.sprites.backCombat) {
+        const customSprites = getCustomCloneSpriteUrls(pokemon);
+        const spriteUrl = customSprites?.backCombat || pokemon?.sprites?.backCombat;
+
+        if (spriteUrl) {
             try {
                 // 🆕 Utiliser la méthode générique
                 const result = await SpriteLoader.displaySpriteAuto(
                     this.scene,
                     playerSpriteX,
                     playerSpriteY,
-                    pokemon.sprites.backCombat,
+                    spriteUrl,
                     pokemon.nickname?.substring(0, 2) || getPokemonDisplayName(pokemon).substring(0, 2) || 'PK',
                     3,
                     1, // depth

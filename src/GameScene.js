@@ -397,6 +397,9 @@ export class GameScene extends Phaser.Scene {
         // Rencontres sauvages (basées sur la distance parcourue dans une zone)
         this.mapManager?.wildEncounterManager?.update();
 
+        // Quêtes / gating runtime (ex: portique métro)
+        this.mapManager?.eventManager?.update?.();
+
         // --- GESTION DE LA PROFONDEUR (Z-INDEX) ---
         
         // 1. Le joueur local
@@ -439,6 +442,7 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("metro_open", "/assets/sounds/metro_open.mp3");
         this.load.audio("metro_close", "/assets/sounds/metro_close.mp3");
         this.load.audio("car_start", "/assets/sounds/car_start.mp3");
+        this.load.audio("ticket", "/assets/sounds/ticket.mp3");
         this.load.audio("music1", "/assets/musics/music1.mp3");
         this.load.audio("qwest", "/assets/musics/qwest.mp3");
         // Preload battle music

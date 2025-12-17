@@ -19,6 +19,14 @@ export class QuestRouter {
     }
   }
 
+  update() {
+    for (const handler of this.handlers) {
+      if (typeof handler.update === 'function') {
+        handler.update();
+      }
+    }
+  }
+
   handleNPCInteraction(npc) {
     for (const handler of this.handlers) {
       if (typeof handler.handleNPCInteraction !== 'function') continue;

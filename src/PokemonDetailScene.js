@@ -14,6 +14,7 @@ import SpriteLoader from './utils/spriteLoader';
 import SoundManager from './utils/SoundManager';
 import MoveDetailModal from './MoveDetailModal';
 import getPokemonDisplayName from './utils/getDisplayName';
+import { getCustomCloneSpriteUrls } from './utils/customPokemonClones';
 
 export class PokemonDetailScene extends Phaser.Scene {
     constructor() {
@@ -223,23 +224,29 @@ export class PokemonDetailScene extends Phaser.Scene {
     async createSprite(x, y) {
         // Utiliser le sprite du Pokémon (pas du species)
         let spriteUrl = null;
+
+        // Priorité 0: sprites custom (clones)
+        const customSprites = getCustomCloneSpriteUrls(this.pokemon);
+        if (customSprites?.frontCombat) {
+            spriteUrl = customSprites.frontCombat;
+        }
         
         // Priorité 1: sprites du pokemon.speciesData (depuis BattleScene ou TeamScene)
-        if (this.pokemon.speciesData?.sprites?.frontCombat) {
+        if (!spriteUrl && this.pokemon.speciesData?.sprites?.frontCombat) {
             spriteUrl = this.pokemon.speciesData.sprites.frontCombat;
-        } else if (this.pokemon.speciesData?.sprites?.front) {
+        } else if (!spriteUrl && this.pokemon.speciesData?.sprites?.front) {
             spriteUrl = this.pokemon.speciesData.sprites.front;
         }
         // Priorité 2: sprites du pokemon directement (ancien système)
-        else if (this.pokemon.sprites?.frontCombat) {
+        else if (!spriteUrl && this.pokemon.sprites?.frontCombat) {
             spriteUrl = this.pokemon.sprites.frontCombat;
-        } else if (this.pokemon.sprites?.front) {
+        } else if (!spriteUrl && this.pokemon.sprites?.front) {
             spriteUrl = this.pokemon.sprites.front;
         }
         // Priorité 3: sprites du species (fallback)
-        else if (this.species?.sprites?.frontCombat) {
+        else if (!spriteUrl && this.species?.sprites?.frontCombat) {
             spriteUrl = this.species.sprites.frontCombat;
-        } else if (this.species?.sprites?.front) {
+        } else if (!spriteUrl && this.species?.sprites?.front) {
             spriteUrl = this.species.sprites.front;
         }
         
@@ -247,14 +254,48 @@ export class PokemonDetailScene extends Phaser.Scene {
         
         if (spriteUrl) {
             try {
-                await SpriteLoader.displaySprite(
+                const width = this.cameras.main.width;
+                const height = this.cameras.main.height;
+
+                // Avoid overflowing the top area: title at 5% and columns start at 30%.
+                // Sprite is centered at y=18% so it must stay fairly compact vertically.
+                const maxSpriteWidth = width * 0.50;
+                const maxSpriteHeight = height * 0.24;
+
+                const spriteData = await SpriteLoader.displaySpriteAuto(
                     this,
                     x,
                     y,
                     spriteUrl,
                     getPokemonDisplayName(this.pokemon)?.substring(0, 2) || '?',
-                    3.0
+                    3.0,
+                    2,
+                    this.useAnimatedSprites ?? null
                 );
+
+                // Clamp size (PNG or GIF)
+                if (spriteData?.type === 'phaser' && spriteData.sprite && spriteData.sprite.setScale) {
+                    const sprite = spriteData.sprite;
+                    if (sprite.width > 0 && sprite.height > 0) {
+                        const clampScale = Math.min(maxSpriteWidth / sprite.width, maxSpriteHeight / sprite.height);
+                        const currentScale = sprite.scaleX || 1;
+                        const finalScale = Math.min(currentScale, clampScale);
+                        sprite.setScale(finalScale);
+                    }
+                } else if (spriteData?.type === 'gif' && spriteData.gifContainer && spriteData.gifElement) {
+                    const currentW = spriteData.displayWidth || 0;
+                    const currentH = spriteData.displayHeight || 0;
+
+                    if (currentW > 0 && currentH > 0) {
+                        const factor = Math.min(1, maxSpriteWidth / currentW, maxSpriteHeight / currentH);
+                        const newW = Math.floor(currentW * factor);
+                        const newH = Math.floor(currentH * factor);
+
+                        spriteData.gifElement.style.width = `${newW}px`;
+                        spriteData.gifElement.style.height = `${newH}px`;
+                        SpriteLoader.updateGifPosition(this, spriteData.gifContainer, x, y, newW, newH);
+                    }
+                }
 
                 // Après que le sprite soit affiché, jouer le cri du Pokémon si possible
                 try {

@@ -233,7 +233,38 @@ class DatabaseManager {
                 const itemsCol = db.collection('items');
                 const inventoryCol = db.collection('inventory');
 
-                const itemDoc = await itemsCol.findOne({ nom: itemName });
+                let itemDoc = await itemsCol.findOne({ nom: itemName });
+
+                // Si l'item existe déjà mais a été créé sans image, on le complète.
+                if (itemDoc && itemName === 'ticket de métro' && !itemDoc.image) {
+                    try {
+                        await itemsCol.updateOne(
+                            { _id: itemDoc._id },
+                            { $set: { image: 'ticket.png', updatedAt: new Date() } }
+                        );
+                        itemDoc.image = 'ticket.png';
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+
+                // Cas spécial: item clé requis par la map "metro".
+                // On évite de dépendre d'un seed DB potentiellement destructif.
+                if (!itemDoc && itemName === 'ticket de métro') {
+                    const docToInsert = {
+                        nom: 'ticket de métro',
+                        type: 'key_items',
+                        image: 'ticket.png',
+                        description: "Un ticket de métro.",
+                        prix: 0,
+                        is_echangeable: false,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    };
+                    const insertRes = await itemsCol.insertOne(docToInsert);
+                    itemDoc = { ...docToInsert, _id: insertRes.insertedId };
+                }
+
                 if (!itemDoc) {
                     return res.status(404).json({ error: `Item not found: ${itemName}` });
                 }

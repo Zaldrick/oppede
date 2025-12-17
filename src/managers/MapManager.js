@@ -78,16 +78,16 @@ export class MapManager {
         { x: 15 * 48 + 24, y: 27 * 48, targetMap: "lille", targetX: 61 * 48 + 24, targetY: 61 * 48 + 24 }
       ],
       lille: [
-        { x: 19 * 48 + 24, y:22 * 48 + 24, targetMap: "metro", targetX: 26 * 48 + 24, targetY: 29 * 48 + 24 },
+        { x: 19 * 48 + 24, y:22 * 48 + 24, targetMap: "metro", targetX: 26 * 48 + 24, targetY: 25 * 48 + 24 },
         { x: 61 * 48 + 24, y: 60 * 48 + 24, targetMap: "qwest", targetX: 15 * 48 + 24, targetY: 25 * 48  }
       ],
       metro: [
-        { x: 26 * 48 + 24, y: 31* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
-        { x: 27 * 48 + 24, y: 31* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
-        { x: 26* 48+21, y: 15 * 48-10, targetMap: "metroInterieur",  targetX: 10 * 48 + 24, targetY: 7 * 48 + 24 }
+        { x: 26 * 48 + 24, y: 26* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+        { x: 27 * 48 + 24, y: 26* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+        { x: 26* 48+21, y: 10 * 48-10, targetMap: "metroInterieur",  targetX: 10 * 48 + 24, targetY: 7 * 48 + 24 }
       ],
       metroInterieur: [
-        { x: 10 * 48 + 24, y:9 * 48 + 24 , targetMap: "metro", targetX: 26* 48+21, targetY:16 * 48-10 },
+        { x: 10 * 48 + 24, y:9 * 48 + 24 , targetMap: "metro", targetX: 26* 48+21, targetY:11 * 48-10 },
          { x: 40 * 48 + 24, y:9 * 48 + 24 , targetMap: "douai", targetX: 114* 48+21, targetY:21 * 48-10 }
       ],
       douai: [

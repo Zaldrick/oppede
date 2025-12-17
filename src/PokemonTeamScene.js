@@ -13,6 +13,7 @@ import PokemonManager from './managers/PokemonManager';
 import { getTypeFrench } from './utils/pokemonNames';
 import getPokemonDisplayName from './utils/getDisplayName';
 import SpriteLoader from './utils/spriteLoader';
+import { getCustomCloneSpriteUrls } from './utils/customPokemonClones';
 
 export class PokemonTeamScene extends Phaser.Scene {
     constructor() {
@@ -451,13 +452,15 @@ export class PokemonTeamScene extends Phaser.Scene {
         container.add(card);
 
         // Afficher le sprite du Pokémon (MENU sprite: Gen VII)
-        if (pokemon.speciesData?.sprites?.menu) {
+        const customSprites = getCustomCloneSpriteUrls(pokemon);
+        const spriteUrl = customSprites?.menu || pokemon.speciesData?.sprites?.menu;
+        if (spriteUrl) {
             try {
                 const sprite = await SpriteLoader.displaySprite(
                     this,
                     -width * 0.28,
                     0,
-                    pokemon.speciesData.sprites.menu,
+                    spriteUrl,
                     getPokemonDisplayName(pokemon).substring(0, 2) || '?',
                     1 // Scale initial
                 );

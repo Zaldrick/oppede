@@ -17,6 +17,29 @@
 require('dotenv').config();
 const { MongoClient, ObjectId } = require('mongodb');
 
+let _fetch = null;
+async function getFetch() {
+    if (_fetch) return _fetch;
+    if (typeof fetch === 'function') {
+        _fetch = fetch;
+        return _fetch;
+    }
+    _fetch = (await import('node-fetch')).default;
+    return _fetch;
+}
+
+async function fetchJson(url) {
+    try {
+        const f = await getFetch();
+        const res = await f(url);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        console.warn(`[seedPlayerPokemon] fetch failed: ${url} (${e.message})`);
+        return null;
+    }
+}
+
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede';
 
 /**
@@ -72,6 +95,17 @@ const NATURES_FRENCH = [
  * Format: { pseudo: "nom", pokemons: [pokedexId, ...] }
  */
 const PLAYER_POKEMON_TEMPLATES = [
+    {
+        // 🆕 Pokémons custom (clones) pour tests
+        // Détection côté client via nickname (Gaara/Floki/Tanuki/Sirius)
+        pseudo: "Admin",
+        pokemons: [
+            { speciesId: 552, nickname: 'Gaara' },  // clone Escroco
+            { speciesId: 471, nickname: 'Floki' },  // clone Givrali
+            { speciesId: 405, nickname: 'Tanuki' }, // clone Luxray
+            { speciesId: 59, nickname: 'Sirius' }   // clone Arcanin
+        ]
+    },
     {
         pseudo: "Marin",
         pokemons: [1, 4, 7, 25, 39, 54]  // Bulbizarre, Salamèche, Carapuce, Pikachu, Rondoudou, Psykokwak
@@ -155,6 +189,11 @@ class PlayerPokemonSeeder {
             const frenchName = this.getFrenchName(speciesId);
             const finalNickname = nickname || frenchName;
 
+            // 🆕 Construire un moveset cohérent (objets moves) via PokeAPI
+            // Le système de combat attend des moves sous forme d'objets: { name, type, category, power, accuracy, pp, maxPP }
+            const level = 5;
+            const moveset = await this.getMovesetForLevel(speciesId, level);
+
             // Générer des IV aléatoires (0-31)
             const ivs = {
                 hp: Math.floor(Math.random() * 32),
@@ -192,14 +231,14 @@ class PlayerPokemonSeeder {
                 species_id: speciesId,
                 species_name: frenchName,
                 nickname: finalNickname,
-                level: 5,
+                level,
                 experience: xpForLevel5,
                 currentHP: hpLevel5,
                 maxHP: hpLevel5,
                 ivs,
                 evs,
                 nature,
-                moveset: ['tackle'],  // Chargé lazy depuis PokéAPI
+                moveset,  // 🆕 Objets moves compatibles combat
                 heldItem: null,
                 status: null,
                 custom: false,
@@ -216,17 +255,82 @@ class PlayerPokemonSeeder {
     }
 
     /**
+     * 🆕 Génère un moveset (max 4) compatible combat pour un niveau donné.
+     * Stratégie: prendre les derniers moves appris par level-up (<= level) sur scarlet-violet.
+     */
+    async getMovesetForLevel(speciesId, level) {
+        const pokemonData = await fetchJson(`https://pokeapi.co/api/v2/pokemon/${speciesId}`);
+        if (!pokemonData?.moves) {
+            return [
+                { name: 'tackle', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 35, maxPP: 35 }
+            ];
+        }
+
+        const learnable = [];
+        for (const moveEntry of pokemonData.moves) {
+            const details = moveEntry.version_group_details || [];
+            const sv = details.find(d =>
+                d.version_group?.name === 'scarlet-violet' &&
+                d.move_learn_method?.name === 'level-up' &&
+                typeof d.level_learned_at === 'number' &&
+                d.level_learned_at > 0 &&
+                d.level_learned_at <= level
+            );
+            if (sv) {
+                learnable.push({
+                    name: moveEntry.move?.name,
+                    url: moveEntry.move?.url,
+                    learnLevel: sv.level_learned_at
+                });
+            }
+        }
+
+        learnable.sort((a, b) => a.learnLevel - b.learnLevel);
+        const selected = learnable.slice(-4);
+
+        if (selected.length === 0) {
+            return [
+                { name: 'tackle', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 35, maxPP: 35 }
+            ];
+        }
+
+        const moves = [];
+        for (const m of selected) {
+            if (!m?.url) continue;
+            const moveData = await fetchJson(m.url);
+            if (!moveData) continue;
+
+            moves.push({
+                name: moveData.name,
+                type: moveData.type?.name || 'normal',
+                category: moveData.damage_class?.name || 'physical',
+                power: moveData.power || 0,
+                accuracy: moveData.accuracy ?? 100,
+                pp: moveData.pp || 10,
+                maxPP: moveData.pp || 10
+            });
+        }
+
+        return moves.length > 0 ? moves : [
+            { name: 'tackle', type: 'normal', category: 'physical', power: 40, accuracy: 100, pp: 35, maxPP: 35 }
+        ];
+    }
+
+    /**
      * Ajoute des Pokémon à un joueur
      */
-    async addPokemonToPlayer(pseudo, pokedexIds) {
+    async addPokemonToPlayer(pseudo, entries) {
         const player = await this.getPlayerByPseudo(pseudo);
         if (!player) return 0;
 
         console.log(`\n📝 Ajout de Pokémon au joueur "${pseudo}"...`);
         let added = 0;
 
-        for (let i = 0; i < pokedexIds.length; i++) {
-            const pokedexId = pokedexIds[i];
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const pokedexId = (typeof entry === 'number') ? entry : entry?.speciesId;
+            const nickname = (typeof entry === 'object' && entry) ? entry.nickname : null;
+
             const frenchName = this.getFrenchName(pokedexId);
             if (!frenchName) {
                 console.warn(`  ⚠️  Pokémon ID ${pokedexId} non trouvé - passage`);
@@ -234,14 +338,14 @@ class PlayerPokemonSeeder {
             }
             // Position dans l'équipe: i+1 (positions 1-6)
             const position = (i < 6) ? (i + 1) : null;
-            const result = await this.createPlayerPokemon(player._id, pokedexId, position);
+            const result = await this.createPlayerPokemon(player._id, pokedexId, position, nickname);
             if (result) {
-                console.log(`  ✅ ${frenchName} (ID: ${pokedexId}, Lvl 5, Position ${position}) ajouté`);
+                console.log(`  ✅ ${(nickname || frenchName)} (ID: ${pokedexId}, Lvl 5, Position ${position}) ajouté`);
                 added++;
             }
         }
 
-        console.log(`  ✅ ${added}/${pokedexIds.length} Pokémon ajoutés à ${pseudo}\n`);
+        console.log(`  ✅ ${added}/${entries.length} Pokémon ajoutés à ${pseudo}\n`);
         return added;
     }
 
@@ -339,7 +443,12 @@ async function main() {
                 console.warn(`⚠️  Aucune config trouvée pour "${pseudo}"`);
                 console.log(`\nPseudos disponibles:`);
                 PLAYER_POKEMON_TEMPLATES.forEach(t => {
-                    console.log(`  - ${t.pseudo}: ${t.pokemons.map(id => this.getFrenchName ? this.getFrenchName(id) : `Pokemon_${id}`).join(', ')}`);
+                    const names = t.pokemons.map(p => {
+                        const id = (typeof p === 'number') ? p : p?.speciesId;
+                        const nick = (typeof p === 'object' && p) ? p.nickname : null;
+                        return nick || (POKEMON_FRENCH_NAMES[id] || `Pokemon_${id}`);
+                    });
+                    console.log(`  - ${t.pseudo}: ${names.join(', ')}`);
                 });
             }
             

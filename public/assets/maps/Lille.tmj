@@ -6725,6 +6725,17 @@
    "y": 0
   },
   {
+   "draworder": "topdown",
+   "id": 8,
+   "name": "sauvage",
+   "objects": [],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
+  },
+  {
    "data": [
     12,
     12,
@@ -33609,8 +33620,8 @@
    "y": 0
   }
  ],
- "nextlayerid": 8,
- "nextobjectid": 1,
+ "nextlayerid": 9,
+ "nextobjectid": 3,
  "orientation": "orthogonal",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

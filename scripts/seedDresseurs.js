@@ -127,15 +127,15 @@ async function seedDresseurs() {
         updatedAt: new Date()
       },
       {
-        trainerId: 'metro:27:7:blocker',
+        trainerId: 'metro:29:23:blocker',
         mapKey: 'metro',
 
         // Coordonnées en cases (tile)
-        tileX: 27,
-        tileY: 7,
+        tileX: 29,
+        tileY: 23,
 
         // Sprite
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_dan',
 
         // Comportement
         blocks: true,
@@ -143,8 +143,8 @@ async function seedDresseurs() {
 
         // Dialogue / identité
         name: 'Dresseur',
-        dialogue: "J'ai verrouillé la machine à ticket, oui je suis un fou du bus !",
-        afterDialogue: "C'est 1234, bah ouais t'avais qu'à tenter !",
+        dialogue: "J'ai verrouillé la machine à ticket, fuck Ilévia, vive Transpole putain !",
+        afterDialogue: "C'est 1234 le code, j'arrive pas à le changer la loose",
 
         // Team
         team: [
@@ -154,31 +154,31 @@ async function seedDresseurs() {
         ],
 
         // Après victoire: déplacement à droite, regard vers la gauche
-        afterWinTileX: 28,
-        afterWinTileY: 7,
+        afterWinTileX: 29,
+        afterWinTileY: 23,
         afterWinFacing: 'left',
-        initialFacing: 'down',
+        initialFacing: 'left',
 
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        trainerId: 'metro:26:16:blocker',
+        trainerId: 'metro:26:11:blocker',
         mapKey: 'metro',
 
         // Coordonnées en cases (tile)
         tileX: 26,
-        tileY: 16,
+        tileY: 11,
 
         // Sprite
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_bruce',
 
         // Comportement
         blocks: true,
         facePlayerOnInteract: false,
 
         // Dialogue / identité
-        name: 'Dresseur',
+        name: 'FouDuMétro',
         dialogue: 'Quoi ? tu veux rentrer ? Faut le mériter',
         afterDialogue: "J'adore empêcher les gens de sortir du wagon.",
 
@@ -190,7 +190,7 @@ async function seedDresseurs() {
 
         // Après victoire: déplacement à gauche, regard vers la droite
         afterWinTileX: 25,
-        afterWinTileY: 16,
+        afterWinTileY: 11,
         afterWinFacing: 'right',
         initialFacing: 'down',
 
