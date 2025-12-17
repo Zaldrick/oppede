@@ -124,7 +124,19 @@ const Game = () => {
 
         const update = () => {
             try {
-                setDebugText(String(window.__phaserStatus || ""));
+                // __phaserStatus is expected to be a multi-line rolling history.
+                // Fallback to history array if needed.
+                const direct = window.__phaserStatus;
+                if (typeof direct === 'string') {
+                    setDebugText(direct);
+                    return;
+                }
+                const history = window.__phaserStatusHistory;
+                if (Array.isArray(history)) {
+                    setDebugText(history.map(v => String(v)).join('\n'));
+                    return;
+                }
+                setDebugText(String(direct || ""));
             } catch (e) {
                 setDebugText('');
             }

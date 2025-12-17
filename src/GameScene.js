@@ -111,7 +111,14 @@ export class GameScene extends Phaser.Scene {
                 // Also surface status to the DOM (React overlay) for cases where the canvas is black.
                 try {
                     if (typeof window !== 'undefined') {
-                        window.__phaserStatus = String(msg || '');
+                        const line = String(msg || '');
+                        if (!Array.isArray(window.__phaserStatusHistory)) window.__phaserStatusHistory = [];
+                        // Keep last ~30 lines; this prevents the final "GameScene: ok" from hiding earlier diagnostics.
+                        window.__phaserStatusHistory.push(line);
+                        if (window.__phaserStatusHistory.length > 30) {
+                            window.__phaserStatusHistory.splice(0, window.__phaserStatusHistory.length - 30);
+                        }
+                        window.__phaserStatus = window.__phaserStatusHistory.join('\n');
                         window.dispatchEvent(new Event('phaser-status'));
                     }
                 } catch (e) {}
@@ -179,16 +186,9 @@ export class GameScene extends Phaser.Scene {
             await this.setupGame();
             setStatus('GameScene: ok');
 
-            // Hide overlay in normal mode.
+            // Hide overlay only in normal mode. In ?debug=1 keep it visible.
             if (!debugOverlayEnabled) {
                 try { this.__statusText?.setVisible(false); } catch (e) {}
-            } else {
-                // In debug mode, leave it briefly then hide.
-                try {
-                    this.time.delayedCall(1200, () => {
-                        try { this.__statusText?.setVisible(false); } catch (e) {}
-                    });
-                } catch (e) {}
             }
         } catch (error) {
             console.error("Error during preload. Aborting game initialization.");
