@@ -16,7 +16,7 @@ class CaptureScene extends Phaser.Scene {
         this.ballName = data.ballName || 'Poké Ball'; // Nom exact de l'item
         this.wildPokemon = data.wildPokemon;
         this.startPosition = data.startPosition; // 🆕 Position exacte pour transition fluide
-        this.useAnimatedSprites = data.useAnimatedSprites !== undefined ? data.useAnimatedSprites : true; // 🆕
+        this.useAnimatedSprites = data.useAnimatedSprites !== undefined ? data.useAnimatedSprites : false; // 🆕 default to false (PNG)
         this.callback = data.callback || (() => {});
     }
 

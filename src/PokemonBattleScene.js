@@ -65,6 +65,9 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.returnScene = data.returnScene || 'PokemonTeamScene';
         this.restoreBattleState = data.restoreBattleState || null; // 🆕 État à restaurer
 
+        // 🆕 Si on doit forcer le retour à une scène spécifique (ex: défaite -> GameScene)
+        this.forceReturnSceneKey = null;
+
         // 🆕 Données combat dresseur (PNJ)
         this.trainerBattle = data.trainerBattle || null;
 
@@ -147,8 +150,9 @@ export class PokemonBattleScene extends Phaser.Scene {
 
         // ✅ Initialiser les managers modulaires (refactoring)
         // 🆕 Option pour sprites animés (GIF) ou statiques (PNG)
-        // Charger depuis localStorage (défaut: true si non défini)
-        this.useAnimatedSprites = localStorage.getItem('useAnimatedSprites') !== 'false';
+        // Charger depuis localStorage (défaut: false si non défini)
+        // On stocke explicitement 'true'/'false' dans le localStorage, lire strictement == 'true'
+        this.useAnimatedSprites = localStorage.getItem('useAnimatedSprites') === 'true';
         this.gifContainers = []; // Référence pour cleanup DOM
         console.log(`[BattleScene] Mode sprites: ${this.useAnimatedSprites ? 'GIF animés' : 'PNG statiques'}`);
         
@@ -1313,14 +1317,140 @@ export class PokemonBattleScene extends Phaser.Scene {
             this.scene.pause();
             
         } else {
-            // Autres items (soins, status heal)
-            // TODO: Sélection Pokémon cible si nécessaire
-            // TODO: Appel API pour utiliser l'item
-            // TODO: Animation + effets
-            
-            this.menuManager.showDialog(`${item.itemData.name_fr} utilisé ! (en développement)`);
-            await this.wait(2000);
-            this.menuManager.hideDialog();
+            // Autres items (soins)
+            if (this.turnInProgress) return;
+            this.turnInProgress = true;
+
+            const backendUrl = process.env.REACT_APP_API_URL;
+            if (!backendUrl) {
+                this.menuManager.showDialog('REACT_APP_API_URL manquant');
+                await this.wait(1200);
+                this.menuManager.hideDialog();
+                this.turnInProgress = false;
+                return;
+            }
+
+            const itemId = item.item_id;
+            if (!itemId) {
+                this.menuManager.showDialog('Item invalide');
+                await this.wait(1200);
+                this.menuManager.hideDialog();
+                this.turnInProgress = false;
+                return;
+            }
+
+            // Ouvrir le sélecteur Pokémon (clic = cible)
+            this.scene.pause('PokemonBattleScene');
+            this.scene.launch('PokemonTeamScene', {
+                playerId: this.playerId,
+                returnScene: 'PokemonBattleScene',
+                inBattle: true,
+                battleState: this.battleState,
+                selectionMode: { type: 'useItem', itemId }
+            });
+            this.scene.bringToTop('PokemonTeamScene');
+
+            const teamScene = this.scene.get('PokemonTeamScene');
+            if (teamScene && teamScene.events) {
+                teamScene.events.once('pokemonSelected', async (pokemon) => {
+                    try {
+                        // PokemonTeamScene va auto-returnToScene(). On continue une fois revenu.
+                        const targetPokemonId = pokemon?._id;
+                        if (!targetPokemonId) throw new Error('Pokémon invalide');
+
+                        const res = await fetch(`${backendUrl}/api/inventory/use`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                playerId: this.playerId,
+                                itemId,
+                                targetPokemonId
+                            })
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                            throw new Error(data?.error || "Erreur lors de l'utilisation");
+                        }
+
+                        // Mettre à jour battleState (team + actif)
+                        const healedPokemonId = String(targetPokemonId);
+                        if (Array.isArray(this.battleState.playerTeam)) {
+                            const teamPoke = this.battleState.playerTeam.find(p => String(p._id) === healedPokemonId);
+                            if (teamPoke) {
+                                teamPoke.currentHP = data?.pokemon?.currentHP ?? teamPoke.currentHP;
+                                if (teamPoke.stats && data?.pokemon?.maxHP) {
+                                    teamPoke.stats.maxHP = data.pokemon.maxHP;
+                                }
+                                if (!teamPoke.maxHP && data?.pokemon?.maxHP) {
+                                    teamPoke.maxHP = data.pokemon.maxHP;
+                                }
+                            }
+                        }
+
+                        if (this.battleState.playerActive && String(this.battleState.playerActive._id) === healedPokemonId) {
+                            this.battleState.playerActive.currentHP = data?.pokemon?.currentHP ?? this.battleState.playerActive.currentHP;
+                            if (this.battleState.playerActive.stats && data?.pokemon?.maxHP) {
+                                this.battleState.playerActive.stats.maxHP = data.pokemon.maxHP;
+                            }
+                            if (!this.battleState.playerActive.maxHP && data?.pokemon?.maxHP) {
+                                this.battleState.playerActive.maxHP = data.pokemon.maxHP;
+                            }
+
+                            // Refresh UI HP text + bar
+                            const active = this.battleState.playerActive;
+                            const maxHP = active.stats ? active.stats.maxHP : (active.maxHP || 1);
+                            if (this.playerHPText) {
+                                this.playerHPText.setText(`${active.currentHP}/${maxHP}`);
+                            }
+                            if (this.playerHPBarProps && this.playerHPBar) {
+                                this.playerHPBarProps.maxHP = maxHP;
+                                const hpPercent = (active.currentHP / maxHP) * 100;
+                                const { x, y, width, height } = this.playerHPBarProps;
+
+                                let hpColor1, hpColor2;
+                                if (hpPercent > 50) { hpColor1 = 0x2ECC71; hpColor2 = 0x27AE60; }
+                                else if (hpPercent > 25) { hpColor1 = 0xF39C12; hpColor2 = 0xE67E22; }
+                                else { hpColor1 = 0xE74C3C; hpColor2 = 0xC0392B; }
+
+                                this.playerHPBar.clear();
+                                this.playerHPBar.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
+                                this.playerHPBar.fillRoundedRect(
+                                    x + 2,
+                                    y - height/2 + 2,
+                                    (width - 4) * hpPercent / 100,
+                                    height - 4,
+                                    4
+                                );
+                            }
+                        }
+
+                        // Feedback + décrément inventaire (déjà fait serveur)
+                        this.menuManager.showDialog(data?.message || `${item.itemData.name_fr} utilisé !`);
+                        await this.wait(1200);
+                        this.menuManager.hideDialog();
+
+                        // Event global pour forcer le refresh inventaire ailleurs
+                        try { this.game?.events?.emit('inventory:update'); } catch (e) { /* ignore */ }
+
+                        // L'adversaire joue ensuite
+                        await this.turnManager.opponentTurn();
+
+                        this.menuManager.hideDialog();
+                        this.menuManager.showMainMenu();
+                    } catch (e) {
+                        this.menuManager.showDialog(e.message || 'Erreur');
+                        await this.wait(1500);
+                        this.menuManager.hideDialog();
+                        this.menuManager.showMainMenu();
+                    } finally {
+                        this.turnInProgress = false;
+                    }
+                });
+            } else {
+                // Fallback si la scène n'existe pas
+                this.scene.resume('PokemonBattleScene');
+                this.turnInProgress = false;
+            }
         }
     }
 
@@ -1429,7 +1559,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         this.scene.stop('PokemonBattleScene');
         
         // 🆕 Vérifier si la scène de retour est active ou en pause
-        const returnSceneKey = this.returnScene || 'GameScene';
+        const returnSceneKey = this.forceReturnSceneKey || this.returnScene || 'GameScene';
         const returnScene = this.scene.get(returnSceneKey);
         
         if (returnScene) {
@@ -1447,6 +1577,101 @@ export class PokemonBattleScene extends Phaser.Scene {
             console.warn(`[BattleScene] Scène de retour ${returnSceneKey} introuvable, retour GameScene`);
             this.scene.start('GameScene');
         }
+    }
+
+    /**
+     * 🆕 Défaite (plus de Pokémon en vie):
+     * - TP sur qwest en 3:3
+     * - soigne toute l'équipe
+     * - affiche un message au retour
+     */
+    async applyDefeatConsequences() {
+        const backendUrl = process.env.REACT_APP_API_URL;
+        if (!backendUrl) {
+            console.warn('[BattleScene] REACT_APP_API_URL manquant: impossible de heal/teleport côté serveur');
+        }
+
+        // Par défaut: qwest 3:3
+        let mapKey = 'qwest';
+        let spawnX = 3 * 48 + 24;
+        let spawnY = 3 * 48 + 24;
+        let mapId = 3;
+
+        // Si le joueur s'est déjà soigné dans un Pokécenter, respawn à ce dernier endroit.
+        try {
+            const playerData = this.registry?.get ? this.registry.get('playerData') : null;
+            const lastHeal = playerData?.lastHeal;
+            if (lastHeal && (lastHeal.mapKey || lastHeal.mapId !== undefined) && lastHeal.posX !== undefined && lastHeal.posY !== undefined) {
+                if (typeof lastHeal.mapKey === 'string' && lastHeal.mapKey.trim()) {
+                    mapKey = lastHeal.mapKey.trim();
+                }
+                if (typeof lastHeal.mapId === 'number') {
+                    mapId = lastHeal.mapId;
+                }
+                spawnX = Number(lastHeal.posX) || spawnX;
+                spawnY = Number(lastHeal.posY) || spawnY;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        const message = 'Je devrais faire plus attention ...';
+
+        // Essayer de récupérer mapId via MapManager si GameScene est en mémoire (si on a mapKey mais pas mapId fiable)
+        try {
+            const gameScene = this.scene?.get ? this.scene.get('GameScene') : null;
+            const mapped = gameScene?.mapManager?.mapIds?.[mapKey];
+            if (typeof mapped === 'number') mapId = mapped;
+        } catch (e) {
+            // ignore
+        }
+
+        // Heal toute l'équipe
+        try {
+            if (backendUrl && this.playerId) {
+                const r = await fetch(`${backendUrl}/api/pokemon/team/heal-all`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId: this.playerId })
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    console.warn('[BattleScene] heal-all failed:', err);
+                }
+            }
+        } catch (e) {
+            console.warn('[BattleScene] Erreur heal-all (non bloquant):', e);
+        }
+
+        // Update position joueur en DB
+        try {
+            const pseudo = this.registry?.get ? this.registry.get('playerPseudo') : null;
+            if (backendUrl && pseudo) {
+                const r = await fetch(`${backendUrl}/api/players/update-position`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pseudo, posX: spawnX, posY: spawnY, mapId })
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    console.warn('[BattleScene] update-position failed:', err);
+                }
+            }
+        } catch (e) {
+            console.warn('[BattleScene] Erreur update-position (non bloquant):', e);
+        }
+
+        // Déclencher l'action côté GameScene au retour (resume ou start)
+        try {
+            if (this.registry?.set) {
+                this.registry.set('postBattleRespawn', { mapKey, mapId, x: spawnX, y: spawnY, message });
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        // On force le retour vers l'overworld
+        this.forceReturnSceneKey = 'GameScene';
     }
 
     /**

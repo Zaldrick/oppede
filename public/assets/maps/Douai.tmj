@@ -4,41 +4,6 @@
  "infinite": false,
  "layers": [
   {
-   "draworder": "topdown",
-   "id": 11,
-   "name": "encounters",
-   "objects": [
-    {
-     "height": 532,
-     "id": 50,
-     "name": "",
-     "properties": [
-      {
-       "name": "encounterRate",
-       "type": "string",
-       "value": "12"
-      },
-      {
-       "name": "encounterTableId",
-       "type": "string",
-       "value": "douai_marchienne"
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 192,
-     "x": 1776,
-     "y": 2876
-    }
-   ],
-   "opacity": 1,
-   "type": "objectgroup",
-   "visible": false,
-   "x": 0,
-   "y": 0
-  },
-  {
    "data": [
     100,
     100,
@@ -59255,10 +59220,45 @@
    "visible": true,
    "x": 0,
    "y": 0
+  },
+  {
+   "draworder": "topdown",
+   "id": 11,
+   "name": "encounters",
+   "objects": [
+    {
+     "height": 2504,
+     "id": 50,
+     "name": "",
+     "properties": [
+      {
+       "name": "encounterRate",
+       "type": "string",
+       "value": "12"
+      },
+      {
+       "name": "encounterTableId",
+       "type": "string",
+       "value": "douai_marchienne"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 4578,
+     "x": 1676,
+     "y": 904
+    }
+   ],
+   "opacity": 1,
+   "type": "objectgroup",
+   "visible": true,
+   "x": 0,
+   "y": 0
   }
  ],
  "nextlayerid": 12,
- "nextobjectid": 144,
+ "nextobjectid": 145,
  "orientation": "orthogonal",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

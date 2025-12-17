@@ -24,6 +24,27 @@ class ItemActionManager {
         this.scene = scene;
     }
 
+    getBackendUrl() {
+        return process.env.REACT_APP_API_URL;
+    }
+
+    async useInventoryItemOnPokemon({ playerId, itemId, targetPokemonId }) {
+        const backendUrl = this.getBackendUrl();
+        if (!backendUrl) {
+            throw new Error('REACT_APP_API_URL manquant');
+        }
+        const res = await fetch(`${backendUrl}/api/inventory/use`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId, itemId, targetPokemonId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(data?.error || 'Erreur lors de l\'utilisation de l\'objet');
+        }
+        return data;
+    }
+
     /**
      * Vérifie si un item est utilisable dans le contexte actuel
      * @param {Object} item - L'objet à utiliser
@@ -161,18 +182,78 @@ class ItemActionManager {
             // Retourner true pour signaler à InventoryScene de renvoyer l'item au combat
             return true;
         } else {
-            // Hors combat : Ouvrir le menu d'équipe pour choisir sur qui utiliser
-            console.log("Ouverture sélecteur équipe pour soin");
-            // TODO: Implémenter la sélection de Pokémon hors combat
-            this.scene.displayMessage("Utilisation de soin hors combat à venir !");
-            try {
-                if (this.scene && this.scene.soundManager) {
-                    this.scene.soundManager.playMoveSound('pokecenter_heal', { volume: 0.85 });
-                } else if (this.scene && this.scene.sound) {
-                    // fallback to audio key if any exists
-                    this.scene.sound.play("PokeCenter_Heal", { volume: 0.85 });
-                }
-            } catch (e) { /* ignore */ }
+            // Hors combat : ouvrir sélecteur d'équipe et utiliser l'item sur clic
+            const playerId = target?.playerId || this.scene?.playerId;
+            const itemId = item?.item_id || item?._id;
+
+            if (!playerId) {
+                this.scene.displayMessage('playerId manquant');
+                return false;
+            }
+            if (!itemId) {
+                this.scene.displayMessage('itemId manquant');
+                return false;
+            }
+
+            console.log('[ItemActionManager] Ouverture PokemonTeamScene pour usage item');
+
+            // Masquer l'overlay inventaire (DOM) pendant la sélection
+            if (this.scene.domContainer) {
+                this.scene.domContainer.style.display = 'none';
+            }
+
+            const currentSceneKey = this.scene.scene?.key;
+            if (currentSceneKey) {
+                this.scene.scene.pause(currentSceneKey);
+            }
+
+            this.scene.scene.launch('PokemonTeamScene', {
+                playerId,
+                returnScene: currentSceneKey || 'InventoryScene',
+                inBattle: false,
+                selectionMode: { type: 'useItem', itemId }
+            });
+            this.scene.scene.bringToTop('PokemonTeamScene');
+
+            const teamScene = this.scene.scene.get('PokemonTeamScene');
+            if (teamScene && teamScene.events) {
+                teamScene.events.once('pokemonSelected', async (pokemon) => {
+                    try {
+                        const targetPokemonId = pokemon?._id;
+                        if (!targetPokemonId) throw new Error('Pokémon invalide');
+
+                        const result = await this.useInventoryItemOnPokemon({
+                            playerId,
+                            itemId,
+                            targetPokemonId
+                        });
+
+                        // Rafraîchir inventaire
+                        if (this.scene.reloadInventory) {
+                            await this.scene.reloadInventory();
+                        }
+                        if (this.scene.drawInventory) {
+                            this.scene.drawInventory();
+                        }
+                        if (this.scene.updateGlobalInventoryCache) {
+                            this.scene.updateGlobalInventoryCache();
+                        }
+
+                        // Message feedback
+                        this.scene.displayMessage(result?.message || 'Objet utilisé !');
+
+                        // Event global pour autres vues
+                        try { this.scene.game?.events?.emit('inventory:update'); } catch (e) { /* ignore */ }
+                    } catch (e) {
+                        this.scene.displayMessage(e.message || "Erreur lors de l'utilisation");
+                    } finally {
+                        if (this.scene.domContainer) {
+                            this.scene.domContainer.style.display = 'flex';
+                        }
+                    }
+                });
+            }
+
             return true;
         }
     }

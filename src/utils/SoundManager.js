@@ -479,11 +479,33 @@ export default class SoundManager {
             return true;
         } catch (e) {
             // fallback: play generic move sound if exists
+            // Try explicit fallback: attempt to load and play 'Tackle' sound
+            try {
+                const tackleName = 'tackle';
+                const tackleKey = this.buildKey(tackleName);
+                // If already loaded, play directly
+                if (this.scene.sound.get(tackleKey)) {
+                    this.scene.sound.play(tackleKey, { volume, rate, loop });
+                    return true;
+                }
+                // Try to load 'tackle' sound (will throw if not found)
+                await this.tryLoadMoveSound(tackleName);
+                if (this.scene.sound.get(tackleKey)) {
+                    this.scene.sound.play(tackleKey, { volume, rate, loop });
+                    return true;
+                }
+            } catch (tErr) {
+                // ignore and continue to other fallbacks
+                console.warn('[SoundManager] Fallback Tackle absent or failed to load:', tErr && tErr.message ? tErr.message : tErr);
+            }
+
+            // fallback: play generic move sound if exists
             const fallbackKey = this.genericMoveKey;
             if (this.scene.sound.get(fallbackKey)) {
                 this.scene.sound.play(fallbackKey, { volume, rate, loop });
                 return true;
             }
+
             console.warn('[SoundManager] Aucune piste sonore trouvée pour', moveName || requested);
             return false;
         }

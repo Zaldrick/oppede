@@ -35,6 +35,9 @@ export class GameScene extends Phaser.Scene {
         this.currentPseudo = null;
         this.playerPosition = null;
         this.preloadPromise = null;
+
+        // Post-battle respawn (défaite): appliqué au start/resume
+        this.__postBattleRespawnInProgress = false;
     }
 
     async preload() {
@@ -196,6 +199,9 @@ export class GameScene extends Phaser.Scene {
             await this.setupGame();
             setStatus('GameScene: ok');
 
+            // 🆕 Si on revient d'une défaite, appliquer TP + message
+            await this.handlePendingPostBattleRespawn();
+
             // Hide overlay only in normal mode. In ?debug=1 keep it visible.
             if (!debugOverlayEnabled) {
                 try { this.__statusText?.setVisible(false); } catch (e) {}
@@ -205,6 +211,20 @@ export class GameScene extends Phaser.Scene {
             setStatus(`Erreur init: ${error?.message || String(error)}`);
             try { this.__statusText?.setVisible(true); } catch (e) {}
             return;
+        }
+
+        // 🆕 Au resume (battle overlay), appliquer TP + message si demandé
+        try {
+            if (!this.__postBattleRespawnResumeHooked) {
+                this.__postBattleRespawnResumeHooked = true;
+                this.events.on('resume', () => {
+                    this.handlePendingPostBattleRespawn().catch((e) => {
+                        console.warn('[GameScene] handlePendingPostBattleRespawn (resume) error:', e);
+                    });
+                });
+            }
+        } catch (e) {
+            // ignore
         }
         this.game.events.on('inventory:cacheUpdated', (newInventory) => {
             this.inventory = [...newInventory];
@@ -256,6 +276,60 @@ export class GameScene extends Phaser.Scene {
                 }
             } catch (e) {}
         });
+    }
+
+    /**
+     * 🆕 Applique un respawn demandé par une autre scène (ex: défaite PokemonBattleScene).
+     * Attend que MapManager soit prêt puis change de map et affiche le message.
+     */
+    async handlePendingPostBattleRespawn() {
+        if (this.__postBattleRespawnInProgress) return;
+
+        let payload = null;
+        try {
+            payload = this.registry?.get ? this.registry.get('postBattleRespawn') : null;
+        } catch (e) {
+            payload = null;
+        }
+
+        if (!payload || !payload.mapKey) return;
+
+        // Consommer l'événement une seule fois
+        try {
+            if (this.registry?.set) this.registry.set('postBattleRespawn', null);
+        } catch (e) {
+            // ignore
+        }
+
+        const mapKey = payload.mapKey;
+        const x = Number(payload.x ?? 0) || 0;
+        const y = Number(payload.y ?? 0) || 0;
+        const message = payload.message;
+
+        this.__postBattleRespawnInProgress = true;
+        try {
+            if (this.mapManager && typeof this.mapManager.changeMap === 'function') {
+                await this.mapManager.changeMap(mapKey, x, y);
+            }
+
+            // Mettre à jour les infos locales si présentes
+            try {
+                const playerData = this.registry?.get ? this.registry.get('playerData') : null;
+                if (playerData && typeof payload.mapId === 'number') {
+                    const updated = { ...playerData, mapId: payload.mapId, posX: x, posY: y };
+                    if (this.registry?.set) this.registry.set('playerData', updated);
+                    try { PlayerService.updatePlayerData({ mapId: payload.mapId, posX: x, posY: y }); } catch (e) {}
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            if (message) {
+                this.displayMessage(String(message));
+            }
+        } finally {
+            this.__postBattleRespawnInProgress = false;
+        }
     }
 
     initializeManagers() {
@@ -443,6 +517,7 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("metro_close", "/assets/sounds/metro_close.mp3");
         this.load.audio("car_start", "/assets/sounds/car_start.mp3");
         this.load.audio("ticket", "/assets/sounds/ticket.mp3");
+        this.load.audio("pkmncenter", "/assets/sounds/pkmncenter.mp3");
         this.load.audio("music1", "/assets/musics/music1.mp3");
         this.load.audio("qwest", "/assets/musics/qwest.mp3");
         // Preload battle music
@@ -454,6 +529,9 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("keyitem_get", "/assets/sounds/KeyItem_Get.wav?v=1");
         this.load.image("qwest", "/assets/qwest.png");
         this.load.image("defaut", "/assets/defaut.png");
+        // Dialogue avatars (optional; only shown if the texture exists)
+        this.load.image("avatarMarin", "/assets/avatars/avatarMarin.png");
+        this.load.image("avatarAdmin", "/assets/avatars/avatarAdmin.png");
         this.load.image("backgroundext", "/assets/maps/exterieur.png");
         this.load.image("backgroundoppede", "/assets/maps/oppede.png");
         this.load.image("marinbg", "/assets/maps/marin.png");
@@ -510,6 +588,10 @@ export class GameScene extends Phaser.Scene {
         });
 
         this.load.spritesheet('!Chest', '/assets/maps/!Chest.png', { frameWidth: 48, frameHeight: 48 });
+
+        // 🆕 Overworld pickup (Poké Ball) - used for special events (ex: Gaara)
+        this.load.image('overworld_pokeball', "/assets/items/pokeballs/Poké Ball.png");
+
         this.load.tilemapTiledJSON("map", "/assets/maps/map.tmj");
         this.load.tilemapTiledJSON("map2", "/assets/maps/exterieur.tmj");
         this.load.tilemapTiledJSON("map3", "/assets/maps/oppede.tmj");
@@ -736,15 +818,48 @@ export class GameScene extends Phaser.Scene {
             container.add(nameTextObj);
         }
 
+        // Optional avatar (from /assets/avatars) if the texture is available
+        const resolveAvatarKey = (name) => {
+            if (!name || typeof name !== 'string') return null;
+            const cleaned = name
+                .trim()
+                .replace(/\s+/g, '')
+                .replace(/[^a-zA-Z0-9]/g, '');
+            if (!cleaned) return null;
+            return `avatar${cleaned}`;
+        };
+
+        const avatarKey = resolveAvatarKey(speakerName);
+        const hasAvatar = !!(avatarKey && this.textures && this.textures.exists(avatarKey));
+
+        const avatarMaxSize = boxHeight - (padding * 2);
+        const avatarSize = hasAvatar ? Math.min(avatarMaxSize, 96 / cameraZoom) : 0;
+        const avatarGap = hasAvatar ? (padding * 0.75) : 0;
+
+        if (hasAvatar) {
+            const avatarX = boxX + padding + (avatarSize / 2);
+            const avatarY = boxY + (boxHeight / 2);
+            const avatarSprite = this.add.image(avatarX, avatarY, avatarKey);
+            avatarSprite.setScrollFactor(0);
+            avatarSprite.setDepth(DIALOGUE_DEPTH);
+
+            // Scale to fit square area
+            avatarSprite.setScale(1);
+            const scale = avatarSize / Math.max(avatarSprite.width, avatarSprite.height);
+            avatarSprite.setScale(scale);
+            container.add(avatarSprite);
+        }
+
         // Texte
         const textStyle = {
             font: `${Math.max(12, Math.round(22 / cameraZoom))}px Arial`,
             fill: "#ffffff",
-            wordWrap: { width: boxWidth - (padding * 2) },
+            wordWrap: { width: boxWidth - (padding * 2) - (hasAvatar ? (avatarSize + avatarGap) : 0) },
             align: "left"
         };
 
-        const messageText = this.add.text(boxX + padding, boxY + padding + (speakerName ? 10 : 0), "", textStyle);
+        const textX = boxX + padding + (hasAvatar ? (avatarSize + avatarGap) : 0);
+        const messageText = this.add.text(textX, boxY + padding + (speakerName ? 10 : 0), "", textStyle);
         messageText.setScrollFactor(0);
         messageText.setDepth(DIALOGUE_DEPTH);
         container.add(messageText);

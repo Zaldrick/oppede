@@ -119,6 +119,15 @@ export default class BattleTurnManager {
                 } catch (e) {
                     console.warn('[BattleTurnManager] Impossible de maj PNJ dresseur (non bloquant):', e);
                 }
+
+                // 🆕 Défaite (plus de Pokémon en vie): TP qwest 3:3 + heal équipe + message
+                try {
+                    if (result.winner !== 'player' && typeof this.scene?.applyDefeatConsequences === 'function') {
+                        await this.scene.applyDefeatConsequences();
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] applyDefeatConsequences (isOver) non bloquant:', e);
+                }
                 
                 await this.scene.returnToSceneWithTransition();
             } else {
@@ -135,6 +144,15 @@ export default class BattleTurnManager {
                             }
                         } catch (e) {
                             console.warn('[BattleTurnManager] Erreur endBattle (lose) non bloquant:', e);
+                        }
+
+                        // 🆕 Défaite (plus de Pokémon en vie): TP qwest 3:3 + heal équipe + message
+                        try {
+                            if (typeof this.scene?.applyDefeatConsequences === 'function') {
+                                await this.scene.applyDefeatConsequences();
+                            }
+                        } catch (e) {
+                            console.warn('[BattleTurnManager] applyDefeatConsequences (no alive) non bloquant:', e);
                         }
                         await this.scene.returnToSceneWithTransition();
                     } else {
@@ -434,6 +452,15 @@ export default class BattleTurnManager {
                     }
                 } catch (e) {
                     console.warn('[BattleTurnManager] Erreur endBattle (opponentTurn lose) non bloquant:', e);
+                }
+
+                // 🆕 Défaite (plus de Pokémon en vie): TP qwest 3:3 + heal équipe + message
+                try {
+                    if (typeof this.scene?.applyDefeatConsequences === 'function') {
+                        await this.scene.applyDefeatConsequences();
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] applyDefeatConsequences (opponentTurn lose) non bloquant:', e);
                 }
                 await this.scene.returnToSceneWithTransition();
             } else {

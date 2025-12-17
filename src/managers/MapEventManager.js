@@ -3,6 +3,7 @@ import Phaser from "phaser";
 import { QuestRouter } from "../quests/QuestRouter";
 import { EtoileDuSoirQuest } from "../quests/EtoileDuSoirQuest";
 import { BesoinDunTicketQuest } from "../quests/BesoinDunTicketQuest";
+import { RentrerALaMaisonQuest } from "../quests/RentrerALaMaisonQuest";
 
 export class MapEventManager {
     constructor(scene, mapManager) {
@@ -27,7 +28,8 @@ export class MapEventManager {
             eventManager: this,
             handlers: [
                 new EtoileDuSoirQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
-                new BesoinDunTicketQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
+                new BesoinDunTicketQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new RentrerALaMaisonQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
             ]
         });
     }
@@ -282,6 +284,41 @@ export class MapEventManager {
         // Spécifique metro
         if (mapKey === "metro") {
             this.createSubwayDoor();
+        }
+
+        // 🆕 Pokécenters (soin équipe + mémorisation dernier lieu de soin)
+        if (mapKey === 'marin') {
+            this.createPokeCenterZone({
+                id: 'pokecenter_marin_37_8',
+                mapKey: 'marin',
+                tileX: 37,
+                tileY: 8
+            });
+        }
+        if (mapKey === 'metro') {
+            this.createPokeCenterZone({
+                id: 'pokecenter_metro_17_21',
+                mapKey: 'metro',
+                tileX: 17,
+                tileY: 21
+            });
+        }
+
+        // 🆕 Coffres statiques (coffre.png) -> 2 potions
+        if (mapKey === 'metro') {
+            this.createStaticChest({ id: 'chest_metro_9_15', mapKey: 'metro', tileX: 9, tileY: 15, lootName: 'Potion', lootQty: 2 });
+        }
+        if (mapKey === 'lille') {
+            this.createStaticChest({ id: 'chest_lille_30_32', mapKey: 'lille', tileX: 30, tileY: 32, lootName: 'Potion', lootQty: 2 });
+        }
+        if (mapKey === 'douai') {
+            this.createStaticChest({ id: 'chest_douai_29_39', mapKey: 'douai', tileX: 29, tileY: 39, lootName: 'Potion', lootQty: 2 });
+        }
+
+        // 🆕 Événement type Poké Ball (1 fois) : donne Gaara et disparaît définitivement
+        // Si besoin de déplacer l'event sur une autre map, changez le mapKey ici.
+        if (mapKey === 'lille') {
+            this.createGaaraPokeballPickup({ id: 'pickup_gaara_18_37', tileX: 18, tileY: 37 });
         }
 
         // Quêtes (spawn/cleanup) pour la map courante
@@ -1048,10 +1085,32 @@ export class MapEventManager {
             return;
         }
 
+        // 🆕 Pokécenter
+        if (npc.npcType === 'pokecenter') {
+            this.handlePokeCenterInteraction(npc).catch((e) => {
+                console.warn('[MapEventManager] PokeCenter interaction error:', e);
+            });
+            return;
+        }
+
+        // 🆕 Pickup (Poké Ball) persistant
+        if (npc.npcType === 'world_pickup') {
+            this.handleWorldPickupInteraction(npc).catch((e) => {
+                console.warn('[MapEventManager] World pickup interaction error:', e);
+            });
+            return;
+        }
+
+        // 🆕 Coffres statiques (coffre.png)
+        if (npc.npcType === 'static_chest') {
+            this.handleStaticChestInteraction(npc);
+            return;
+        }
+
         if (npc.npcType === "ralof") {
             const answer = window.prompt("What's my Name ?");
             if (answer && answer.toLowerCase() === "ralof") {
-                this.mapManager.changeMap("qwest", 13 * 48 + 24, 5 * 48 + 24);
+                this.mapManager.changeMap("qwest", 3 * 48 + 24, 4 * 48 + 24);
             }
         } else if (npc.npcType === "booster_vendor") {
             this.scene.displayMessage("Salut l'ami ! Tu veux des boosters de cartes ?\n J'ai ce qu'il te faut !", "Marchand");
@@ -1146,6 +1205,311 @@ export class MapEventManager {
                 });
                 npc.eventData.state.hasSpoken = true;
             }
+        }
+    }
+
+    createPokeCenterZone({ id, mapKey, tileX, tileY }) {
+        try {
+            const x = tileX * 48 + 24;
+            const y = tileY * 48 + 24;
+
+            const zone = this.scene.add.zone(x, y, 48, 48).setOrigin(0.5);
+            this.scene.physics.world.enable(zone);
+            zone.body.setAllowGravity(false);
+            zone.body.setImmovable(true);
+            zone.setInteractive();
+
+            zone.npcType = 'pokecenter';
+            zone.pokeCenterId = id;
+            zone.pokeCenterData = { id, mapKey, tileX, tileY, posX: x, posY: y };
+
+            this.activeEvents.push(zone);
+        } catch (e) {
+            console.warn('[MapEventManager] createPokeCenterZone failed:', e);
+        }
+    }
+
+    async handlePokeCenterInteraction(zone) {
+        const apiUrl = process.env.REACT_APP_API_URL;
+        const playerData = this.scene.registry.get('playerData');
+        const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
+        const playerId = playerData ? playerData._id : null;
+        const mapKey = zone?.pokeCenterData?.mapKey || this.mapManager?.map?.key || null;
+        const mapId = (mapKey && this.mapManager?.mapIds && typeof this.mapManager.mapIds[mapKey] === 'number')
+            ? this.mapManager.mapIds[mapKey]
+            : (playerData?.mapId ?? null);
+        const posX = Number(zone?.pokeCenterData?.posX);
+        const posY = Number(zone?.pokeCenterData?.posY);
+
+        if (!apiUrl || !playerId) {
+            this.scene.displayMessage("Impossible de soigner l'équipe (joueur non chargé).", 'Erreur');
+            return;
+        }
+
+        // Heal all
+        try {
+            const r = await fetch(`${apiUrl}/api/pokemon/team/heal-all`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId })
+            });
+            if (!r.ok) {
+                const body = await r.text().catch(() => '');
+                throw new Error(`HTTP ${r.status} ${body}`);
+            }
+        } catch (e) {
+            console.warn('[PokeCenter] heal-all failed:', e);
+            this.scene.displayMessage("Le soin a échoué.", 'Erreur');
+            return;
+        }
+
+        // Sound + message
+        try { this.scene.sound?.play?.('pkmncenter', { volume: 0.5 }); } catch (e) {}
+        this.scene.displayMessage("Votre équipe est soignée !", playerPseudo);
+
+        // Persist lastHeal for respawn
+        try {
+            const lastHeal = {
+                mapKey: mapKey ?? null,
+                mapId: typeof mapId === 'number' ? mapId : null,
+                posX,
+                posY,
+                updatedAt: new Date().toISOString()
+            };
+
+            // Update in registry (so battle defeat can use it immediately)
+            try {
+                if (playerData) {
+                    const updated = { ...playerData, lastHeal };
+                    this.scene.registry.set('playerData', updated);
+                }
+            } catch (e) {}
+
+            // Persist server-side
+            await fetch(`${apiUrl}/api/players/update-last-heal`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId, mapKey, mapId, posX, posY })
+            }).catch(() => {});
+        } catch (e) {
+            console.warn('[PokeCenter] update-last-heal failed (non bloquant):', e);
+        }
+    }
+
+    createStaticChest({ id, mapKey, tileX, tileY, lootName, lootQty }) {
+        try {
+            const x = tileX * 48 + 24;
+            const y = tileY * 48 + 24;
+
+            const chest = this.scene.physics.add.sprite(x, y, 'coffre', 0);
+            chest.setImmovable(true);
+            chest.setInteractive();
+            chest.npcType = 'static_chest';
+            chest.chestId = id;
+            chest.lootName = lootName;
+            chest.lootQty = Number(lootQty) || 1;
+
+            // Hitbox
+            chest.body.setSize(32, 32);
+            chest.body.setOffset(8, 16);
+
+            // Animation ouverture
+            if (!this.scene.anims.exists('coffre_open')) {
+                this.scene.anims.create({
+                    key: 'coffre_open',
+                    frames: this.scene.anims.generateFrameNumbers('coffre', { start: 0, end: 3 }),
+                    frameRate: 8,
+                    repeat: 0
+                });
+            }
+
+            // État initial selon les coffres déjà ouverts côté joueur
+            const playerData = this.scene.registry.get('playerData');
+            const opened = Array.isArray(playerData?.openedChests) && playerData.openedChests.includes(String(id));
+            if (opened) {
+                chest.setFrame(3);
+                chest.__opened = true;
+            } else {
+                chest.__opened = false;
+            }
+
+            const player = this.scene.playerManager?.getPlayer();
+            if (player) {
+                this.scene.physics.add.collider(player, chest);
+            }
+
+            this.activeEvents.push(chest);
+        } catch (e) {
+            console.warn('[MapEventManager] createStaticChest failed:', e);
+        }
+    }
+
+    handleStaticChestInteraction(chest) {
+        const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
+        const playerData = this.scene.registry.get('playerData');
+        const playerId = playerData ? playerData._id : null;
+
+        if (chest.__opened) {
+            this.scene.displayMessage('Ce coffre est déjà ouvert !', playerPseudo);
+            return;
+        }
+
+        chest.__opened = true;
+        try {
+            chest.play('coffre_open');
+            chest.once('animationcomplete', () => {
+                try { chest.setFrame(3); } catch (e) {}
+            });
+        } catch (e) {
+            // fallback
+            try { chest.setFrame(3); } catch (err) {}
+        }
+
+        const lootName = chest.lootName || 'Potion';
+        const lootQty = Number(chest.lootQty) || 1;
+        const lootLabel = `${lootQty} ${lootName}${lootQty > 1 ? 's' : ''}`;
+        this.scene.displayMessage(`Vous trouvez : ${lootLabel}`, playerPseudo);
+
+        // Donner les objets
+        try {
+            this.scene.addItemToInventory({ nom: lootName, quantite: lootQty });
+        } catch (e) {
+            console.warn('[StaticChest] addItemToInventory failed:', e);
+        }
+
+        // Persist opened state
+        try {
+            const apiUrl = process.env.REACT_APP_API_URL;
+            if (apiUrl && playerId && chest.chestId) {
+                fetch(`${apiUrl}/api/players/opened-chests/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId, chestId: String(chest.chestId) })
+                }).catch(() => {});
+            }
+
+            // Update local registry so it stays opened even without reload
+            try {
+                if (playerData) {
+                    const current = Array.isArray(playerData.openedChests) ? playerData.openedChests : [];
+                    if (!current.includes(String(chest.chestId))) {
+                        const updated = { ...playerData, openedChests: [...current, String(chest.chestId)] };
+                        this.scene.registry.set('playerData', updated);
+                    }
+                }
+            } catch (e) {}
+        } catch (e) {
+            console.warn('[StaticChest] persist opened failed (non bloquant):', e);
+        }
+
+        try {
+            this.scene.sound?.play?.('item_get', { volume: 0.85 });
+        } catch (e) { /* ignore */ }
+    }
+
+    createGaaraPokeballPickup({ id, tileX, tileY }) {
+        try {
+            const playerData = this.scene.registry.get('playerData');
+            const collected = Array.isArray(playerData?.collectedWorldItems) ? playerData.collectedWorldItems : [];
+            if (collected.includes(String(id))) return;
+
+            const x = tileX * 48 + 24;
+            const y = tileY * 48 + 24;
+
+            const pickup = this.scene.physics.add.image(x, y, 'overworld_pokeball');
+            pickup.setImmovable(true);
+            pickup.setInteractive();
+            pickup.setDepth(6);
+            pickup.setDisplaySize(36, 36);
+
+            // Hitbox un peu plus petite que le sprite
+            pickup.body.setSize(24, 24, true);
+
+            const player = this.scene.playerManager?.getPlayer();
+            if (player) {
+                this.scene.physics.add.collider(player, pickup);
+            }
+
+            pickup.npcType = 'world_pickup';
+            pickup.pickupId = String(id);
+            pickup.pickupKind = 'gaara_pokemon';
+
+            this.activeEvents.push(pickup);
+        } catch (e) {
+            console.warn('[MapEventManager] createGaaraPokeballPickup failed:', e);
+        }
+    }
+
+    async handleWorldPickupInteraction(pickup) {
+        const apiUrl = process.env.REACT_APP_API_URL;
+        const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
+        const playerData = this.scene.registry.get('playerData');
+        const playerId = playerData ? playerData._id : null;
+
+        if (!playerId) {
+            this.scene.displayMessage("Impossible de récupérer (joueur non chargé).", 'Erreur');
+            return;
+        }
+
+        if (!pickup || pickup.__busy) return;
+        pickup.__busy = true;
+
+        try {
+            // Dialogue joueur
+            await new Promise((resolve) => {
+                this.scene.displayMessage('Gaara ??', playerPseudo, resolve);
+            });
+
+            const createUrl = apiUrl ? `${apiUrl}/api/pokemon/create` : '/api/pokemon/create';
+            const r = await fetch(createUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playerId,
+                    speciesId: 552,
+                    nickname: 'Gaara'
+                })
+            });
+
+            const body = await r.json().catch(() => ({}));
+            if (!r.ok || body?.success === false) {
+                const msg = body?.message || 'Impossible d\'ajouter Gaara.';
+                this.scene.displayMessage(msg, 'Système');
+                return;
+            }
+
+            // Persist "collecté" (non bloquant, comme pour les coffres)
+            try {
+                const persistUrl = apiUrl ? `${apiUrl}/api/players/collected-world-items/add` : '/api/players/collected-world-items/add';
+                await fetch(persistUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerId, itemId: String(pickup.pickupId) })
+                }).catch(() => {});
+
+                // Update local registry
+                try {
+                    if (playerData) {
+                        const current = Array.isArray(playerData.collectedWorldItems) ? playerData.collectedWorldItems : [];
+                        if (!current.includes(String(pickup.pickupId))) {
+                            const updated = { ...playerData, collectedWorldItems: [...current, String(pickup.pickupId)] };
+                            this.scene.registry.set('playerData', updated);
+                        }
+                    }
+                } catch (e) {}
+            } catch (e) {
+                console.warn('[WorldPickup] persist collected failed (non bloquant):', e);
+            }
+
+            await new Promise((resolve) => {
+                this.scene.displayMessage("Gaara ajouté à l'équipe !", 'Système', resolve);
+            });
+
+            // Disparition
+            try { pickup.destroy(); } catch (e) {}
+            this.activeEvents = (this.activeEvents || []).filter((ev) => ev !== pickup);
+        } finally {
+            if (pickup) pickup.__busy = false;
         }
     }
 

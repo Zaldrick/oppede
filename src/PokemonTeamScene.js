@@ -24,6 +24,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         this.selectedPokemonIndex = null;
         this.isDragging = false;
         this.dragStart = null;
+        this.selectionMode = null;
     }
 
     init(data) {
@@ -32,6 +33,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         this.returnScene = data?.returnScene || 'GameScene';
         this.inBattle = data?.inBattle || false; // 🆕 Flag combat
         this.battleState = data?.battleState || null; // 🆕 State combat
+        this.selectionMode = data?.selectionMode || null; // 🆕 Mode sélection (ex: usage item)
     }
 
     preload() {
@@ -104,7 +106,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         this.add.text(
             width * 0.5,
             height * 0.92,
-            'Cliquez pour plus d\'info. Glisser pour réarranger',
+            this.selectionMode ? 'Choisissez un Pokémon' : 'Cliquez pour plus d\'info. Glisser pour réarranger',
             {
                 fontSize: `${Math.min(width, height) * 0.028}px`,
                 fill: '#CCCCCC',
@@ -448,7 +450,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         // Fond carte
         const card = this.add.rectangle(0, 0, width, height, 0x1e1e3f);
         card.setStrokeStyle(2, 0x888888);
-        card.setInteractive({ useHandCursor: true, draggable: true });
+        card.setInteractive({ useHandCursor: true, draggable: !this.selectionMode });
         container.add(card);
 
         // Afficher le sprite du Pokémon (MENU sprite: Gen VII)
@@ -561,56 +563,63 @@ export class PokemonTeamScene extends Phaser.Scene {
             });
         }
 
-        // Variables pour détecter le drag
-        let startX = 0;
-        let startY = 0;
-        let hasMoved = false;
-        
         // Interactions
         card.on('pointerover', () => card.setFillStyle(0x2a2a5e));
         card.on('pointerout', () => card.setFillStyle(0x1e1e3f));
-        
-        this.input.setDraggable(card);
-        
-        card.on('dragstart', (pointer) => {
-            startX = pointer.x;
-            startY = pointer.y;
-            hasMoved = false;
-            container.setAlpha(0.7);
-            this.draggingPokemon = { pokemon, index, container, originalX: x, originalY: y };
-        });
-        
-        card.on('drag', (pointer, dragX, dragY) => {
-            // Détecter si on a vraiment bougé (plus de 5 pixels)
-            const distance = Phaser.Math.Distance.Between(startX, startY, pointer.x, pointer.y);
-            if (distance > 5) {
-                hasMoved = true;
-            }
-            
-            container.x = x + dragX;
-            container.y = y + dragY;
-        });
-        
-        card.on('dragend', () => {
-            container.setAlpha(1);
-            
-            // Vérifier si on a vraiment dragé et si on swap
-            if (hasMoved) {
-                const swapped = this.checkPokemonSwap(container, pokemon, index, x, y);
-                if (!swapped) {
-                    // Pas de swap, reset position
+
+        // Mode sélection: clic direct = choisir le Pokémon
+        if (this.selectionMode) {
+            card.on('pointerdown', () => {
+                try {
+                    this.events.emit('pokemonSelected', pokemon);
+                } catch (e) {
+                    console.warn('[PokemonTeam] Erreur emit pokemonSelected:', e);
+                }
+                this.returnToScene();
+            });
+        } else {
+            // Mode normal: drag & drop + clic pour détail
+            let startX = 0;
+            let startY = 0;
+            let hasMoved = false;
+
+            this.input.setDraggable(card);
+
+            card.on('dragstart', (pointer) => {
+                startX = pointer.x;
+                startY = pointer.y;
+                hasMoved = false;
+                container.setAlpha(0.7);
+                this.draggingPokemon = { pokemon, index, container, originalX: x, originalY: y };
+            });
+
+            card.on('drag', (pointer, dragX, dragY) => {
+                const distance = Phaser.Math.Distance.Between(startX, startY, pointer.x, pointer.y);
+                if (distance > 5) {
+                    hasMoved = true;
+                }
+                container.x = x + dragX;
+                container.y = y + dragY;
+            });
+
+            card.on('dragend', () => {
+                container.setAlpha(1);
+
+                if (hasMoved) {
+                    const swapped = this.checkPokemonSwap(container, pokemon, index, x, y);
+                    if (!swapped) {
+                        container.x = x;
+                        container.y = y;
+                    }
+                } else {
                     container.x = x;
                     container.y = y;
+                    this.goToDetail(pokemon);
                 }
-            } else {
-                // Pas de mouvement = clic simple, ouvrir détail
-                container.x = x;
-                container.y = y;
-                this.goToDetail(pokemon);
-            }
-            
-            this.draggingPokemon = null;
-        });
+
+                this.draggingPokemon = null;
+            });
+        }
 
         return { card, container, pokemon, index, x, y };
     }
@@ -803,8 +812,8 @@ export class PokemonTeamScene extends Phaser.Scene {
         const x = width * 0.85;
         const y = height * 0.80; // Sous le bouton Combat Sauvage
 
-        // Récupérer l'état actuel depuis localStorage
-        const useAnimatedSprites = localStorage.getItem('useAnimatedSprites') !== 'false';
+        // Récupérer l'état actuel depuis localStorage (défaut: false)
+        const useAnimatedSprites = localStorage.getItem('useAnimatedSprites') === 'true';
         
         // Fond bouton (vert si activé, gris si désactivé)
         const button = this.add.rectangle(x, y, buttonWidth, buttonHeight, useAnimatedSprites ? 0x27AE60 : 0x7F8C8D);
@@ -822,8 +831,8 @@ export class PokemonTeamScene extends Phaser.Scene {
         this.gifToggleText = text;
 
         button.on('pointerdown', () => {
-            // Toggle l'état
-            const currentState = localStorage.getItem('useAnimatedSprites') !== 'false';
+            // Toggle l'état (on stocke 'true'/'false')
+            const currentState = localStorage.getItem('useAnimatedSprites') === 'true';
             const newState = !currentState;
             localStorage.setItem('useAnimatedSprites', newState.toString());
             
@@ -841,13 +850,13 @@ export class PokemonTeamScene extends Phaser.Scene {
         });
 
         button.on('pointerover', () => {
-            const currentState = localStorage.getItem('useAnimatedSprites') !== 'false';
+            const currentState = localStorage.getItem('useAnimatedSprites') === 'true';
             button.setFillStyle(currentState ? 0x229954 : 0x6C7A89);
             this.tweens.add({ targets: button, scaleX: 1.05, scaleY: 1.05, duration: 100 });
         });
 
         button.on('pointerout', () => {
-            const currentState = localStorage.getItem('useAnimatedSprites') !== 'false';
+            const currentState = localStorage.getItem('useAnimatedSprites') === 'true';
             button.setFillStyle(currentState ? 0x27AE60 : 0x7F8C8D);
             this.tweens.add({ targets: button, scaleX: 1.0, scaleY: 1.0, duration: 100 });
         });

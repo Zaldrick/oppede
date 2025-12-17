@@ -6727,8 +6727,32 @@
   {
    "draworder": "topdown",
    "id": 8,
-   "name": "sauvage",
-   "objects": [],
+   "name": "encounters",
+   "objects": [
+    {
+     "height": 2891.87878787879,
+     "id": 4,
+     "name": "",
+     "properties": [
+      {
+       "name": "encounterRate",
+       "type": "string",
+       "value": "12"
+      },
+      {
+       "name": "encounterTableId",
+       "type": "string",
+       "value": "lille"
+      }
+     ],
+     "rotation": 0,
+     "type": "",
+     "visible": true,
+     "width": 2474.9696969697,
+     "x": 686.757575757575,
+     "y": 257.090909090909
+    }
+   ],
    "opacity": 1,
    "type": "objectgroup",
    "visible": true,
@@ -33621,7 +33645,7 @@
   }
  ],
  "nextlayerid": 9,
- "nextobjectid": 3,
+ "nextobjectid": 5,
  "orientation": "orthogonal",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

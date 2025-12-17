@@ -69,6 +69,22 @@ class PokemonDatabaseManager {
             }
         });
 
+        // 🏥 Soigner toute l'équipe (réanime, soigne, enlève les statuts)
+        app.post('/api/pokemon/team/heal-all', async (req, res) => {
+            try {
+                const { playerId } = req.body;
+                if (!playerId) {
+                    return res.status(400).json({ success: false, error: 'playerId requis' });
+                }
+
+                const result = await this.healPlayerTeam(playerId);
+                res.json({ success: true, ...result });
+            } catch (error) {
+                console.error('Erreur heal-all team:', error);
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
         // 🔍 Récupérer les détails d'un Pokémon du joueur
         app.get('/api/pokemon/:pokemonId', async (req, res) => {
             try {
@@ -251,6 +267,60 @@ class PokemonDatabaseManager {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
+    }
+
+    /**
+     * Soigne toute l'équipe du joueur (slots 1-6):
+     * - currentHP = maxHP (calculé)
+     * - statusCondition reset
+     */
+    async healPlayerTeam(playerId) {
+        if (!this.pokemonPlayerCollection) {
+            await this.initialize();
+        }
+
+        const ownerObjectId = new ObjectId(playerId);
+        const team = await this.pokemonPlayerCollection
+            .find({ owner_id: ownerObjectId, teamPosition: { $gte: 1, $lte: 6 } })
+            .toArray();
+
+        if (!team || team.length === 0) {
+            return { healedCount: 0 };
+        }
+
+        const ops = [];
+        for (const p of team) {
+            const speciesId = p.species_id;
+            const level = Number(p.level ?? 1) || 1;
+            const iv = Number(p.ivs?.hp ?? 0) || 0;
+            const ev = Number(p.evs?.hp ?? 0) || 0;
+
+            let maxHP = null;
+            try {
+                const baseStats = await this.getBaseStats(speciesId);
+                maxHP = calculateMaxHP(baseStats.hp, level, iv, ev);
+            } catch (e) {
+                // Fallback: if stats can't be computed, try to keep something safe
+                maxHP = Number(p.maxHP ?? p.currentHP ?? 1) || 1;
+            }
+
+            ops.push({
+                updateOne: {
+                    filter: { _id: p._id },
+                    update: {
+                        $set: {
+                            currentHP: maxHP,
+                            statusCondition: { type: null, turns: 0 },
+                            updatedAt: new Date()
+                        }
+                    }
+                }
+            });
+        }
+
+        const bulkRes = await this.pokemonPlayerCollection.bulkWrite(ops, { ordered: false });
+        const modified = Number(bulkRes?.modifiedCount ?? 0) || 0;
+        return { healedCount: modified };
     }
 
     /**

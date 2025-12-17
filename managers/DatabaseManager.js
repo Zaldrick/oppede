@@ -136,6 +136,108 @@ class DatabaseManager {
             }
         });
 
+        // 🆕 Route: mémoriser le dernier endroit où le joueur s'est soigné
+        // Utilisé pour le respawn après une défaite.
+        app.post('/api/players/update-last-heal', async (req, res) => {
+            try {
+                const { playerId, pseudo, mapKey, mapId, posX, posY } = req.body;
+
+                if (!playerId && !pseudo) {
+                    return res.status(400).json({ error: 'playerId ou pseudo requis' });
+                }
+
+                if (posX === undefined || posY === undefined || mapId === undefined) {
+                    return res.status(400).json({ error: 'posX, posY et mapId requis' });
+                }
+
+                const db = await this.connectToDatabase();
+                const players = db.collection('players');
+
+                const query = playerId
+                    ? { _id: new ObjectId(playerId) }
+                    : { pseudo };
+
+                const lastHeal = {
+                    mapKey: mapKey ?? null,
+                    mapId: Number(mapId),
+                    posX: Number(posX),
+                    posY: Number(posY),
+                    updatedAt: new Date()
+                };
+
+                const result = await players.updateOne(query, { $set: { lastHeal } });
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ error: 'Player not found' });
+                }
+
+                res.json({ success: true, lastHeal });
+            } catch (error) {
+                console.error('Error updating lastHeal:', error);
+                res.status(500).json({ error: 'Failed to update lastHeal' });
+            }
+        });
+
+        // 🆕 Route: persister l'ouverture d'un coffre (par joueur)
+        app.post('/api/players/opened-chests/add', async (req, res) => {
+            try {
+                const { playerId, chestId } = req.body;
+                if (!playerId || !chestId) {
+                    return res.status(400).json({ error: 'playerId et chestId requis' });
+                }
+
+                const db = await this.connectToDatabase();
+                const players = db.collection('players');
+
+                const result = await players.updateOne(
+                    { _id: new ObjectId(playerId) },
+                    {
+                        $addToSet: { openedChests: String(chestId) },
+                        $set: { updatedAt: new Date() }
+                    }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ error: 'Player not found' });
+                }
+
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error adding opened chest:', error);
+                res.status(500).json({ error: 'Failed to persist opened chest' });
+            }
+        });
+
+        // 🆕 Route: persister un pickup collecté (par joueur)
+        // Exemple: Poké Ball qui disparaît définitivement après récupération.
+        app.post('/api/players/collected-world-items/add', async (req, res) => {
+            try {
+                const { playerId, itemId } = req.body;
+                if (!playerId || !itemId) {
+                    return res.status(400).json({ error: 'playerId et itemId requis' });
+                }
+
+                const db = await this.connectToDatabase();
+                const players = db.collection('players');
+
+                const result = await players.updateOne(
+                    { _id: new ObjectId(playerId) },
+                    {
+                        $addToSet: { collectedWorldItems: String(itemId) },
+                        $set: { updatedAt: new Date() }
+                    }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).json({ error: 'Player not found' });
+                }
+
+                res.json({ success: true });
+            } catch (error) {
+                console.error('Error adding collected world item:', error);
+                res.status(500).json({ error: 'Failed to persist collected world item' });
+            }
+        });
+
         // Route pour récupérer la position d'un joueur
         app.get('/api/players/position/:pseudo', async (req, res) => {
             try {
@@ -265,6 +367,22 @@ class DatabaseManager {
                     itemDoc = { ...docToInsert, _id: insertRes.insertedId };
                 }
 
+                // Cas spécial: récompense de coffre (qwest).
+                // On évite un 404 si la DB n'a pas été seedée avec l'item.
+                if (!itemDoc && itemName === 'Sirius') {
+                    const docToInsert = {
+                        nom: 'Sirius',
+                        type: 'item',
+                        image: 'Sirius.png',
+                        prix: 999,
+                        is_echangeable: false,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
+                    };
+                    const insertRes = await itemsCol.insertOne(docToInsert);
+                    itemDoc = { ...docToInsert, _id: insertRes.insertedId };
+                }
+
                 if (!itemDoc) {
                     return res.status(404).json({ error: `Item not found: ${itemName}` });
                 }
@@ -324,6 +442,143 @@ class DatabaseManager {
             } catch (err) {
                 console.error("[remove-item] Erreur serveur:", err);
                 res.status(500).json({ error: err.message });
+            }
+        });
+
+        // 💊 Route pour utiliser un item (soins) sur un Pokémon
+        app.post('/api/inventory/use', async (req, res) => {
+            try {
+                const { playerId, itemId, targetPokemonId } = req.body;
+
+                if (!playerId || !itemId || !targetPokemonId) {
+                    return res.status(400).json({ error: 'playerId, itemId et targetPokemonId requis' });
+                }
+
+                const db = await this.connectToDatabase();
+                const inventoryCol = db.collection('inventory');
+                const itemsCol = db.collection('items');
+                const itemActionsCol = db.collection('itemActions');
+                const pokemonCol = db.collection('pokemonPlayer');
+
+                const playerObjectId = new ObjectId(playerId);
+                const itemObjectId = new ObjectId(itemId);
+                const pokemonObjectId = new ObjectId(targetPokemonId);
+
+                // Vérifier possession de l'item
+                const invEntry = await inventoryCol.findOne({
+                    player_id: playerObjectId,
+                    item_id: itemObjectId
+                });
+
+                if (!invEntry) {
+                    return res.status(404).json({ error: 'Item non disponible dans l\'inventaire' });
+                }
+
+                const quantityField = (invEntry['quantité'] !== undefined)
+                    ? 'quantité'
+                    : (invEntry.quantite !== undefined)
+                        ? 'quantite'
+                        : (invEntry.quantity !== undefined)
+                            ? 'quantity'
+                            : 'quantité';
+
+                const currentQty = Number(invEntry[quantityField] ?? 0);
+                if (currentQty <= 0) {
+                    return res.status(400).json({ error: 'Item non disponible dans l\'inventaire' });
+                }
+
+                // Récupérer action et item
+                const [itemDoc, actionDoc] = await Promise.all([
+                    itemsCol.findOne({ _id: itemObjectId }),
+                    itemActionsCol.findOne({ item_id: itemObjectId })
+                ]);
+
+                if (!itemDoc) {
+                    return res.status(404).json({ error: 'Item introuvable' });
+                }
+                if (!actionDoc) {
+                    return res.status(400).json({ error: 'Aucune action définie pour cet item' });
+                }
+
+                // Récupérer Pokémon cible (et vérifier qu'il appartient au joueur)
+                const pokemon = await pokemonCol.findOne({ _id: pokemonObjectId, owner_id: playerObjectId });
+                if (!pokemon) {
+                    return res.status(404).json({ error: 'Pokémon introuvable' });
+                }
+
+                // Appliquer action
+                let healed = 0;
+                let message = '';
+
+                if (actionDoc.action_type === 'heal') {
+                    const maxHP = Number(pokemon.stats?.maxHP ?? pokemon.maxHP ?? 0);
+                    const currentHP = Number(pokemon.currentHP ?? 0);
+                    const amount = Number(actionDoc.parameters?.amount ?? 0);
+
+                    if (currentHP <= 0) {
+                        return res.status(400).json({ error: 'Ce Pokémon est K.O.' });
+                    }
+                    if (!maxHP || maxHP <= 0) {
+                        return res.status(400).json({ error: 'Stats Pokémon invalides' });
+                    }
+                    if (currentHP >= maxHP) {
+                        return res.status(400).json({ error: 'PV déjà au maximum' });
+                    }
+
+                    healed = Math.min(amount, maxHP - currentHP);
+                    if (healed <= 0) {
+                        return res.status(400).json({ error: 'Aucun effet' });
+                    }
+
+                    await pokemonCol.updateOne(
+                        { _id: pokemonObjectId },
+                        { $inc: { currentHP: healed } }
+                    );
+
+                    message = `${pokemon.nickname || pokemon.species_name || 'Le Pokémon'} récupère ${healed} PV !`;
+                } else if (actionDoc.action_type === 'heal_status') {
+                    // Placeholder minimal: on accepte mais sans implémentation complète
+                    return res.status(400).json({ error: 'Soins de statut non implémentés pour le moment' });
+                } else {
+                    return res.status(400).json({ error: `Action non supportée: ${actionDoc.action_type}` });
+                }
+
+                // Décrémenter inventaire seulement après succès
+                await inventoryCol.updateOne(
+                    { player_id: playerObjectId, item_id: itemObjectId },
+                    { $inc: { [quantityField]: -1 } }
+                );
+                await inventoryCol.deleteMany({
+                    player_id: playerObjectId,
+                    item_id: itemObjectId,
+                    [quantityField]: { $lte: 0 }
+                });
+
+                // Renvoyer Pokémon mis à jour et quantité restante
+                const updatedPokemon = await pokemonCol.findOne({ _id: pokemonObjectId }, { projection: { currentHP: 1, maxHP: 1, stats: 1 } });
+                const updatedInv = await inventoryCol.findOne({ player_id: playerObjectId, item_id: itemObjectId });
+                const remaining = updatedInv ? Number(updatedInv[quantityField] ?? 0) : 0;
+
+                res.json({
+                    success: true,
+                    message,
+                    healed,
+                    pokemon: {
+                        _id: targetPokemonId,
+                        currentHP: Number(updatedPokemon?.currentHP ?? (pokemon.currentHP + healed)),
+                        maxHP: Number(updatedPokemon?.stats?.maxHP ?? updatedPokemon?.maxHP ?? pokemon.stats?.maxHP ?? pokemon.maxHP ?? 0)
+                    },
+                    inventory: {
+                        itemId,
+                        quantity: remaining
+                    },
+                    item: {
+                        name: itemDoc.nom
+                    }
+                });
+            } catch (error) {
+                console.error('Error using inventory item:', error);
+                res.status(500).json({ error: 'Failed to use item' });
             }
         });
 

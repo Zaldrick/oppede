@@ -596,7 +596,7 @@ export class InventoryScene extends Phaser.Scene {
                 const battleScene = this.scene.get('PokemonBattleScene');
                 if (battleScene && battleScene.useItemInBattle) {
                     const battleItem = {
-                        item_id: item._id || item.item_id,
+                        item_id: item.item_id || item._id,
                         itemData: {
                             name_fr: item.nom,
                             type: this.categorizeItem(item) === 'pokeballs' ? 'pokeball' : 'healing'
@@ -612,7 +612,7 @@ export class InventoryScene extends Phaser.Scene {
         }
 
         // 3. Exécution de l'action hors combat via le Manager
-        await this.actionManager.executeAction(item, context);
+        await this.actionManager.executeAction(item, context, { playerId: this.playerId });
     }
 
     openBooster(item) {
