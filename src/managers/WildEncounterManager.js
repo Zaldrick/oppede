@@ -88,6 +88,13 @@ export class WildEncounterManager {
     const scene = this.scene;
     if (!scene || !scene.sys?.isActive()) return;
 
+    // Global toggle (set by PokemonTeamScene)
+    try {
+      if (scene.registry?.get?.('encountersEnabled') === false) return;
+    } catch (e) {
+      // ignore
+    }
+
     // Skip if battle overlay is active
     try {
       if (scene.scene?.isActive?.('PokemonBattleScene')) return;
@@ -128,6 +135,20 @@ export class WildEncounterManager {
     if (zoneKey !== this.activeZoneKey) {
       this.activeZoneKey = zoneKey;
       this.distanceAccumulatorPx = 0;
+
+      // Debug (opt-in): ?debugEncounter=1
+      const debugEncounter = (() => {
+        try { return new URLSearchParams(window.location.search).get('debugEncounter') === '1'; } catch (e) { return false; }
+      })();
+      if (debugEncounter) {
+        const msg = zone
+          ? `Encounter zone: ${zone.encounterTableId} (rate=${zone.encounterRate}%/step=${zone.encounterStepPx}px)`
+          : 'Encounter zone: none';
+        try {
+          if (typeof scene.__setStatus === 'function') scene.__setStatus(msg);
+        } catch (e) {}
+        try { console.log('[WildEncounter]', msg); } catch (e) {}
+      }
     }
 
     if (!zone) return;
@@ -145,6 +166,16 @@ export class WildEncounterManager {
       if (roll < zone.encounterRate) {
         this.lastEncounterAtMs = now;
         this.distanceAccumulatorPx = 0;
+
+        const debugEncounter = (() => {
+          try { return new URLSearchParams(window.location.search).get('debugEncounter') === '1'; } catch (e) { return false; }
+        })();
+        if (debugEncounter) {
+          const msg = `Encounter TRIGGER: ${zone.encounterTableId}`;
+          try { if (typeof scene.__setStatus === 'function') scene.__setStatus(msg); } catch (e) {}
+          try { console.log('[WildEncounter]', msg); } catch (e) {}
+        }
+
         this._triggerWildBattle(zone);
         break;
       }

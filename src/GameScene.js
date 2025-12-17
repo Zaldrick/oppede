@@ -84,6 +84,16 @@ export class GameScene extends Phaser.Scene {
     async create() {
         this.game.events.emit("scene-switch", "GameScene");
 
+        // Rencontres sauvages: état global (persisté)
+        try {
+            if (this.registry.get('encountersEnabled') === undefined) {
+                const persisted = localStorage.getItem('encountersEnabled');
+                this.registry.set('encountersEnabled', persisted !== 'false');
+            }
+        } catch (e) {
+            // ignore
+        }
+
         // Status overlay (useful on mobile prod where console is hard to access).
         // Keep it lightweight and always on top.
         const debugOverlayEnabled = (() => {

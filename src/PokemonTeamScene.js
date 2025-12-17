@@ -89,8 +89,15 @@ export class PokemonTeamScene extends Phaser.Scene {
         // 🆕 Bouton toggle sprites GIF (en haut à droite, sous le bouton Combat)
         this.createGifToggleButton();
 
-        // 🐛 Boutons DEBUG (en haut à droite, sous le bouton GIF)
-        this.createDebugButtons();
+        // 🆕 Bouton toggle rencontres aléatoires (global)
+        this.createEncounterToggleButton();
+
+        // 🐛 Boutons DEBUG (admin only)
+        const playerData = this.registry.get('playerData');
+        const isAdmin = !!playerData?.isAdmin;
+        if (isAdmin) {
+            this.createDebugButtons();
+        }
 
         // Instructions EN BAS (responsive)
         this.add.text(
@@ -104,6 +111,65 @@ export class PokemonTeamScene extends Phaser.Scene {
                 align: 'center'
             }
         ).setOrigin(0.5);
+    }
+
+    createEncounterToggleButton() {
+        const width = this.cameras.main.width;
+        const height = this.cameras.main.height;
+
+        const buttonWidth = width * 0.25;
+        const buttonHeight = height * 0.045;
+        const x = width * 0.85;
+        const y = height * 0.835; // Entre le toggle GIF (0.80) et les boutons debug
+
+        const currentEnabled = (() => {
+            try {
+                const reg = this.registry.get('encountersEnabled');
+                if (reg === false) return false;
+                if (reg === true) return true;
+                return localStorage.getItem('encountersEnabled') !== 'false';
+            } catch (e) {
+                return true;
+            }
+        })();
+
+        const button = this.add.rectangle(x, y, buttonWidth, buttonHeight, currentEnabled ? 0x27AE60 : 0x7F8C8D);
+        button.setInteractive({ useHandCursor: true });
+
+        const text = this.add.text(x, y, currentEnabled ? '🌿 Rencontres: ON' : '🌿 Rencontres: OFF', {
+            fontSize: `${Math.min(width, height) * 0.028}px`,
+            fill: '#FFFFFF',
+            fontWeight: 'bold'
+        }).setOrigin(0.5);
+
+        const applyState = (enabled) => {
+            button.setFillStyle(enabled ? 0x27AE60 : 0x7F8C8D);
+            text.setText(enabled ? '🌿 Rencontres: ON' : '🌿 Rencontres: OFF');
+        };
+
+        button.on('pointerdown', () => {
+            const current = (() => {
+                try { return this.registry.get('encountersEnabled') !== false; } catch (e) { return true; }
+            })();
+            const next = !current;
+            try {
+                this.registry.set('encountersEnabled', next);
+                localStorage.setItem('encountersEnabled', next.toString());
+            } catch (e) {}
+            applyState(next);
+            this.showNotification(next ? '✅ Rencontres activées' : '⛔ Rencontres désactivées', next ? 0x27AE60 : 0x7F8C8D);
+        });
+
+        button.on('pointerover', () => {
+            this.tweens.add({ targets: button, scaleX: 1.05, scaleY: 1.05, duration: 100 });
+        });
+        button.on('pointerout', () => {
+            const enabled = (() => {
+                try { return this.registry.get('encountersEnabled') !== false; } catch (e) { return true; }
+            })();
+            applyState(enabled);
+            this.tweens.add({ targets: button, scaleX: 1.0, scaleY: 1.0, duration: 100 });
+        });
     }
 
     /**

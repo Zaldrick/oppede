@@ -12,6 +12,18 @@
  */
 
 const WILD_ENCOUNTER_TABLES = {
+  douai_marchienne: {
+    entries: [
+      // Commun (facile à rencontrer)
+      { speciesId: 19, weight: 40, minLevel: 2, maxLevel: 4 },  // Rattata
+      { speciesId: 16, weight: 35, minLevel: 2, maxLevel: 5 },  // Pidgey
+      { speciesId: 41, weight: 20, minLevel: 3, maxLevel: 6 },  // Zubat
+
+      // Rare (pour valider que le tirage pondéré marche)
+      { speciesId: 133, weight: 4, minLevel: 5, maxLevel: 7 },  // Eevee
+      { speciesId: 142, weight: 1, minLevel: 10, maxLevel: 12 } // Aerodactyl
+    ]
+  },
   // Exemple (à adapter):
   // "lille_grass_1": {
   //   entries: [

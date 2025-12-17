@@ -25,6 +25,21 @@ class DatabaseManager {
             const db = await this.connectToDatabase();
             this.photosCollection = db.collection('photos');
             console.log("Connecté à la collection 'photos'");
+
+            // Ensure admin flag exists and promote known admins.
+            try {
+                const players = db.collection('players');
+                await players.updateMany(
+                    { isAdmin: { $exists: false } },
+                    { $set: { isAdmin: false } }
+                );
+                await players.updateMany(
+                    { pseudo: { $in: ['Admin', 'Mehdi'] } },
+                    { $set: { isAdmin: true } }
+                );
+            } catch (e) {
+                console.warn('[DatabaseManager] Failed to ensure isAdmin flags:', e?.message || e);
+            }
         } catch (err) {
             console.error("Erreur de connexion à la collection 'photos':", err);
         }

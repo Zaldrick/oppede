@@ -2621,15 +2621,16 @@
  "tilesets": [
   {
    "columns": 76,
-   "firstgid": 1,
-   "image": "Room_Builder_48x48.png",
-   "imageheight": 5424,
-   "imagewidth": 3648,
    "margin": 0,
-   "name": "Room_Builder_48x48",
    "spacing": 0,
-   "tilecount": 8588,
    "tileheight": 48,
+   "tilewidth": 48,
+   "firstgid": 1,
+   "image": "sliced/Room_Builder_48x48_part_0.png",
+   "imagewidth": 3648,
+   "imageheight": 4080,
+   "name": "Room_Builder_48x48",
+   "tilecount": 6460,
    "tiles": [
     {
      "id": 0,
@@ -2641,8 +2642,20 @@
       }
      ]
     }
-   ],
-   "tilewidth": 48
+   ]
+  },
+  {
+   "columns": 76,
+   "margin": 0,
+   "spacing": 0,
+   "tileheight": 48,
+   "tilewidth": 48,
+   "firstgid": 6461,
+   "image": "sliced/Room_Builder_48x48_part_1.png",
+   "imagewidth": 3648,
+   "imageheight": 1344,
+   "name": "Room_Builder_48x48_part_1",
+   "tilecount": 2128
   },
   {
    "columns": 16,
