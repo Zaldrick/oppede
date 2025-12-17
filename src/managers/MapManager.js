@@ -125,13 +125,27 @@ export class MapManager {
       // ignore
     }
 
+    const debugEnabled = (() => {
+      try { return new URLSearchParams(window.location.search).get('debug') === '1'; } catch (e) { return false; }
+    })();
+
     const setStatus = (msg) => {
+      if (!debugEnabled) return;
       try {
         if (typeof this.scene?.__setStatus === 'function') this.scene.__setStatus(msg);
       } catch (e) {}
     };
+
+    const statusLines = (lines) => {
+      if (!debugEnabled) return;
+      try {
+        (Array.isArray(lines) ? lines : [lines]).forEach((l) => setStatus(String(l)));
+      } catch (e) {}
+    };
     
     try {
+      statusLines([`MapManager: changeMap(${mapKey})…`]);
+
         // Stop any existing shake effect
         if (this.shakeTimer) {
         this.shakeTimer.remove();
@@ -193,22 +207,36 @@ export class MapManager {
     if (mapData && mapData.data) {
         const rawData = mapData.data;
 
+      // Basic renderer info (helps identify Android WebGL limits causing black tile layers).
+      try {
+        if (debugEnabled) {
+          const renderer = this.scene?.game?.renderer;
+          const type = renderer?.type === Phaser.WEBGL ? 'WEBGL' : (renderer?.type === Phaser.CANVAS ? 'CANVAS' : String(renderer?.type));
+          let maxTex = null;
+          try {
+            const gl = renderer?.gl;
+            if (gl && typeof gl.getParameter === 'function') {
+              maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            }
+          } catch (e) {}
+          statusLines([`Renderer: ${type}${maxTex ? ` maxTex=${maxTex}` : ''}`]);
+        }
+      } catch (e) {}
+
       // Ensure tileset images referenced by this TMJ are actually loaded.
       // On some Android devices, missing/failed tileset textures result in black (no tile layers), while sprites still render.
       try {
-        const debugEnabled = (() => {
-          try { return new URLSearchParams(window.location.search).get('debug') === '1'; } catch (e) { return false; }
-        })();
-
         const requiredTilesetImages = Array.isArray(rawData.tilesets)
           ? rawData.tilesets.filter(ts => ts && ts.name && ts.image)
           : [];
 
+        if (debugEnabled) {
+          statusLines([`Map ${mapKey}: tilesets=${requiredTilesetImages.length}`]);
+        }
+
         const missingTilesets = requiredTilesetImages.filter(ts => !this.scene.textures.exists(ts.name));
         if (missingTilesets.length > 0) {
-          if (debugEnabled) {
-            setStatus(`Map ${mapKey}: chargement tilesets (${missingTilesets.length})…`);
-          }
+          statusLines([`Map ${mapKey}: chargement tilesets manquants (${missingTilesets.length})…`]);
 
           await new Promise((resolve) => {
             const loader = this.scene.load;
@@ -228,11 +256,11 @@ export class MapManager {
                 loader.off('loaderror', onError);
               } catch (e) {}
 
-              if (debugEnabled) {
-                const stillMissing = missingTilesets.filter(ts => !this.scene.textures.exists(ts.name)).map(ts => ts.name);
-                if (stillMissing.length > 0) {
-                  setStatus(`Tilesets manquants: ${stillMissing.slice(0, 6).join(', ')}${stillMissing.length > 6 ? '…' : ''}`);
-                }
+              const stillMissing = missingTilesets.filter(ts => !this.scene.textures.exists(ts.name)).map(ts => ts.name);
+              if (stillMissing.length > 0) {
+                setStatus(`Tilesets toujours manquants: ${stillMissing.slice(0, 6).join(', ')}${stillMissing.length > 6 ? '…' : ''}`);
+              } else {
+                setStatus(`Tilesets manquants: OK (chargés)`);
               }
               resolve();
             };
@@ -252,6 +280,51 @@ export class MapManager {
               loader.start();
             }
           });
+        }
+
+        // After load attempt: detect problematic tilesets (too large for device, or not uploaded to GPU).
+        if (debugEnabled && requiredTilesetImages.length > 0) {
+          const renderer = this.scene?.game?.renderer;
+          const isWebgl = renderer?.type === Phaser.WEBGL;
+          let maxTex = null;
+          if (isWebgl) {
+            try {
+              const gl = renderer?.gl;
+              if (gl && typeof gl.getParameter === 'function') maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            } catch (e) {}
+          }
+
+          const oversized = [];
+          const notUploaded = [];
+
+          requiredTilesetImages.forEach((ts) => {
+            try {
+              const name = ts.name;
+              const tex = this.scene.textures.get(name);
+              const source = tex?.source?.[0];
+              const img = source?.image;
+              const w = img?.width;
+              const h = img?.height;
+              if (typeof w === 'number' && typeof h === 'number' && maxTex && (w > maxTex || h > maxTex)) {
+                oversized.push(`${name} ${w}x${h}`);
+              }
+              if (isWebgl) {
+                const glTex = source?.glTexture;
+                if (!glTex) {
+                  // On some devices, texture exists but upload fails -> tiles render black.
+                  if (typeof w === 'number' && typeof h === 'number') notUploaded.push(`${name} ${w}x${h}`);
+                  else notUploaded.push(name);
+                }
+              }
+            } catch (e) {}
+          });
+
+          if (oversized.length > 0) {
+            setStatus(`Tilesets trop grands (>${maxTex}): ${oversized.slice(0, 4).join(' | ')}${oversized.length > 4 ? '…' : ''}`);
+          }
+          if (isWebgl && notUploaded.length > 0) {
+            setStatus(`Tilesets non-uploadés GPU: ${notUploaded.slice(0, 4).join(' | ')}${notUploaded.length > 4 ? '…' : ''}`);
+          }
         }
       } catch (e) {
         console.warn('[MapManager] ensure tileset textures failed', e);
