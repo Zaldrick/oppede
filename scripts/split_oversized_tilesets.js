@@ -6,20 +6,23 @@
   (commonly 4096 or 8192). When a tileset image exceeds that, Phaser tile layers
   can render black/missing while sprites still render.
 
-  This script:
-  - scans public/assets/maps/*.tmj
-  - normalizes tileset.image paths to local files when possible
-  - for any tileset image whose width/height exceeds maxTex:
+    This script:
+    - scans public/assets/maps/*.tmj
+    - (optional) normalizes tileset.image paths to local filenames when possible
+    - for any tileset image whose width/height exceeds maxTex:
       - slices vertically (height only) on tile-height boundaries
       - replaces the single tileset entry with multiple entries (part_0, part_1, ...)
       - preserves gid mapping by keeping firstgid contiguous
       - splits per-tile metadata (tiles[]) into the correct part
-  - writes a .bak copy next to each modified tmj
-  - writes generated images to public/assets/maps/sliced/
+    - writes backups (by default into a single folder) so you can revert safely
+    - writes generated images to public/assets/maps/sliced/
 
   Usage:
     node ./scripts/split_oversized_tilesets.js
     node ./scripts/split_oversized_tilesets.js --maxTex=4096
+    node ./scripts/split_oversized_tilesets.js --backup=none
+    node ./scripts/split_oversized_tilesets.js --backup=dir --backupDir=_bak_tmj
+    node ./scripts/split_oversized_tilesets.js --normalize=0
 
   Notes:
   - Idempotent-ish: it skips tilesets already referencing /sliced/ or *_part_\d+.
@@ -46,10 +49,40 @@ const OUTPUT_DIR = path.join(MAPS_DIR, 'sliced');
 function parseArgs(argv) {
   const out = {};
   for (const a of argv.slice(2)) {
+    if (a === '--noBackup') {
+      out.backup = 'none';
+      continue;
+    }
     const m = a.match(/^--([^=]+)=(.*)$/);
     if (m) out[m[1]] = m[2];
   }
   return out;
+}
+
+function parseBool(v, defaultValue) {
+  if (v === undefined) return defaultValue;
+  const s = String(v).trim().toLowerCase();
+  if (s === '1' || s === 'true' || s === 'yes' || s === 'y') return true;
+  if (s === '0' || s === 'false' || s === 'no' || s === 'n') return false;
+  return defaultValue;
+}
+
+async function writeBackup({ tmjPath, backupMode, backupDirName }) {
+  if (backupMode === 'none') return null;
+
+  const base = path.basename(tmjPath);
+  if (backupMode === 'inline') {
+    const bak = tmjPath.replace(/\.tmj$/i, `.bak.tmj`);
+    if (!(await fileExists(bak))) await fsp.copyFile(tmjPath, bak);
+    return bak;
+  }
+
+  // backupMode === 'dir'
+  const dir = path.join(MAPS_DIR, backupDirName || '_bak_tmj');
+  await ensureDir(dir);
+  const bak = path.join(dir, base);
+  if (!(await fileExists(bak))) await fsp.copyFile(tmjPath, bak);
+  return bak;
 }
 
 function toPosix(p) {
@@ -191,7 +224,7 @@ async function splitTilesetImage({
   return slices;
 }
 
-async function transformMapInPlace(map, maxTex) {
+async function transformMapInPlace(map, maxTex, { normalizeImages }) {
   if (!Array.isArray(map.tilesets) || map.tilesets.length === 0) return { changed: false, changes: [] };
 
   const changes = [];
@@ -251,7 +284,7 @@ async function transformMapInPlace(map, maxTex) {
     const oversize = w > maxTex || h > maxTex;
 
     if (!oversize) {
-      if (ts.image !== normalizedImage) {
+      if (normalizeImages && ts.image !== normalizedImage) {
         newTilesets.push({ ...ts, image: normalizedImage, imagewidth: w, imageheight: h });
         changes.push({ type: 'normalize-image', tileset: ts.name });
       } else {
@@ -324,6 +357,11 @@ async function transformMapInPlace(map, maxTex) {
 async function main() {
   const args = parseArgs(process.argv);
   const maxTex = Number(args.maxTex || 4096);
+  const backupModeRaw = String(args.backup || 'dir').trim().toLowerCase();
+  const backupMode = (backupModeRaw === 'none' || backupModeRaw === 'inline' || backupModeRaw === 'dir') ? backupModeRaw : 'dir';
+  const backupDirName = String(args.backupDir || '_bak_tmj').trim();
+
+  const normalizeImages = parseBool(args.normalize, true);
 
   if (!Number.isFinite(maxTex) || maxTex < 256) {
     console.error('[tilesets] Invalid --maxTex value');
@@ -332,7 +370,8 @@ async function main() {
 
   const entries = await fsp.readdir(MAPS_DIR, { withFileTypes: true });
   const tmjs = entries
-    .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.tmj'))
+    // Only process real TMJ maps, never backups (avoid *.bak.bak... explosions)
+    .filter(e => e.isFile() && e.name.toLowerCase().endsWith('.tmj') && !/\.bak(\.|$)/i.test(e.name))
     .map(e => path.join(MAPS_DIR, e.name));
 
   if (tmjs.length === 0) {
@@ -340,7 +379,7 @@ async function main() {
     return;
   }
 
-  console.log(`[tilesets] Scanning ${tmjs.length} TMJ files (maxTex=${maxTex})…`);
+  console.log(`[tilesets] Scanning ${tmjs.length} TMJ files (maxTex=${maxTex}, backup=${backupMode}${backupMode === 'dir' ? `:${backupDirName}` : ''}, normalize=${normalizeImages ? '1' : '0'})…`);
 
   let modifiedCount = 0;
   let splitCount = 0;
@@ -348,14 +387,11 @@ async function main() {
   for (const tmj of tmjs) {
     try {
       const map = await loadJson(tmj);
-      const res = await transformMapInPlace(map, maxTex);
+      const res = await transformMapInPlace(map, maxTex, { normalizeImages });
 
       if (!res.changed) continue;
 
-      const bak = tmj.replace(/\.tmj$/i, `.bak.tmj`);
-      if (!(await fileExists(bak))) {
-        await fsp.copyFile(tmj, bak);
-      }
+      await writeBackup({ tmjPath: tmj, backupMode, backupDirName });
 
       await writeJson(tmj, map);
 

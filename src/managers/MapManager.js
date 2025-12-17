@@ -42,7 +42,7 @@ export class MapManager {
       2: "backgroundoppede",
       3: "qwest",
       4: "defaut", // Placeholder for lille
-      5: "defaut",  // Placeholder for metro
+      5: "metrobg",  // Placeholder for metro
       6: "defaut",
       7: "defaut",
       8: "marinbg"

@@ -453,6 +453,7 @@ export class GameScene extends Phaser.Scene {
         this.load.image("backgroundext", "/assets/maps/exterieur.png");
         this.load.image("backgroundoppede", "/assets/maps/oppede.png");
         this.load.image("marinbg", "/assets/maps/marin.png");
+        this.load.image("metrobg", "/assets/maps/metro.png");
         // Utilisation de Marin.png pour le nouveau système d'animation (48x96)
         this.load.spritesheet("player", "/assets/apparences/Marin.png", {
             frameWidth: 48,
