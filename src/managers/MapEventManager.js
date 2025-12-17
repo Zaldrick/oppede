@@ -433,7 +433,26 @@ export class MapEventManager {
             startX = 110; startY = 25;
         } else if (mapKey === "metro") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
-            startX = 30; startY = 30;
+
+            // Placement manuel des PNJ (coordonnées en tuiles + direction du regard)
+            const placements = [
+                { tileX: 24, tileY: 26, facing: 'down' },
+                { tileX: 10, tileY: 26, facing: 'up' },
+                { tileX: 20, tileY: 20, facing: 'down' },
+                { tileX: 8, tileY: 17, facing: 'up' },
+                { tileX: 19, tileY: 10, facing: 'down' },
+                { tileX: 22, tileY: 7, facing: 'left' },
+                { tileX: 26, tileY: 7, facing: 'down' }
+            ];
+
+            placements.forEach((p, i) => {
+                const npcName = npcsToSpawn[i];
+                if (!npcName) return;
+                const x = p.tileX * 48 + 24;
+                const y = p.tileY * 48 + 24;
+                this.createAmbientNPC(npcName, x, y, p.facing);
+            });
+            return;
         } else if (mapKey === "metroInterieur") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
 

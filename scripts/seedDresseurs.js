@@ -125,6 +125,77 @@ async function seedDresseurs() {
 
         createdAt: new Date(),
         updatedAt: new Date()
+      },
+      {
+        trainerId: 'metro:27:7:blocker',
+        mapKey: 'metro',
+
+        // Coordonnées en cases (tile)
+        tileX: 27,
+        tileY: 7,
+
+        // Sprite
+        spriteKey: 'npc_adam',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: "J'ai verrouillé la machine à ticket, oui je suis un fou du bus !",
+        afterDialogue: "C'est 1234, bah ouais t'avais qu'à tenter !",
+
+        // Team
+        team: [
+          { speciesId: 50, level: 6 },
+          { speciesId: 50, level: 6 },
+          { speciesId: 50, level: 6 }
+        ],
+
+        // Après victoire: déplacement à droite, regard vers la gauche
+        afterWinTileX: 28,
+        afterWinTileY: 7,
+        afterWinFacing: 'left',
+        initialFacing: 'down',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        trainerId: 'metro:26:16:blocker',
+        mapKey: 'metro',
+
+        // Coordonnées en cases (tile)
+        tileX: 26,
+        tileY: 16,
+
+        // Sprite
+        spriteKey: 'npc_adam',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: 'Quoi ? tu veux rentrer ? Faut le mériter',
+        afterDialogue: "J'adore empêcher les gens de sortir du wagon.",
+
+        // Team
+        team: [
+          { speciesId: 32, level: 6 }, // Nidoran♂
+          { speciesId: 41, level: 7 }  // Nosferapti
+        ],
+
+        // Après victoire: déplacement à gauche, regard vers la droite
+        afterWinTileX: 25,
+        afterWinTileY: 16,
+        afterWinFacing: 'right',
+        initialFacing: 'down',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     ];
 
