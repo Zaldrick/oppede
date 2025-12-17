@@ -3,6 +3,7 @@ import PlayerService from '../services/PlayerService.js';
 import Phaser from "phaser";
 import { MapEventManager } from './MapEventManager.js';
 import { MapPhysicsManager } from './MapPhysicsManager.js';
+import { WildEncounterManager } from './WildEncounterManager.js';
 
 export class MapManager {
   constructor(scene) {
@@ -20,6 +21,7 @@ export class MapManager {
     // Sub-managers
     this.eventManager = new MapEventManager(scene, this);
     this.physicsManager = new MapPhysicsManager(scene, this);
+    this.wildEncounterManager = new WildEncounterManager(scene, this);
 
     // Configuration des cartes
     this.mapIds = {
@@ -43,7 +45,7 @@ export class MapManager {
       5: "defaut",  // Placeholder for metro
       6: "defaut",
       7: "defaut",
-      8: "marin"
+      8: "marinbg"
     };
 
     this.mapMusic = {
@@ -181,6 +183,7 @@ export class MapManager {
 
     this.physicsManager.clear();
     this.eventManager.clearEvents();
+    this.wildEncounterManager.clear();
 
     if (this.layers) {
         this.layers.forEach(layer => layer.destroy());
@@ -234,9 +237,49 @@ export class MapManager {
           statusLines([`Map ${mapKey}: tilesets=${requiredTilesetImages.length}`]);
         }
 
-        const missingTilesets = requiredTilesetImages.filter(ts => !this.scene.textures.exists(ts.name));
-        if (missingTilesets.length > 0) {
-          statusLines([`Map ${mapKey}: chargement tilesets manquants (${missingTilesets.length})…`]);
+        // Some tilesets are preloaded elsewhere with the same key, but may be too large for Android
+        // or may not match the TMJ's expected sliced dimensions. In those cases we force-reload.
+        const renderer = this.scene?.game?.renderer;
+        const isWebgl = renderer?.type === Phaser.WEBGL;
+
+        const tilesetsToLoad = requiredTilesetImages.filter((ts) => {
+          try {
+            const name = ts.name;
+            const expectedW = Number(ts.imagewidth) || null;
+            const expectedH = Number(ts.imageheight) || null;
+
+            if (!this.scene.textures.exists(name)) return true;
+
+            const tex = this.scene.textures.get(name);
+            const source = tex?.source?.[0];
+            const img = source?.image;
+            const w = img?.width;
+            const h = img?.height;
+
+            // If TMJ says 1536x4080 but we have 1536x10752 (old atlas), reload to the sliced file.
+            if (expectedW && typeof w === 'number' && w !== expectedW) return true;
+            if (expectedH && typeof h === 'number' && h !== expectedH) return true;
+
+            // In WebGL, a texture can exist but fail to upload (glTexture null) -> tiles render black.
+            if (isWebgl && !source?.glTexture) return true;
+
+            return false;
+          } catch (e) {
+            return true;
+          }
+        });
+
+        if (tilesetsToLoad.length > 0) {
+          statusLines([`Map ${mapKey}: chargement tilesets manquants (${tilesetsToLoad.length})…`]);
+
+          // Remove stale textures so the loader can re-add them with the same key.
+          tilesetsToLoad.forEach((ts) => {
+            try {
+              if (this.scene.textures.exists(ts.name)) {
+                this.scene.textures.remove(ts.name);
+              }
+            } catch (e) {}
+          });
 
           await new Promise((resolve) => {
             const loader = this.scene.load;
@@ -256,7 +299,7 @@ export class MapManager {
                 loader.off('loaderror', onError);
               } catch (e) {}
 
-              const stillMissing = missingTilesets.filter(ts => !this.scene.textures.exists(ts.name)).map(ts => ts.name);
+              const stillMissing = tilesetsToLoad.filter(ts => !this.scene.textures.exists(ts.name)).map(ts => ts.name);
               if (stillMissing.length > 0) {
                 setStatus(`Tilesets toujours manquants: ${stillMissing.slice(0, 6).join(', ')}${stillMissing.length > 6 ? '…' : ''}`);
               } else {
@@ -268,7 +311,7 @@ export class MapManager {
             loader.once('complete', onComplete);
             loader.on('loaderror', onError);
 
-            missingTilesets.forEach((ts) => {
+            tilesetsToLoad.forEach((ts) => {
               const img = String(ts.image || '');
               // TMJ image paths are typically relative to /assets/maps/
               const cleaned = img.replace(/^\.\//, '');
@@ -496,6 +539,9 @@ export class MapManager {
 
     // Gestion des couches d'objets (visuels)
     this.createObjectLayers();
+
+    // Zones de rencontre sauvage (rectangles Tiled avec encounterTableId/encounterRate)
+    this.wildEncounterManager.loadZonesFromCurrentMap();
 
     await this.eventManager.loadWorldEvents();
     
@@ -808,6 +854,7 @@ export class MapManager {
     
     this.eventManager.clearEvents();
     this.physicsManager.clear();
+    this.wildEncounterManager.clear();
     this.map = null;
   }
 }

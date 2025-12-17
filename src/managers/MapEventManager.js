@@ -46,7 +46,7 @@ export class MapEventManager {
     faceNpcToPlayer(npc) {
         // Optional opt-out per event
         if (npc && npc.facePlayerOnInteract === false) return;
-
+        
         const player = this.scene.playerManager?.getPlayer();
         if (!player || !npc) return;
 

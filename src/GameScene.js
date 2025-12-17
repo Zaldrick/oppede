@@ -384,6 +384,9 @@ export class GameScene extends Phaser.Scene {
         // Mise à jour des joueurs distants
         this.remotePlayerManager.updateRemotePlayers();
 
+        // Rencontres sauvages (basées sur la distance parcourue dans une zone)
+        this.mapManager?.wildEncounterManager?.update();
+
         // --- GESTION DE LA PROFONDEUR (Z-INDEX) ---
         
         // 1. Le joueur local
@@ -437,9 +440,9 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("keyitem_get", "/assets/sounds/KeyItem_Get.wav?v=1");
         this.load.image("qwest", "/assets/qwest.png");
         this.load.image("defaut", "/assets/defaut.png");
-        this.load.image("defaut", "/assets/marin.png");
         this.load.image("backgroundext", "/assets/maps/exterieur.png");
         this.load.image("backgroundoppede", "/assets/maps/oppede.png");
+        this.load.image("marinbg", "/assets/maps/marin.png");
         // Utilisation de Marin.png pour le nouveau système d'animation (48x96)
         this.load.spritesheet("player", "/assets/apparences/Marin.png", {
             frameWidth: 48,

@@ -43,10 +43,12 @@
     "migrate:cleanup:move_learned": "node ./scripts/cleanup_move_learned_future_moves.js",
     "test:cleanupMoveLearned": "node ./scripts/test_cleanup_move_learned_future_moves.js",
     "test:carapuceBite": "node ./scripts/test_carapuce_bite_flow.js",
-    "test:cache:learnableMoves": "node ./scripts/test_cache_learnable_moves.js"
+    "test:cache:learnableMoves": "node ./scripts/test_cache_learnable_moves.js",
+    "tilesets:split": "node ./scripts/split_oversized_tilesets.js"
   },
   "devDependencies": {
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "sharp": "^0.34.5"
   },
   "eslintConfig": {
     "extends": [

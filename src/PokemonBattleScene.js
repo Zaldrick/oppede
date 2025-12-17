@@ -67,6 +67,9 @@ export class PokemonBattleScene extends Phaser.Scene {
 
         // 🆕 Données combat dresseur (PNJ)
         this.trainerBattle = data.trainerBattle || null;
+
+        // 🆕 Contexte rencontre sauvage (zone/tables Tiled)
+        this.wildEncounter = data.wildEncounter || null;
         
         // 🔧 FIXE: Reset des états d'animation HP pour éviter le glitch visuel
         this.currentPlayerHPPercent = undefined;
@@ -204,7 +207,9 @@ export class PokemonBattleScene extends Phaser.Scene {
                     this.playerId,
                     this.opponentId,
                     this.battleType,
-                    this.battleType === 'trainer' ? { trainer: this.trainerBattle } : undefined
+                    this.battleType === 'trainer'
+                        ? { trainer: this.trainerBattle }
+                        : (this.battleType === 'wild' && this.wildEncounter ? { wildEncounter: this.wildEncounter } : undefined)
                 );
 
                 this.battleId = battleData.battleId;

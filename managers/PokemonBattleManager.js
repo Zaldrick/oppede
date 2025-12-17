@@ -13,6 +13,7 @@ const { ObjectId } = require('mongodb');
 const PokemonBattleLogicManager = require('./PokemonBattleLogicManager');
 const spriteCacheManager = require('./SpriteCacheManager');
 const PokemonEvolutionManager = require('./PokemonEvolutionManager');
+const { pickFromEncounterTable } = require('./wildEncounterTables');
 
 class PokemonBattleManager {
     constructor(databaseManager) {
@@ -128,7 +129,7 @@ class PokemonBattleManager {
         // Démarrer un nouveau combat
         app.post('/api/battle/start', async (req, res) => {
             try {
-                const { playerId, opponentId, battleType = 'wild', trainer } = req.body;
+                const { playerId, opponentId, battleType = 'wild', trainer, wildEncounter } = req.body;
 
                 if (!playerId) {
                     return res.status(400).json({ error: 'playerId requis' });
@@ -161,7 +162,7 @@ class PokemonBattleManager {
 
                 if (battleType === 'wild') {
                     // Générer un Pokémon sauvage
-                    const wildMon = await this.generateWildPokemon();
+                    const wildMon = await this.generateWildPokemon(wildEncounter);
                     // Recalculer stats proprement pour wildMon
                     wildMon.stats = this.calculateStats(wildMon, wildMon.speciesData);
                     opponentTeam = [wildMon];
@@ -877,20 +878,29 @@ class PokemonBattleManager {
     /**
      * Génère un Pokémon sauvage
      */
-    async generateWildPokemon() {
-        // Liste de Pokémon sauvages communs (Gen I)
-        const wildSpecies = [16, 19, 21, 23, 41, 43, 46, 60, 63, 69]; // Pidgey, Rattat, Spearow, etc.
-        const randomSpeciesId = wildSpecies[Math.floor(Math.random() * wildSpecies.length)];
+    async generateWildPokemon(wildEncounter = null) {
+        // Si une table est fournie (via zone Tiled), piocher dedans.
+        const tableId = wildEncounter?.encounterTableId;
+        const picked = tableId ? pickFromEncounterTable(tableId) : null;
 
-        const speciesData = await this.getSpeciesData(randomSpeciesId);
-        const level = 3 + Math.floor(Math.random() * 5); // Level 3-7
+        // Fallback: Liste de Pokémon sauvages communs (Gen I)
+        const fallbackSpecies = [16, 19, 21, 23, 41, 43, 46, 60, 63, 69]; // Pidgey, Rattata, Spearow, etc.
+        const fallbackSpeciesId = fallbackSpecies[Math.floor(Math.random() * fallbackSpecies.length)];
+
+        const speciesId = Number.isFinite(Number(picked?.speciesId)) ? Number(picked.speciesId) : fallbackSpeciesId;
+        const minLevel = Number.isFinite(Number(picked?.minLevel)) ? Number(picked.minLevel) : 3;
+        const maxLevel = Number.isFinite(Number(picked?.maxLevel)) ? Number(picked.maxLevel) : 7;
+        const resolvedMax = Math.max(minLevel, maxLevel);
+        const level = minLevel + Math.floor(Math.random() * (resolvedMax - minLevel + 1));
+
+        const speciesData = await this.getSpeciesData(speciesId);
 
         // Calculer HP max
         const baseHP = speciesData.stats.hp;
         const maxHP = Math.floor(((2 * baseHP + 15) * level) / 100) + level + 10;
 
         return {
-            species_id: randomSpeciesId,
+            species_id: speciesId,
             nickname: null,
             level,
             currentHP: maxHP,

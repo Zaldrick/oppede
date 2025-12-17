@@ -23430,52 +23430,6 @@
    "y": 0
   },
   {
-   "draworder": "topdown",
-   "id": 10,
-   "name": "collision",
-   "objects": [],
-   "opacity": 1,
-   "type": "objectgroup",
-   "visible": true,
-   "x": 0,
-   "y": 0
-  },
-  {
-   "draworder": "topdown",
-   "id": 11,
-   "name": "encounters",
-   "objects": [
-    {
-     "height": 532,
-     "id": 50,
-     "name": "",
-     "properties": [
-      {
-       "name": "encounterRate",
-       "type": "string",
-       "value": "12"
-      },
-      {
-       "name": "encounterTableId",
-       "type": "string",
-       "value": "douai_marchienne"
-      }
-     ],
-     "rotation": 0,
-     "type": "",
-     "visible": true,
-     "width": 192,
-     "x": 1776,
-     "y": 2876
-    }
-   ],
-   "opacity": 1,
-   "type": "objectgroup",
-   "visible": true,
-   "x": 0,
-   "y": 0
-  },
-  {
    "data": [
     0,
     0,
@@ -46896,7 +46850,7 @@
    "name": "1",
    "opacity": 1,
    "type": "tilelayer",
-   "visible": true,
+   "visible": false,
    "width": 130,
    "x": 0,
    "y": 0
@@ -58609,14 +58563,14 @@
    "name": "2",
    "opacity": 1,
    "type": "tilelayer",
-   "visible": true,
+   "visible": false,
    "width": 130,
    "x": 0,
    "y": 0
   }
  ],
- "nextlayerid": 12,
- "nextobjectid": 51,
+ "nextlayerid": 10,
+ "nextobjectid": 1,
  "orientation": "orthogonal",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",
