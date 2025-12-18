@@ -4,7 +4,7 @@ class Quest_005_SePreparer extends BaseQuest {
     constructor() {
         super("Se préparer", "Se préparer", [
             "Je dois me préparer avant d'aller plus loin.",
-            "Je suis prêt."
+            "J'ai trouvé un compagnon, ca devrait aller mieux maintenant."
         ]);
     }
 

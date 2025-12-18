@@ -173,7 +173,7 @@ export class QwestEvents extends BaseQuest {
     const { playerPseudo, playerData, playerId } = this.getPlayerContext();
 
     if (npc.npcType === 'qwest_memo_sparkles') {
-      this.scene.displayMessage('Mhhh, un memo est visible : "Il y a peut-être plus que des chocolats dans ce calendrier ..."', playerPseudo);
+      this.scene.displayMessage('Y\'a un mémo : "Il y a plus que des chocolats dans ce calendrier ..."', playerPseudo);
       return true;
     }
 
@@ -257,12 +257,12 @@ export class QwestEvents extends BaseQuest {
           }
 
           try {
-            this.scene.addItemToInventory({ nom: 'Potion', quantite: 10 });
+            this.scene.addItemToInventory({ nom: 'Potion', quantite: 3 });
           } catch (e) {
             console.warn('[QwestEvents] addItemToInventory failed:', e);
           }
 
-          this.scene.displayMessage('Vous obtenez Sirius et 10 potions !', 'Système');
+          this.scene.displayMessage('Vous obtenez Sirius et 3 potions !', 'Système');
         },
         onFailure: () => {
           this.isPinCodeActive = false;

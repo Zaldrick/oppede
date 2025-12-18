@@ -204,18 +204,31 @@ class QuestManager {
         app.post('/api/quests/complete', async (req, res) => {
             try {
                 const { playerId, questId } = req.body;
-                
-                await this.playerQuestsCollection.updateOne(
-                    { playerId, questId },
-                    { 
-                        $set: { 
-                            status: 'completed',
-                            completedAt: new Date()
-                        } 
-                    }
-                );
+
+                const playerQuest = await this.playerQuestsCollection.findOne({ playerId, questId });
+                if (!playerQuest) {
+                    return res.status(404).json({ error: 'Player quest not found' });
+                }
 
                 const questObj = QuestRegistry.getQuest(questId);
+                const questDefDB = await this.questsCollection.findOne({ quest_id: questId });
+                const stepsCount = questObj
+                    ? questObj.steps.length
+                    : (questDefDB && Array.isArray(questDefDB.steps) ? questDefDB.steps.length : 0);
+
+                const finalStepIndex = stepsCount > 0 ? Math.max(0, stepsCount - 1) : playerQuest.stepIndex;
+
+                await this.playerQuestsCollection.updateOne(
+                    { playerId, questId },
+                    {
+                        $set: {
+                            status: 'completed',
+                            stepIndex: finalStepIndex,
+                            updatedAt: new Date(),
+                            completedAt: new Date()
+                        }
+                    }
+                );
                 if (questObj) {
                     const player = await this.databaseManager.getDatabase().collection('players').findOne({ _id: new ObjectId(playerId) });
                     await questObj.onComplete(player, this.databaseManager.getDatabase());

@@ -12,6 +12,8 @@ export class UIManager {
   constructor(scene) {
     this.scene = scene;
     this.joystick = null;
+    this.joystickBase = null;
+    this.joystickThumb = null;
     this.buttonA = null;
     this.buttonB = null;
     this.startButton = null;
@@ -37,6 +39,48 @@ export class UIManager {
     // Anti-spam: small cooldown after a dialogue closes to avoid instantly
     // re-triggering an interaction on the same key press.
     this.interactionCooldownUntil = 0;
+  }
+
+  resetJoystick() {
+    // Releases the joystick state when an overlay (dialogue/battle/menu) steals pointer events.
+    // We try the plugin reset API first; fallback to centering the thumb.
+    const j = this.joystick;
+    if (!j) return;
+
+    try {
+      if (typeof j.reset === 'function') {
+        j.reset();
+        return;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      const base = j.base || this.joystickBase;
+      const thumb = j.thumb || this.joystickThumb;
+      if (base && thumb && typeof thumb.setPosition === 'function') {
+        thumb.setPosition(base.x, base.y);
+      } else if (base && thumb) {
+        thumb.x = base.x;
+        thumb.y = base.y;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  resetSpeedBoost() {
+    try {
+      this.scene.playerManager?.setSpeedBoost(false);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  resetInputs() {
+    this.resetJoystick();
+    this.resetSpeedBoost();
   }
 
   setInteractionCooldown(durationMs = 300) {
@@ -72,12 +116,15 @@ export class UIManager {
 
     // Joystick
     const joystickRadius = gameWidth * 0.12 / this.zoomFactor;
+    // Keep references so we can force-reset/cleanup if an overlay steals pointer events.
+    this.joystickBase = this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor).setDepth(200000);
+    this.joystickThumb = this.scene.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor).setDepth(200000);
     this.joystick = joystickPlugin.add(this.scene, {
       x: gameWidth * 0.21,
       y: gameHeight * 0.82,
       radius: joystickRadius,
-      base: this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor).setDepth(200000),
-      thumb: this.scene.add.circle(0, 0, joystickRadius * CONFIG.joystick.thumbRadiusFactor, CONFIG.joystick.thumbColor).setDepth(200000),
+      base: this.joystickBase,
+      thumb: this.joystickThumb,
     });
     this.joystick.setScrollFactor(0);
 
@@ -315,7 +362,10 @@ export class UIManager {
         this.startMenu.add(background);
 
         // ❌ Bouton de fermeture (Croix en haut à droite)
-        const closeBtnSize = 40;
+        // Note: on mobile + camera-follow, it’s easy to end up with a visible
+        // element whose interactive area is offset unless scrollFactor is forced to 0.
+        // We also add a bigger hit area to make tapping reliable.
+        const closeBtnSize = 48;
         // Position relative au centre du conteneur (0,0)
         // background.width est gameWidth * 0.95
         const bgWidth = gameWidth * 0.95;
@@ -324,13 +374,21 @@ export class UIManager {
         const closeBtnX = bgWidth / 2 - 30;
         const closeBtnY = -bgHeight / 2 + 30;
         
+        const closeHitArea = this.scene.add
+          .rectangle(closeBtnX, closeBtnY, closeBtnSize, closeBtnSize, 0x000000, 0.001)
+          .setOrigin(0.5)
+          .setInteractive({ useHandCursor: true })
+          .setScrollFactor(0);
+
         const closeBtn = this.scene.add.text(closeBtnX, closeBtnY, '✕', {
             font: 'bold 30px Arial',
             fill: '#ffffff'
-        }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-        
-        closeBtn.on('pointerdown', () => this.closeMenu());
-        this.startMenu.add(closeBtn);
+        }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setScrollFactor(0);
+
+        const onClose = () => this.closeMenu();
+        closeHitArea.on('pointerdown', onClose);
+        closeBtn.on('pointerdown', onClose);
+        this.startMenu.add([closeHitArea, closeBtn]);
 
         const menuOptions = [
             {
@@ -614,6 +672,24 @@ export class UIManager {
 
   setupControls() {
     this.scene.scale.on("resize", this.handleResize, this);
+
+    // Ensure virtual joystick doesn't stay "stuck" across overlays / lost pointerup.
+    // (e.g. opening a dialogue while holding the joystick, or pausing GameScene for battle.)
+    try {
+      this.scene.events.on('pause', () => this.resetInputs());
+      this.scene.events.on('sleep', () => this.resetInputs());
+      this.scene.events.on('resume', () => this.resetInputs());
+      this.scene.events.on('wake', () => this.resetInputs());
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      this.scene.game?.events?.on('blur', () => this.resetInputs());
+      this.scene.game?.events?.on('focus', () => this.resetInputs());
+    } catch (e) {
+      // ignore
+    }
 
     this.scene.input.keyboard.on('keydown-SHIFT', () => {
       this.scene.playerManager?.setSpeedBoost(true);

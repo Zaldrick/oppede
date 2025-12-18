@@ -61,7 +61,7 @@ async function seedDresseurs() {
         // Team (speciesId = id PokéAPI)
         team: [
           { speciesId: 19, level: 8 }, // Rattata
-          { speciesId: 16, level: 7 }  // Pidgey
+          { speciesId: 17, level: 11 }  // Pidgey
         ],
 
         // Après victoire
@@ -95,7 +95,7 @@ async function seedDresseurs() {
 
         // Team (speciesId = id PokéAPI)
         team: [
-          { speciesId: 88, level: 11 } // Tadmorv
+          { speciesId: 88, level: 14 } // Tadmorv
         ],
 
         // Après victoire
@@ -129,9 +129,9 @@ async function seedDresseurs() {
 
         // Team (speciesId = id PokéAPI)
         team: [
-          { speciesId: 52, level: 8 }, // Miaous
-          { speciesId: 27, level: 8 }, // Sablette
-          { speciesId: 66, level: 8 }  // Machoc
+          { speciesId: 52, level: 11 }, // Miaous
+          { speciesId: 27, level: 11 }, // Sablette
+          { speciesId: 66, level: 11 }  // Machoc
         ],
 
         // Après victoire
@@ -165,9 +165,9 @@ async function seedDresseurs() {
 
         // Team
         team: [
-          { speciesId: 50, level: 6 },
-          { speciesId: 50, level: 6 },
-          { speciesId: 50, level: 6 }
+          { speciesId: 50, level: 7 },
+          { speciesId: 50, level: 7 },
+          { speciesId: 50, level: 7 }
         ],
 
         // Après victoire: déplacement à droite, regard vers la gauche
@@ -201,8 +201,8 @@ async function seedDresseurs() {
 
         // Team
         team: [
-          { speciesId: 32, level: 6 }, // Nidoran♂
-          { speciesId: 41, level: 7 }  // Nosferapti
+          { speciesId: 32, level: 8 }, // Nidoran♂
+          { speciesId: 41, level: 8 }  // Nosferapti
         ],
 
         // Après victoire: déplacement à gauche, regard vers la droite
@@ -241,6 +241,78 @@ async function seedDresseurs() {
         ],
 
         // Orientation initiale (vers le haut)
+        initialFacing: 'up',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+
+      // Douai: nouveaux dresseurs (se décalent après défaite)
+      {
+        trainerId: 'douai:68:12:blocker',
+        mapKey: 'douai',
+
+        // Coordonnées en cases (tile)
+        tileX: 68,
+        tileY: 12,
+
+        // Sprite (réutilise un sprite existant)
+        spriteKey: 'npc_adam',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: "C'est MA passerelle, du balais !",
+        afterDialogue: 'Nan bah on peut partager, tranquille',
+
+        // Team (speciesId = id PokéAPI)
+        team: [
+          { speciesId: 15, level: 17 }, // Dardargnan (Beedrill)
+          { speciesId: 33, level: 16 }  // Nidorino
+        ],
+
+        // Après victoire: se décale d'une tuile (laisse passer)
+        afterWinTileX: 68,
+        afterWinTileY: 11,
+        afterWinFacing: 'down',
+        initialFacing: 'down',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        trainerId: 'douai:54:47:blocker',
+        mapKey: 'douai',
+
+        // Coordonnées en cases (tile)
+        tileX: 54,
+        tileY: 47,
+
+        // Sprite (réutilise un sprite existant)
+        spriteKey: 'npc_adam',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+
+        // Dialogue / identité
+        name: 'Dresseur',
+        dialogue: "Interdiction d'approcher des travaux !",
+        afterDialogue: 'Bon bon bah tu peux passer.',
+
+        // Team (speciesId = id PokéAPI)
+        team: [
+          { speciesId: 81, level: 16 }, // Magnéti
+          { speciesId: 92, level: 17 }  // Fantominus
+        ],
+
+        // Après victoire: se décale d'une tuile (laisse passer)
+        afterWinTileX: 54,
+        afterWinTileY: 48,
+        afterWinFacing: 'up',
         initialFacing: 'up',
 
         createdAt: new Date(),

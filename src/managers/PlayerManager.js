@@ -152,7 +152,20 @@ export class PlayerManager {
     }
 
     // Gestion joystick
-    if (!keyboardActive && joystick && joystick.force > 0) {
+    // IMPORTANT: on some overlays (dialogue/combat/scene pause), the joystick can miss pointerup
+    // and keep a stale non-zero force. Only trust the joystick when its pointer is currently down.
+    const joystickPointerDown = (() => {
+      try {
+        const p = joystick?.pointer;
+        if (p && typeof p.isDown === 'boolean') return p.isDown;
+      } catch (e) {}
+      try {
+        if (joystick && typeof joystick.isDown === 'boolean') return joystick.isDown;
+      } catch (e) {}
+      return false;
+    })();
+
+    if (!keyboardActive && joystick && joystickPointerDown && joystick.force > 0) {
       const angle = joystick.angle;
       if (angle > -45 && angle <= 45) {
         newAnim = "walk-right";

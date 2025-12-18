@@ -618,32 +618,16 @@ export class GameScene extends Phaser.Scene {
 
         // Load Modern Exteriors Tilesets
         this.load.image("1_Terrains_and_Fences_48x48", "/assets/maps/1_Terrains_and_Fences_48x48.png");
-        this.load.image("2_City_Terrains_48x48", "/assets/maps/2_City_Terrains_48x48.png");
-        this.load.image("3_City_Props_48x48", "/assets/maps/3_City_Props_48x48.png");
-        this.load.image("4_Generic_Buildings_48x48", "/assets/maps/4_Generic_Buildings_48x48.png");
-        this.load.image("5_Floor_Modular_Buildings_48x48", "/assets/maps/5_Floor_Modular_Buildings_48x48.png");
         this.load.image("6_Garage_Sales_48x48", "/assets/maps/6_Garage_Sales_48x48.png");
         this.load.image("8_Worksite_48x48", "/assets/maps/8_Worksite_48x48.png");
         this.load.image("9_Shopping_Center_and_Markets_48x48", "/assets/maps/9_Shopping_Center_and_Markets_48x48.png");
-        this.load.image("10_Vehicles_48x48", "/assets/maps/10_Vehicles_48x48.png");
-        this.load.image("13_School_48x48", "/assets/maps/13_School_48x48.png");
         this.load.image("1_Generic_48x48", "/assets/maps/1_Generic_48x48.png");
         this.load.image("2_LivingRoom_48x48", "/assets/maps/2_LivingRoom_48x48.png");
         this.load.image("3_Bathroom_48x48", "/assets/maps/3_Bathroom_48x48.png");
         this.load.image("4_Bedroom_48x48", "/assets/maps/4_Bedroom_48x48.png");
-        this.load.image("5_Classroom_and_library_48x48", "/assets/maps/5_Classroom_and_library_48x48.png");
-        this.load.image("6_Music_and_sport_48x48", "/assets/maps/6_Music_and_sport_48x48.png");
-        this.load.image("7_Art_48x48", "/assets/maps/7_Art_48x48.png");
         this.load.image("12_Kitchen_48x48", "/assets/maps/12_Kitchen_48x48.png");
         this.load.image("14_Basement_48x48", "/assets/maps/14_Basement_48x48.png");
-        this.load.image("15_Christmas_48x48", "/assets/maps/15_Christmas_48x48.png");
-        this.load.image("17_Visibile_Upstairs_System_48x48", "/assets/maps/17_Visibile_Upstairs_System_48x48.png");
         this.load.image("21_Clothing_Store_48x48", "/assets/maps/21_Clothing_Store_48x48.png");
-        this.load.image("23_Television_and_Film_Studio_48x48", "/assets/maps/23_Television_and_Film_Studio_48x48.png");
-        this.load.image("5_Classroom_and_library_48x48", "/assets/maps/5_Classroom_and_library_48x48.png");
-        this.load.image("19_Hospital_48x48", "/assets/maps/19_Hospital_48x48.png");
-        this.load.image("18_Jail_48x48", "/assets/maps/18_Jail_48x48.png");
-        this.load.image("20_Subway_and_Train_Station_48x48", "/assets/maps/20_Subway_and_Train_Station_48x48.png");
         this.load.image("collision", "/assets/maps/collision.png");
         this.load.image('pokecenter', '/assets/sprites/pokecenter.png')
         // Load split tilesets for mobile compatibility
@@ -728,6 +712,9 @@ export class GameScene extends Phaser.Scene {
         // Bloque le joueur via UIManager
         if (this.uiManager) {
             this.uiManager.isDialogueActive = true;
+            // If the user was holding the virtual joystick, the dialogue overlay can steal
+            // pointer events and the joystick might miss its pointerup. Release it now.
+            try { this.uiManager.resetInputs?.(); } catch (e) {}
         }
         // Stop le mouvement immédiatement
         if (this.playerManager && this.playerManager.player) {

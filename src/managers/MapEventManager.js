@@ -611,13 +611,13 @@ export class MapEventManager {
 
     populateAmbientNPCs(mapKey) {
         const npcListLille = [
-            "adam", "alex", "amelia", "ash", "bob", "bouncer", 
-            "bruce", "dan", "edward", "fishmonger_1", "kid_abby", "kid_karen"
+            "Edouard", "Alex", "Jeanne", "Eric", "Bob", "Frédéric", 
+            "Brandon", "Maxime", "Antoine", "Charlie", "Julie", "Karima"
         ];
         // old_man_josh retiré car géré manuellement pour la quête
         const npcListDouai = [
-            "kid_mitty", "kid_oscar", "kid_romeo", "kid_tim", "lucy", "molly", 
-            "old_woman_jenny", "pier", "rob", "roki", "samuel"
+            "Clotilde", "Oscar", "Romain", "Tim", "Lucie", "Lola", 
+            "Justine", "Patrick", "Robert", "Richard", "Samuel"
         ];
         
         let npcsToSpawn = [];
@@ -629,14 +629,14 @@ export class MapEventManager {
 
             // Placement manuel des PNJ d'ambiance (coordonnées en tuiles + direction + dialogue)
             const placements = [
-                { tileX: 21, tileY: 20, facing: 'up', dialogue: '...' },
-                { tileX: 22, tileY: 20, facing: 'up', dialogue: '...' },
-                { tileX: 18, tileY: 33, facing: 'left', dialogue: '...' },
-                { tileX: 24, tileY: 62, facing: 'right', dialogue: '...' },
-                { tileX: 25, tileY: 62, facing: 'left', dialogue: '...' },
-                { tileX: 12, tileY: 48, facing: 'down', dialogue: '...' },
-                { tileX: 12, tileY: 49, facing: 'up', dialogue: '...' },
-                { tileX: 71, tileY: 64, facing: 'left', dialogue: '...' }
+                { tileX: 21, tileY: 21, facing: 'up', dialogue: 'J\'ai faim sa mère, il est où le vendeur wsh.' },
+                { tileX: 22, tileY: 21, facing: 'up', dialogue: 'J\hésite, mayo ou ketchup ?' },
+                { tileX: 18, tileY: 33, facing: 'left', dialogue: 'Bah super, zéro effort le bus, je passe comment moi ?' },
+                { tileX: 24, tileY: 62, facing: 'right', dialogue: 'Frérot je t\'assure, 5euros le pack ca part tout seul !' },
+                { tileX: 25, tileY: 62, facing: 'left', dialogue: 'C\'est pas possible, personne n\'accepterait un tel prix' },
+                { tileX: 12, tileY: 48, facing: 'down', dialogue: 'T\'es pas censé pouvoir me parler, dégage' },
+                { tileX: 12, tileY: 49, facing: 'up', dialogue: 'Moi non plus  t\'es pas censé...' },
+                { tileX: 71, tileY: 64, facing: 'left', dialogue: 'Dur dur le quinquenat sous macron ...' }
             ];
 
             // Alterner les sprites / éviter les doublons: on prend des npcName uniques.
@@ -816,14 +816,14 @@ export class MapEventManager {
             // Placement manuel des PNJ (coordonnées en tuiles + direction du regard + dialogue)
             // Format demandé: x:y + direction
             const placements = [
-                { tileX: 6, tileY: 7, facing: 'right', dialogue: '...' },
-                { tileX: 8, tileY: 6, facing: 'down', dialogue: '...' },
-                { tileX: 10, tileY: 6, facing: 'right', dialogue: '...' },
-                { tileX: 11, tileY: 6, facing: 'left', dialogue: '...' },
-                { tileX: 16, tileY: 6, facing: 'right', dialogue: '...' },
-                { tileX: 17, tileY: 6, facing: 'left', dialogue: '...' },
-                { tileX: 23, tileY: 6, facing: 'down', dialogue: '...' },
-                { tileX: 28, tileY: 7, facing: 'up', dialogue: '...' }
+                { tileX: 6, tileY: 7, facing: 'right', dialogue: 'Pour une fois qu\'il roule ce métro...' },
+                { tileX: 8, tileY: 6, facing: 'down', dialogue: 'Tu veux ma place ? C\'est mort ! ' },
+                { tileX: 10, tileY: 6, facing: 'right', dialogue: 'Sympa le metro.mp3 nan ?' },
+                { tileX: 11, tileY: 6, facing: 'left', dialogue: 'Je changerai bien de wagon mais y\'a un taré qui bloque le chemin ...' },
+                { tileX: 16, tileY: 6, facing: 'right', dialogue: 'Euh, c\'est quoi le prochain arrêt ?' },
+                { tileX: 17, tileY: 6, facing: 'left', dialogue: 'Ostricourt je crois.' },
+                { tileX: 23, tileY: 6, facing: 'down', dialogue: 'J\'ai pu de batterie dans mes écouteurs, j\'ai le seum.' },
+                { tileX: 28, tileY: 7, facing: 'up', dialogue: 'Tu veux quoi ?' }
             ];
 
             placements.forEach((p, i) => {
@@ -936,8 +936,14 @@ export class MapEventManager {
 
         if (this.activeEvents) {
             this.activeEvents.forEach(event => {
-                if (event.bubble) event.bubble.destroy();
-                event.destroy();
+                try { if (event?.bubble) event.bubble.destroy(); } catch (e) {}
+
+                // Pokécenter zones create separate visuals that must be destroyed explicitly,
+                // otherwise they can persist when changing maps.
+                try { if (event?.pokeCenterEffect) event.pokeCenterEffect.destroy?.(); } catch (e) {}
+                try { if (event?.pokeCenterIcon && event.pokeCenterIcon !== event.pokeCenterEffect) event.pokeCenterIcon.destroy?.(); } catch (e) {}
+
+                try { event?.destroy?.(); } catch (e) {}
             });
         }
         this.activeEvents = [];
@@ -1327,24 +1333,20 @@ export class MapEventManager {
                 return;
             }
 
-            // Dialogue d'intro
-            this.scene.displayMessage(npc.trainerDialogue || '...');
-
-            // Lancer le combat après un court délai
-            setTimeout(() => {
+            const launchTrainerBattle = () => {
                 // sécurité si la scène a changé entre-temps
                 if (!this.scene?.scene) return;
 
-                // Fermer la boîte de dialogue d'intro avant de passer en combat
-                // (sinon elle reste affichée quand on revient via resume)
+                // Fermer toute boîte de dialogue avant de passer en combat
+                // (sinon elle peut rester visible quand on revient via resume)
                 if (typeof this.scene.forceCloseDialogue === 'function') {
                     this.scene.forceCloseDialogue({ clearQueue: true });
                 }
 
-                // ✅ Cohérent avec un flow "combat" propre:
-                // - on PAUSE la scène courante (GameScene)
-                // - on LAUNCH la BattleScene en overlay
-                // Ainsi, au retour, on RESUME sans recréer le socket / re-newPlayer.
+                // Reset mobile inputs if the player was moving/sprinting on mobile
+                try { this.scene.uiManager?.resetInputs?.(); } catch (e) {}
+
+                // ✅ Flow "combat" propre: pause GameScene puis launch battle overlay
                 const returnSceneKey = this.scene.scene.key || 'GameScene';
                 try {
                     if (this.scene.scene.isActive(returnSceneKey)) {
@@ -1370,7 +1372,18 @@ export class MapEventManager {
                         team: npc.trainerTeam || []
                     }
                 });
-            }, 1200);
+            };
+
+            // Dialogue d'intro: on attend explicitement l'input utilisateur (fermeture)
+            // avant de lancer le combat.
+            this.scene.displayMessage(
+                npc.trainerDialogue || '...',
+                npc.trainerName || 'Dresseur',
+                () => {
+                    // On passe au combat une fois le dialogue fermé.
+                    launchTrainerBattle();
+                }
+            );
         } else if (npc.npcType === "dialogue" && npc.eventData) {
             const dialogue = npc.eventData.properties?.dialogue || "Bonjour !";
             this.scene.displayMessage(dialogue, npc.eventData.properties?.speaker || "PNJ");
@@ -1473,7 +1486,7 @@ export class MapEventManager {
         }
 
         // Sound + message
-        try { this.scene.sound?.play?.('pkmncenter', { volume: 0.5 }); } catch (e) {}
+        try { this.scene.sound?.play?.('pkmncenter', { volume: 0.3 }); } catch (e) {}
         this.scene.displayMessage("L'équipe est soignée !", playerPseudo);
 
         // Double camera flash for emphasis and a short pulse on the icon/ring
@@ -1648,7 +1661,7 @@ export class MapEventManager {
         }
 
         try {
-            this.scene.sound?.play?.('item_get', { volume: 0.5 });
+            this.scene.sound?.play?.('item_get', { volume: 0.3 });
         } catch (e) { /* ignore */ }
     }
 
@@ -1844,7 +1857,7 @@ export class MapEventManager {
         
         try {
             if (this.scene && this.scene.sound) {
-                this.scene.sound.play('item_get', { volume: 0.5 });
+                this.scene.sound.play('item_get', { volume: 0.3 });
             }
         } catch (e) { /* ignore */ }
     }

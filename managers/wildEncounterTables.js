@@ -15,27 +15,27 @@ const WILD_ENCOUNTER_TABLES = {
   douai_marchienne: {
     entries: [
       // Commun (facile à rencontrer)
-      { speciesId: 19, weight: 40, minLevel: 7, maxLevel: 9 },  // Rattata
-      { speciesId: 16, weight: 35, minLevel: 7, maxLevel: 9 },  // Pidgey
-      { speciesId: 41, weight: 20, minLevel: 7, maxLevel: 9 },  // Zubat
+      { speciesId: 19, weight: 30, minLevel: 12, maxLevel: 14 },  // Rattata
+      { speciesId: 100, weight: 25, minLevel: 12, maxLevel: 14 },  
+      { speciesId: 41, weight: 20, minLevel: 12, maxLevel: 14 },  // Zubat
 
       // Rare (pour valider que le tirage pondéré marche)
-      { speciesId: 133, weight: 4, minLevel: 9, maxLevel: 10 },  // Eevee
-      { speciesId: 142, weight: 1, minLevel: 10, maxLevel: 12 } // Aerodactyl
+      { speciesId: 133, weight: 4, minLevel: 14, maxLevel: 14 },  // Eevee
+      { speciesId: 142, weight: 1, minLevel: 20, maxLevel: 20 } // Aerodactyl
     ]
   },
   // Exemple (à adapter):
   lille: {
      entries: [
-     { speciesId: 56, weight: 20, minLevel: 3, maxLevel: 6 },
-       { speciesId: 51, weight: 30, minLevel: 3, maxLevel: 5 },
-       { speciesId: 43, weight: 35, minLevel: 4, maxLevel: 6 }
+     { speciesId: 56, weight: 20, minLevel: 5, maxLevel: 8 },
+       { speciesId: 51, weight: 30, minLevel: 5, maxLevel: 8 },
+       { speciesId: 43, weight: 35, minLevel: 5, maxLevel: 8 }
      ]
    },
   // Exemple (à adapter):
   marin_jardin: {
      entries: [
-     { speciesId: 1, weight: 100, minLevel: 12, maxLevel: 13 }
+     { speciesId: 1, weight: 100, minLevel: 15, maxLevel: 15 }
      ]
    }
 };

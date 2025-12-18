@@ -833,7 +833,7 @@ export default class BattleAnimationManager {
 
         // Play LevelUp sound
         if (this.scene && this.scene.soundManager) {
-            try { this.scene.soundManager.playMoveSound('levelUp', { volume: 0.9 }); } catch (e) { /* ignore */ }
+            try { this.scene.soundManager.playMoveSound('levelUp', { volume: 0.4 }); } catch (e) { /* ignore */ }
         }
     }
 }

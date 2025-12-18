@@ -98,7 +98,7 @@ export class RentrerALaMaisonQuest extends BaseQuest {
       const { playerPseudo, playerData, playerId } = this.getPlayerContext();
       const step = playerData?.quests?.[this.homeQuestId];
       if (playerData && step !== undefined && Number(step) < 1) {
-        this.scene.displayMessage('enfin rentré', playerPseudo);
+        this.scene.displayMessage('Fiou ! Enfin rentré !', playerPseudo);
         void this.completeQuest({ playerId, playerData, questId: this.homeQuestId, lastIndex: 1 });
       }
       return;

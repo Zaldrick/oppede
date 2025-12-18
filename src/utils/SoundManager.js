@@ -49,7 +49,7 @@ export default class SoundManager {
             'egg_get': 'Egg_Get',
             'poke_caught': 'Poke_Caught',
             'pokecaught': 'Poke_Caught',
-            'levelup': 'LevelUp',
+            'levelUp': 'LevelUp',
             'level_up': 'LevelUp',
             'keyitem_get': 'KeyItem_Get',
             'key_item_get': 'KeyItem_Get',

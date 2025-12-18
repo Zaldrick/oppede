@@ -187,6 +187,9 @@ export class WildEncounterManager {
     const playerId = playerData?._id;
     if (!playerId) return;
 
+    // If the player was holding mobile controls (joystick/B), release them before pausing.
+    try { this.scene.uiManager?.resetInputs?.(); } catch (e) {}
+
     const returnSceneKey = this.scene.scene?.key || 'GameScene';
     try {
       if (this.scene.scene?.isActive?.(returnSceneKey)) {

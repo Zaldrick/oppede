@@ -152,8 +152,8 @@ export class LeMessageManquantQuest extends BaseQuest {
 
       const line1 = "Mmh, j'ai reçu un message sur discord  : c'est écrit:";
       const line2 = "\"J'ai caché quelque chose, laisse moi te dire où c'est : \"";
-      const line3 = "Y'a pas d'autres message mais je vois la notification qu'il est en train d'écrire …";
-      const line4 = "Peut-être il y a un moyen de savoir ce qu'il allait envoyer";
+      const line3 = "Y'a pas d'autres messages mais je vois la notif qu'il est en train d'écrire.";
+      const line4 = "Peut-être il y a un moyen de savoir ce qu'il allait envoyer.";
 
       this.scene.displayMessage(line1, playerPseudo, () => {
         this.scene.displayMessage(line2, playerPseudo, () => {

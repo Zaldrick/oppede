@@ -147,6 +147,48 @@ export class MapManager {
     try {
       statusLines([`MapManager: changeMap(${mapKey})…`]);
 
+      // Avoid the visible "map unload" flash: fade to black BEFORE destroying old layers.
+      // Only do this when there is an existing map to transition away from.
+      try {
+        const cam = this.scene?.cameras?.main;
+        const hasExistingWorld = Boolean(this.map || (this.layers && this.layers.length) || this.collisionLayer);
+
+        if (cam && hasExistingWorld) {
+          // Ensure the renderer clears to black while we load the next tilemap.
+          try { cam.setBackgroundColor('#000000'); } catch (e) {}
+
+          // If already mid-fade, don't stack effects.
+          const isFading = Boolean(cam.fadeEffect && cam.fadeEffect.isRunning);
+          if (!isFading) {
+            cam.fadeOut(180, 0, 0, 0);
+
+            await new Promise((resolve) => {
+              let done = false;
+              const finish = () => {
+                if (done) return;
+                done = true;
+                resolve();
+              };
+
+              try { cam.once('camerafadeoutcomplete', finish); } catch (e) {}
+
+              // Fallback: never block map loading if the event doesn't fire.
+              try {
+                if (this.scene?.time?.delayedCall) {
+                  this.scene.time.delayedCall(250, finish);
+                } else {
+                  setTimeout(finish, 250);
+                }
+              } catch (e) {
+                finish();
+              }
+            });
+          }
+        }
+      } catch (e) {
+        // ignore transition errors
+      }
+
         // Stop any existing shake effect
         if (this.shakeTimer) {
         this.shakeTimer.remove();

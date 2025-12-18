@@ -28,6 +28,16 @@ export class EtoileDuSoirQuest extends BaseQuest {
     });
   }
 
+  async completeQuest({ playerId, playerData, step }) {
+    return super.completeQuest({
+      playerId,
+      playerData,
+      questId: this.questId,
+      step,
+      logPrefix: 'EtoileDuSoirQuest'
+    });
+  }
+
   spawnForMap(mapKey) {
     if (mapKey !== 'douai') return;
 
@@ -67,7 +77,7 @@ export class EtoileDuSoirQuest extends BaseQuest {
 
     if (!hasKeys) {
       this.scene.displayMessage(
-        "Je dois d'abord récupérer les clés au magasin à coté, j'espère qu'elles sont réparées",
+        "Mes clés sont au magasin en face, j'espère qu'elles sont réparées",
         playerPseudo
       );
 
@@ -93,10 +103,11 @@ export class EtoileDuSoirQuest extends BaseQuest {
       // Si on est à l'étape 3, on doit attendre la fermeture du dialogue avant de téléporter
       if (questStep === 3) {
         this.scene.displayMessage(
-          "Oh ! Il y aquelque chose de caché dans la pochette arrière du siège passager",
+          "Oh ! Il y a quelque chose de caché dans la pochette arrière du siège passager.",
           playerPseudo,
           async () => {
-            await this.advanceQuest({ playerId, playerData, step: 4 });
+            // Dernière étape: on marque la quête comme terminée (status=completed) en même temps.
+            await this.completeQuest({ playerId, playerData, step: 4 });
             await doCarTeleport();
           }
         );

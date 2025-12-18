@@ -185,17 +185,20 @@ export class LushMaisPasTropQuest {
         const hasQuest = playerData?.quests?.[this.questId] !== undefined;
 
         if (hasQuest) {
-          this.scene.displayMessage('Il y a certainement un indice sur une photo ...', playerPseudo);
+          this.scene.displayMessage('Il y a certainement un indice sur un de ses selfies ...', playerPseudo);
           return;
         }
 
         const line1 = "Putain mais meme sur mon frigo y'a un code pin quoi.";
-        const line2 = "Mhhh, c'est bizarre, sur le frigo est accroché les derniers selfies qu'il m'a envoyé, peut-être qu'il y a un indice parmis elles ...";
+        const line2 = "Hé mais ! Y'a des selfies de lui accrochés sur le frigo !";
+        const line3 = "Ce sont les derniers envoyés, peut-être il y a un indice parmis eux.";
 
         this.scene.displayMessage(line1, playerPseudo, () => {
           this.scene.displayMessage(line2, playerPseudo, () => {
-            void this.startQuestIfMissing({ playerData, playerId }).finally(() => {
-              // keep event available (needs pin to complete)
+            this.scene.displayMessage(line3, playerPseudo, () => {
+              void this.startQuestIfMissing({ playerData, playerId }).finally(() => {
+               // keep event available (needs pin to complete)
+              });
             });
           });
         });

@@ -241,7 +241,7 @@ export class InventoryScene extends Phaser.Scene {
             this.updateGlobalInventoryCache();
             this.displayMessage(`${data.cards.length} cartes ajoutées !`);
             // Play item get sound
-            try { this.sound.play('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
+            try { this.sound.play('item_get', { volume: 0.5 }); } catch (e) { /* ignore */ }
         }
     }
 
@@ -255,7 +255,7 @@ export class InventoryScene extends Phaser.Scene {
         if (Array.isArray(cards)) {
             await this.addCardsToInventory(cards);
             this.updateGlobalInventoryCache();
-            try { this.sound.play('item_get', { volume: 0.8 }); } catch (e) { /* ignore */ }
+            try { this.sound.play('item_get', { volume: 0.5 }); } catch (e) { /* ignore */ }
         }
     }
 

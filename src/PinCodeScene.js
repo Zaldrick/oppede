@@ -12,6 +12,9 @@ export class PinCodeScene extends Phaser.Scene {
         this.maxAttempts = data.maxAttempts || Infinity;
         this.currentCode = '';
         this.attempts = 0;
+
+        // Slightly lower SFX volume in this UI scene.
+        this.sfxVolume = 0.5;
     }
 
     preload() {
@@ -239,7 +242,7 @@ export class PinCodeScene extends Phaser.Scene {
         if (this.currentCode.length < 8) { // Max length limit
             this.currentCode += digit;
             this.updateDisplay();
-            this.sound.play('digit');
+            this.sound.play('digit', { volume: this.sfxVolume });
         }
     }
 
@@ -247,19 +250,19 @@ export class PinCodeScene extends Phaser.Scene {
         if (this.currentCode.length > 0) {
             this.currentCode = this.currentCode.slice(0, -1);
             this.updateDisplay();
-            this.sound.play('effacer');
+            this.sound.play('effacer', { volume: this.sfxVolume });
         }
     }
 
     handleValidate() {
         if (this.currentCode === this.targetCode) {
-            this.sound.play('succes');
+            this.sound.play('succes', { volume: this.sfxVolume });
             this.time.delayedCall(500, () => {
                 if (this.onSuccess) this.onSuccess();
                 this.scene.stop();
             });
         } else {
-            this.sound.play('error');
+            this.sound.play('error', { volume: this.sfxVolume });
             this.shakeScreen();
             this.currentCode = '';
             this.updateDisplay();
