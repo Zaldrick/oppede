@@ -49,8 +49,8 @@ export default class SoundManager {
             'egg_get': 'Egg_Get',
             'poke_caught': 'Poke_Caught',
             'pokecaught': 'Poke_Caught',
-            'levelup': 'LevelUp',
-            'level_up': 'LevelUp',
+            // Simplified: only one canonical asset is expected: levelup.mp3
+            'levelup': 'levelup',
             'keyitem_get': 'KeyItem_Get',
             'key_item_get': 'KeyItem_Get',
             'pokecenter_heal': 'PokeCenter_Heal',
@@ -393,9 +393,26 @@ export default class SoundManager {
                 candidateNames.unshift(specialName);
             }
 
-            const basePaths = [this.movePath, this.sfxPath];
-            const tryExtensions = ['mp3', 'wav', 'ogg'];
+            // Default: try common audio formats.
+            // For some event SFX we intentionally constrain to a single canonical file.
+            let basePaths = [this.movePath, this.sfxPath];
+            let tryExtensions = ['mp3', 'wav', 'ogg'];
 
+            // Hard simplification requested: level up must be exactly levelup.mp3
+            // - Only try the SFX folder
+            // - Only try mp3
+            // - Only try the canonical filename 'levelup'
+            const isLevelUp = (String(moveName || '').toLowerCase() === 'levelup') || (String(specialName || '').toLowerCase() === 'levelup');
+            if (isLevelUp) {
+                basePaths = [this.sfxPath];
+                tryExtensions = ['mp3'];
+                candidateNames = ['levelup'];
+            }
+
+            // IMPORTANT: do not depend on fetch(HEAD)/content-type checks.
+            // Some hosts/CDNs return missing/incorrect content-types for audio (e.g. application/octet-stream),
+            // and some environments handle HEAD differently. Let Phaser be the source of truth:
+            // attempt load; on failure, try the next candidate.
             for (const candidate of candidateNames) {
                 if (!candidate) continue;
                 for (const basePath of basePaths) {
@@ -403,42 +420,13 @@ export default class SoundManager {
                     for (const tryPath of tryPaths) {
                         for (const ext of tryExtensions) {
                             const url = this.buildUrl(candidate, ext, tryPath);
-                            // Try a simple fetch first to validate the file exists and is audio before Phaser tries
                             try {
-                                const response = await fetch(url, { method: 'HEAD' });
-                                if (!response.ok) {
-                                    // 404 or other error, skip this URL
-                                    continue;
-                                }
-                                
-                                // Check content-type header to ensure it's audio (not HTML)
-                                const contentType = response.headers.get('content-type') || '';
-                                if (!contentType.includes('audio')) {
-                                    // Wrong content type (probably HTML 404), skip
-                                    continue;
-                                }
-                                
-                                // File exists and is audio, now load it with Phaser under baseKey
                                 await this.loadAudioForKey(baseKey, url);
                                 this.loaded.add(baseKey);
                                 console.log(`[SoundManager] ✓ Loaded move sound: ${candidate} (${url})`);
                                 return baseKey;
                             } catch (e) {
-                                // HEAD failed or network error, try GET instead as fallback
-                                try {
-                                    const getResponse = await fetch(url, { method: 'GET' });
-                                    if (!getResponse.ok) continue;
-                                    
-                                    const contentType = getResponse.headers.get('content-type') || '';
-                                    if (!contentType.includes('audio')) continue;
-                                    
-                                    await this.loadAudioForKey(baseKey, url);
-                                    this.loaded.add(baseKey);
-                                    console.log(`[SoundManager] ✓ Loaded move sound (via GET): ${candidate} (${url})`);
-                                    return baseKey;
-                                } catch (e2) {
-                                    // both HEAD and GET failed, try next candidate
-                                }
+                                // continue to next URL candidate
                             }
                         }
                     }
