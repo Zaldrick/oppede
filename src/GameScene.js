@@ -578,23 +578,50 @@ export class GameScene extends Phaser.Scene {
         });
 
         // Chargement des PNJs d'ambiance
+        // IMPORTANT: la clé de texture reste en lowercase (ex: npc_alex) pour éviter les soucis de casse,
+        // mais le nom affiché en dialogue est géré côté MapEventManager.
         const npcSprites = [
-            "Adam_idle_anim_48x48.png", "Alex_idle_anim_48x48.png", "Amelia_idle_anim_48x48.png", 
-            "Ash_idle_anim_48x48.png", "Bob_idle_anim_48x48.png", "Bouncer_idle_anim_48x48.png", 
-            "Bruce_idle_anim_48x48.png", "Dan_idle_anim_48x48.png", "Edward_idle_anim_48x48.png", 
-            "Fishmonger_1_idle_anim_48x48.png", "Kid_Abby_idle_anim_48x48.png", "Kid_Karen_idle_anim_48x48.png", 
-            "Kid_Mitty_idle_anim_48x48.png", "kid_Oscar_idle_anim_48x48.png", "Kid_Romeo_idle_anim_48x48.png", 
-            "Kid_Tim_idle_anim_48x48.png", "Lucy_idle_anim_48x48.png", "Molly_idle_anim_48x48.png", 
-            "Old_man_Josh_idle_anim_48x48.png", "Old_woman_Jenny_idle_anim_48x48.png", "Pier_idle_anim_48x48.png", 
-            "Rob_idle_anim_48x48.png", "Roki_idle_anim_48x48.png", "Samuel_idle_anim_48x48.png"
+            "Alex_idle_anim_48x48.png",
+            "Antoine_idle_anim_48x48.png",
+            "Bob_idle_anim_48x48.png",
+            "Brandon_idle_anim_48x48.png",
+            "Charlie_idle_anim_48x48.png",
+            "Clotilde_idle_anim_48x48.png",
+            "Didier_idle_anim_48x48.png",
+            "Edouard_idle_anim_48x48.png",
+            "Eric_idle_anim_48x48.png",
+            "Frédéric_idle_anim_48x48.png",
+            "Jeanne_idle_anim_48x48.png",
+            "Julie_idle_anim_48x48.png",
+            "Justine_idle_anim_48x48.png",
+            "Karima_idle_anim_48x48.png",
+            "Lola_idle_anim_48x48.png",
+            "Lucie_idle_anim_48x48.png",
+            "Maxime_idle_anim_48x48e.png",
+            "Oscar_idle_anim_48x48.png",
+            "Patrick_idle_anim_48x48.png",
+            "Richard_idle_anim_48x48.png",
+            "Robert_idle_anim_48x48.png",
+            "Romain_idle_anim_48x48.png",
+            "Samuel_idle_anim_48x48.png",
+            "Tim_idle_anim_48x48.png"
         ];
 
-        npcSprites.forEach(filename => {
-            const key = filename.replace("_idle_anim_48x48.png", "").toLowerCase();
+        npcSprites.forEach((filename) => {
+            // Robust: cope with slight filename variations (ex: Maxime_idle_anim_48x48e.png)
+            const baseName = filename.split("_idle_anim_")[0];
+            const key = (baseName || filename).toLowerCase();
             this.load.spritesheet(`npc_${key}`, `/assets/sprites/${filename}`, {
                 frameWidth: 48,
                 frameHeight: 96
             });
+        });
+
+        // Backward-compat: some quests still reference npc_old_man_josh.
+        // We alias it to an existing sprite so the quest doesn't break if the old file was renamed.
+        this.load.spritesheet("npc_old_man_josh", "/assets/sprites/Didier_idle_anim_48x48.png", {
+            frameWidth: 48,
+            frameHeight: 96
         });
 
         this.load.spritesheet('!Chest', '/assets/maps/!Chest.png', { frameWidth: 48, frameHeight: 48 });

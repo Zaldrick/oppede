@@ -44,6 +44,23 @@ export class MapEventManager {
         });
     }
 
+    getApiBaseUrl() {
+        const envUrl = process.env.REACT_APP_API_URL;
+        if (envUrl && envUrl !== 'undefined' && envUrl !== 'null') {
+            return String(envUrl).replace(/\/$/, '');
+        }
+
+        // Safe fallback: same-origin API (useful in prod deployments behind one domain).
+        try {
+            const origin = typeof window !== 'undefined' && window.location && window.location.origin
+                ? window.location.origin
+                : null;
+            return origin ? String(origin).replace(/\/$/, '') : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     update() {
         try {
             if (this.questRouter && typeof this.questRouter.update === 'function') {
@@ -220,8 +237,11 @@ export class MapEventManager {
         const mapKey = map.key;
         let worldEvents = [];
         try {
-            const res = await fetch(`${process.env.REACT_APP_API_URL}/api/world-events?mapKey=${mapKey}`);
-            worldEvents = await res.json();
+            const apiBase = this.getApiBaseUrl();
+            if (apiBase) {
+                const res = await fetch(`${apiBase}/api/world-events?mapKey=${mapKey}`);
+                worldEvents = await res.json();
+            }
         } catch (e) {
             console.error("Erreur lors du chargement des worldEvents :", e);
         }
@@ -232,9 +252,10 @@ export class MapEventManager {
             const playerId = playerData ? playerData._id : null;
             this.defeatedTrainerIds = new Set();
 
-            if (playerId && process.env.REACT_APP_API_URL) {
+            const apiBase = this.getApiBaseUrl();
+            if (playerId && apiBase) {
                 const r = await fetch(
-                    `${process.env.REACT_APP_API_URL}/api/trainer-npcs/defeated?playerId=${playerId}&mapKey=${mapKey}`
+                    `${apiBase}/api/trainer-npcs/defeated?playerId=${playerId}&mapKey=${mapKey}`
                 );
                 if (r.ok) {
                     const data = await r.json();
@@ -543,8 +564,9 @@ export class MapEventManager {
         // Charger définitions depuis backend
         try {
             this.trainerNpcDefinitions = [];
-            if (process.env.REACT_APP_API_URL) {
-                const r = await fetch(`${process.env.REACT_APP_API_URL}/api/trainer-npcs?mapKey=${mapKey}`);
+            const apiBase = this.getApiBaseUrl();
+            if (apiBase) {
+                const r = await fetch(`${apiBase}/api/trainer-npcs?mapKey=${mapKey}`);
                 if (r.ok) {
                     const docs = await r.json();
                     this.trainerNpcDefinitions = Array.isArray(docs) ? docs : [];
@@ -648,7 +670,8 @@ export class MapEventManager {
                     cursor++;
                     if (!name) continue;
                     if (used.has(name)) continue;
-                    if (!this.scene.textures.exists(`npc_${name}`)) continue;
+                    const spriteKey = `npc_${String(name).toLowerCase()}`;
+                    if (!this.scene.textures.exists(spriteKey)) continue;
                     used.add(name);
                     return name;
                 }
@@ -725,8 +748,12 @@ export class MapEventManager {
                 }
             ];
 
-            const maleSprites = ['adam', 'alex', 'ash', 'bob', 'bruce', 'dan', 'edward', 'pier', 'rob', 'roki', 'samuel', 'bouncer', 'old_man_josh'];
-            const femaleSprites = ['amelia', 'lucy', 'molly', 'old_woman_jenny', 'kid_abby', 'kid_karen'];
+            // Sprites réellement disponibles dans public/assets/sprites (noms de fichiers capitalisés)
+            const maleSprites = [
+                'Alex', 'Antoine', 'Bob', 'Brandon', 'Charlie', 'Didier', 'Edouard', 'Eric', 'Frédéric',
+                'Maxime', 'Oscar', 'Patrick', 'Richard', 'Robert', 'Romain', 'Samuel', 'Tim'
+            ];
+            const femaleSprites = ['Clotilde', 'Jeanne', 'Julie', 'Justine', 'Karima', 'Lola', 'Lucie'];
 
             const used = new Set();
             let maleCursor = 0;
@@ -740,9 +767,10 @@ export class MapEventManager {
                     const name = list[cursor % list.length];
                     cursor++;
                     if (!name) continue;
-                    if (used.has(name)) continue;
-                    if (!this.scene.textures.exists(`npc_${name}`)) continue;
-                    used.add(name);
+                    const spriteId = String(name).toLowerCase();
+                    if (used.has(spriteId)) continue;
+                    if (!this.scene.textures.exists(`npc_${spriteId}`)) continue;
+                    used.add(spriteId);
 
                     if (gender === 'female') femaleCursor = cursor;
                     else maleCursor = cursor;
@@ -753,9 +781,10 @@ export class MapEventManager {
                 // Fallback: n'importe quel sprite dispo
                 for (const anyName of [...femaleSprites, ...maleSprites]) {
                     if (!anyName) continue;
-                    if (used.has(anyName)) continue;
-                    if (!this.scene.textures.exists(`npc_${anyName}`)) continue;
-                    used.add(anyName);
+                    const spriteId = String(anyName).toLowerCase();
+                    if (used.has(spriteId)) continue;
+                    if (!this.scene.textures.exists(`npc_${spriteId}`)) continue;
+                    used.add(spriteId);
                     return anyName;
                 }
 
@@ -785,7 +814,7 @@ export class MapEventManager {
 
             // Garder l'ancien comportement d'ajout d'autres PNJ si besoin:
             // on spawn le reste en zone dédiée pour éviter les chevauchements.
-            npcsToSpawn = npcListDouai.filter((n) => !used.has(n));
+            npcsToSpawn = npcListDouai.filter((n) => !used.has(String(n).toLowerCase()));
             startX = 110;
             startY = 32;
         } else if (mapKey === "metro") {
@@ -846,7 +875,9 @@ export class MapEventManager {
     }
 
     createAmbientNPC(npcName, x, y, facing = 'down', dialogue = null, displayName = null) {
-        const spriteKey = `npc_${npcName}`;
+        const rawName = (npcName || '').toString();
+        const spriteId = rawName.toLowerCase();
+        const spriteKey = `npc_${spriteId}`;
         if (!this.scene.textures.exists(spriteKey)) return;
 
         this.ensureAmbientGroup();
@@ -863,8 +894,11 @@ export class MapEventManager {
         npc.setImmovable(true);
         npc.setInteractive();
         npc.npcType = "ambient";
-        npc.npcName = npcName;
-        npc.displayName = typeof displayName === 'string' && displayName.trim().length > 0 ? displayName : null;
+        // Store a stable, lowercase id for sprite/anim lookup, but keep a human-friendly name for UI.
+        npc.npcName = spriteId;
+        npc.displayName = typeof displayName === 'string' && displayName.trim().length > 0
+            ? displayName
+            : (rawName && rawName !== spriteId ? rawName : null);
         npc.ambientDialogue = typeof dialogue === 'string' ? dialogue : null;
         if (this.ambientGroup) {
             this.ambientGroup.add(npc);
@@ -873,7 +907,7 @@ export class MapEventManager {
         // Animation (spritesheet sur 1 ligne: 6 frames par direction)
         // Ordre: droite (0-5), haut (6-11), gauche (12-17), bas (18-23)
         const safeFacing = ['down', 'left', 'right', 'up'].includes(facing) ? facing : 'down';
-        const animKey = `${npcName}_idle_${safeFacing}`;
+        const animKey = `${spriteId}_idle_${safeFacing}`;
 
         const texture = this.scene.textures.get(spriteKey);
         const frameTotal = texture ? texture.frameTotal : 0;
