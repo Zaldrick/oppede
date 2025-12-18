@@ -12,10 +12,6 @@ export default class SoundManager {
         this.loading = new Map(); // key -> Promise
         this.sfxLoading = new Map(); // sfxKey -> Promise
 
-        // Prevent fallback spam (missing moves can trigger multiple play calls per animation)
-        this.lastTackleFallbackAt = 0;
-        this.tackleFallbackCooldownMs = 250;
-
         // Supported extensions to try when loading a sound file (prefer wav where possible)
         this.extensions = ['wav', 'mp3', 'ogg'];
 
@@ -587,114 +583,8 @@ export default class SoundManager {
             this.scene.sound.play(key, { volume, rate, loop });
             return true;
         } catch (e) {
-            // Special-case: never replace LevelUp by another SFX.
-            // On some mobile browsers (e.g. Brave/Chromium), Phaser/WebAudio decode/play can fail while
-            // HTMLAudio playback still works. Try levelup.mp3 via HTMLAudio, then give up.
-            try {
-                const requestedLower = String(requested || '').toLowerCase();
-                if (requestedLower === 'levelup') {
-                    const urls = [
-                        `${this.sfxPath}${encodeURIComponent('levelup')}.mp3`,
-                        `/public${this.sfxPath}${encodeURIComponent('levelup')}.mp3`
-                    ];
-                    for (const url of urls) {
-                        try {
-                            const audio = new Audio(url);
-                            audio.volume = Math.max(0, Math.min(1, volume));
-                            try { audio.playbackRate = rate; } catch (rateErr) {}
-                            audio.loop = !!loop;
-                            const p = audio.play();
-                            if (p && typeof p.then === 'function') {
-                                await p;
-                                console.warn('[SoundManager] Played LevelUp via HTMLAudio fallback:', url);
-                                return true;
-                            }
-                        } catch (htmlErr) {
-                            continue;
-                        }
-                    }
-
-                    console.warn('[SoundManager] LevelUp failed to play (no fallback to Tackle).', e && e.message ? e.message : e);
-                    return false;
-                }
-            } catch (levelUpGuardErr) {
-                // ignore and continue to generic fallbacks
-            }
-
-            // fallback: play generic move sound if exists
-            // Try explicit fallback: attempt to load and play 'Tackle' sound
-            try {
-                // Cooldown to avoid spamming tackle when a missing move triggers multiple sound attempts
-                const now = Date.now();
-                if (now - (this.lastTackleFallbackAt || 0) < (this.tackleFallbackCooldownMs || 0)) {
-                    return true;
-                }
-
-                const tackleName = 'tackle';
-                const tackleKey = this.buildKey(tackleName);
-                // If already loaded, play directly
-                if (this.scene.sound.get(tackleKey)) {
-                    this.scene.sound.play(tackleKey, { volume, rate, loop });
-                    this.lastTackleFallbackAt = now;
-                    return true;
-                }
-                // Try to load 'tackle' sound (will throw if not found)
-                await this.tryLoadMoveSound(tackleName);
-                if (this.scene.sound.get(tackleKey)) {
-                    this.scene.sound.play(tackleKey, { volume, rate, loop });
-                    this.lastTackleFallbackAt = now;
-                    return true;
-                }
-            } catch (tErr) {
-                // ignore and continue to other fallbacks
-                console.warn('[SoundManager] Fallback Tackle absent or failed to load:', tErr && tErr.message ? tErr.message : tErr);
-            }
-
-            // fallback: play generic move sound if exists
-            // Try direct HTMLAudio fallback for 'Tackle' (most reliable last-resort)
-            try {
-                const now = Date.now();
-                if (now - (this.lastTackleFallbackAt || 0) < (this.tackleFallbackCooldownMs || 0)) {
-                    return true;
-                }
-
-                const exts = ['mp3', 'wav', 'ogg'];
-                const nameVariants = ['Tackle', 'tackle', 'TACKLE'];
-                const basePaths = [this.movePath, this.sfxPath, `/public${this.movePath}`, `/public${this.sfxPath}`];
-                for (const base of basePaths) {
-                    for (const name of nameVariants) {
-                        for (const ext of exts) {
-                            const url = `${base}${encodeURIComponent(name)}.${ext}`;
-                            try {
-                                const audio = new Audio(url);
-                                audio.volume = Math.max(0, Math.min(1, volume));
-                                const p = audio.play();
-                                if (p && typeof p.then === 'function') {
-                                    await p;
-                                    console.warn('[SoundManager] Played fallback Tackle via HTMLAudio:', url);
-                                    this.lastTackleFallbackAt = now;
-                                    return true;
-                                }
-                            } catch (htmlErr) {
-                                // try next
-                                // console.debug('[SoundManager] HTMLAudio fallback failed for', url, htmlErr && htmlErr.message);
-                                continue;
-                            }
-                        }
-                    }
-                }
-            } catch (audioErr) {
-                console.warn('[SoundManager] HTMLAudio fallback error:', audioErr && audioErr.message ? audioErr.message : audioErr);
-            }
-
-            // fallback: play generic move sound if exists
-            const fallbackKey = this.genericMoveKey;
-            if (this.scene.sound.get(fallbackKey)) {
-                this.scene.sound.play(fallbackKey, { volume, rate, loop });
-                return true;
-            }
-
-            console.warn('[SoundManager] Aucune piste sonore trouvée pour', moveName || requested);
+            // Requested behavior: if not found/decodable, do not play any fallback sound.
+            console.warn('[SoundManager] Sound not found/decodable for move:', moveName || requested);
             return false;
         }
     }
