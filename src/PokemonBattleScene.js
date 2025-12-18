@@ -87,6 +87,10 @@ export class PokemonBattleScene extends Phaser.Scene {
         const musicTrack = this.battleType === 'trainer' ? 'battle-trainer' : 'battle-wild';
         this.load.audio(musicTrack, `/assets/musics/pkm/${musicTrack}.mp3`);
         this.load.audio('victory-wild', '/assets/musics/pkm/victory-wild.mp3');
+        this.load.audio('victory-trainer', '/assets/musics/pkm/victory-trainer.mp3');
+
+        // KO / faint sound used by BattleAnimationManager
+        this.load.audio('faint', '/assets/sounds/fainted.mp3');
     }
 
     async create() {
@@ -107,27 +111,42 @@ export class PokemonBattleScene extends Phaser.Scene {
             MusicManager.pause();
         } catch (e) { /* ignore */ }
 
-        // Play battle music after transition completes. Use a dedicated instance
-        // so we can stop/destroy it deterministically on cleanup.
+        // Ensure audio context is unlocked/resumed (browser autoplay policies)
+        try {
+            const ctx = this.sound && this.sound.context;
+            if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                await ctx.resume();
+            }
+            if (this.sound && this.sound.locked && typeof this.sound.unlock === 'function') {
+                this.sound.unlock();
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        // Play battle music with a dedicated instance so we can stop/destroy deterministically.
         try {
             const musicTrack = this.battleType === 'trainer' ? 'battle-trainer' : 'battle-wild';
             this.currentBattleMusicKey = musicTrack;
+
+            // Stop any previous instance for safety
             try {
-                // Prefer adding a sound instance so we control its lifecycle
-                if (this.sound && this.sound.add) {
-                    if (this.sound.get(musicTrack)) {
-                        this.currentBattleMusicInstance = this.sound.add(musicTrack, { loop: true, volume: 0.3 });
-                        this.currentBattleMusicInstance.play();
-                    } else {
-                        // If no cached key (edge-case), try to play directly
-                        this.currentBattleMusicInstance = this.sound.play(musicTrack, { loop: true, volume: 0.3 });
-                    }
+                if (this.currentBattleMusicInstance && typeof this.currentBattleMusicInstance.stop === 'function') {
+                    this.currentBattleMusicInstance.stop();
                 }
-            } catch (e) {
-                // fallback to simple play
-                try { this.sound.play(musicTrack, { loop: true, volume: 0.3 }); } catch (err) {}
+                if (this.currentBattleMusicInstance && typeof this.currentBattleMusicInstance.destroy === 'function') {
+                    this.currentBattleMusicInstance.destroy();
+                }
+            } catch (e) { /* ignore */ }
+            this.currentBattleMusicInstance = null;
+
+            if (this.cache && this.cache.audio && this.cache.audio.exists(musicTrack) && this.sound && this.sound.add) {
+                this.currentBattleMusicInstance = this.sound.add(musicTrack, { loop: true, volume: 0.4 });
+                this.currentBattleMusicInstance.play();
+                console.log(`[BattleScene] Battle music playing (instance): ${musicTrack}`);
+            } else {
+                console.warn(`[BattleScene] Battle music not in cache (or sound unavailable): ${musicTrack}`);
             }
-            console.log(`[BattleScene] Battle music playing: ${musicTrack}`);
         } catch (e) {
             console.warn('[BattleScene] Failed to play battle music:', e);
         }
@@ -542,6 +561,9 @@ export class PokemonBattleScene extends Phaser.Scene {
             fontFamily: 'Arial'
         }).setOrigin(0.5).setAlpha(0).setDepth(3); // Caché au début
 
+        // Used by BattleAnimationManager.animateXPGain() to update the level live.
+        this.playerLevelText = levelText;
+
         // Nom du Pokémon avec ombre
         const nameText = this.add.text(boxX + boxWidth * 0.06, boxY + boxHeight * 0.25, getPokemonDisplayName(player).toUpperCase(), {
             fontSize: `${Math.min(width, height) * 0.028}px`,
@@ -577,8 +599,8 @@ export class PokemonBattleScene extends Phaser.Scene {
         container.lineStyle(1, 0x2C3E50, 1);
         container.strokeRoundedRect(hpBarX, hpBarY - hpBarHeight/2, hpBarWidth, hpBarHeight, 6);
 
-        // 🔧 FIXE: Sécuriser maxHP (utiliser stats calculées)
-        const maxHP = player.stats ? player.stats.maxHP : 1;
+        // 🔧 FIXE: Sécuriser maxHP (utiliser stats calculées + fallback)
+        const maxHP = Number(player?.stats?.maxHP ?? player?.maxHP ?? 1);
         
         // Barre HP (couleur avec dégradé)
         const hpPercent = (player.currentHP / maxHP) * 100;
@@ -1213,22 +1235,60 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     async handleBattleEnd(result) {
         if (result.winner === 'player') {
+            // 🔊 Victoire: lancer la musique juste AVANT le message "Vous avez gagné !"
+            try {
+                // Stop battle music instance first to avoid overlap
+                try {
+                    if (this.currentBattleMusicInstance && typeof this.currentBattleMusicInstance.stop === 'function') {
+                        this.currentBattleMusicInstance.stop();
+                    }
+                    if (this.currentBattleMusicInstance && typeof this.currentBattleMusicInstance.destroy === 'function') {
+                        this.currentBattleMusicInstance.destroy();
+                    }
+                } catch (e) { /* ignore */ }
+                try {
+                    if (this.currentBattleMusicKey) {
+                        this.sound.stopByKey(this.currentBattleMusicKey);
+                    }
+                } catch (e) { /* ignore */ }
+
+                const victoryTrack = this.battleType === 'trainer' ? 'victory-trainer' : 'victory-wild';
+                try {
+                    // Ensure audio is unlocked/resumed before playing victory
+                    try {
+                        const ctx = this.sound && this.sound.context;
+                        if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                            await ctx.resume();
+                        }
+                        if (this.sound && this.sound.locked && typeof this.sound.unlock === 'function') {
+                            this.sound.unlock();
+                        }
+                    } catch (e) { /* ignore */ }
+
+                    // Jouer directement via Phaser (évite les interactions avec MusicManager.pause())
+                    if (this.cache && this.cache.audio && this.cache.audio.exists(victoryTrack) && this.sound && this.sound.add) {
+                        const inst = this.sound.add(victoryTrack, { loop: false, volume: 0.5 });
+                        inst.play();
+                        inst.once('complete', () => {
+                            try { inst.destroy(); } catch (e) {}
+                        });
+                    } else {
+                        this.sound.play(victoryTrack, { volume: 0.5, loop: false });
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            } catch (e) { /* ignore */ }
+
             this.menuManager.showDialog("Vous avez gagné !");
             await this.wait(2000);
-            
-            // Afficher gains XP
-            if (result.xpGains && result.xpGains.length > 0) {
-                await this.displayXPGains(result.xpGains);
-            }
+
+            // Note: les gains d'XP sont déjà affichés/animés par BattleTurnManager.processXPGains
+            // au moment du K.O. Éviter un double affichage ici (barre qui repart à 0 + level-up invisible).
             
             // Sauvegarder XP (si pas fait par backend)
             // await this.applyXPGainsToDB(result.xpGains);
             
-            // Play victory music if available
-            try {
-                await this.soundManager.playMusic('victory-wild', { volume: 0.4, loop: false });
-            } catch (e) { /* ignore */ }
-
             this.cleanupBattle();
             this.returnToSceneWithTransition();
             
@@ -1870,7 +1930,12 @@ export class PokemonBattleScene extends Phaser.Scene {
 
             // Animer la barre XP si c'est le Pokémon actif
             if (isActivePokemon && this.playerXPBar) {
-                await this.animManager.animateXPGain(xp);
+                // BattleAnimationManager expects (xpGained:number, oldXP:number|null, oldLevel:number|null)
+                await this.animManager.animateXPGain(
+                    Number(xp.xpGained ?? 0),
+                    (xp.currentXP !== undefined ? Number(xp.currentXP) : null),
+                    (xp.currentLevel !== undefined ? Number(xp.currentLevel) : null)
+                );
             } else {
                 await this.wait(1500);
             }

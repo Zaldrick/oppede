@@ -789,27 +789,6 @@ async function seedDatabase() {
             },
             // Items pour Marin (index 3)
             {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[9], // Floki
-                quantité: 1,
-            },
-            {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[10], // Sirius
-                quantité: 1,
-            },
-            {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[11], // Gaara
-                quantité: 1,
-            },
-            // Nouveaux items pour Marin (x10)
-            {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[4], // Super Potion
-                quantité: 10,
-            },
-            {
                 player_id: insertedPlayers.insertedIds[14],
                 item_id: insertedItems.insertedIds[5], // Poké Ball
                 quantité: 10,
@@ -817,21 +796,6 @@ async function seedDatabase() {
                         {
                 player_id: insertedPlayers.insertedIds[14],
                 item_id: insertedItems.insertedIds[6], // Poké Ball
-                quantité: 10,
-            },
-                       {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[5], // Super Ball
-                quantité: 10,
-            },
-            {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[6], // Super Ball
-                quantité: 10,
-            },
-            {
-                player_id: insertedPlayers.insertedIds[3],
-                item_id: insertedItems.insertedIds[7], // Antidote
                 quantité: 10,
             },
             {

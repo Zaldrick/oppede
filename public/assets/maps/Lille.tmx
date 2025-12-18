@@ -134,7 +134,7 @@
  <objectgroup id="8" name="encounters">
   <object id="4" x="686.758" y="257.091" width="2474.97" height="2891.88">
    <properties>
-    <property name="encounterRate" value="12"/>
+    <property name="encounterRate" value="8"/>
     <property name="encounterTableId" value="lille"/>
    </properties>
   </object>

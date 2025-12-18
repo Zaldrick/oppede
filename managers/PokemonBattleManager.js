@@ -142,17 +142,44 @@ class PokemonBattleManager {
                 const battlesCollection = db.collection('battles');
 
                 // Récupérer l'équipe du joueur
-                const playerTeam = await pokemonCollection.find({
-                    owner_id: new ObjectId(playerId),
-                    position: { $gte: 1, $lte: 6 }
-                }).sort({ position: 1 }).toArray();
+                // IMPORTANT: `teamPosition` est 0-based (0..5). L'ancien champ `position` est 1-based (1..6).
+                // Si on exclut `teamPosition = 0`, le Pokémon en 1ère position n'est jamais pris en compte.
+                const fetchTeam = async (ownerId) => {
+                    const team = await pokemonCollection.find({
+                        owner_id: new ObjectId(ownerId),
+                        $or: [
+                            { teamPosition: { $gte: 0, $lte: 5 } },
+                            { position: { $gte: 1, $lte: 6 } }
+                        ]
+                    }).toArray();
+
+                    team.sort((a, b) => {
+                        const aPos = Number.isFinite(Number(a.teamPosition))
+                            ? Number(a.teamPosition)
+                            : (Number.isFinite(Number(a.position)) ? Math.max(0, Number(a.position) - 1) : 99);
+                        const bPos = Number.isFinite(Number(b.teamPosition))
+                            ? Number(b.teamPosition)
+                            : (Number.isFinite(Number(b.position)) ? Math.max(0, Number(b.position) - 1) : 99);
+                        return aPos - bPos;
+                    });
+
+                    return team.slice(0, 6);
+                };
+
+                const playerTeam = await fetchTeam(playerId);
 
                 if (playerTeam.length === 0) {
                     return res.status(400).json({ error: 'Aucun Pokémon dans l\'équipe' });
                 }
 
                 // Enrichir avec données d'espèce et calculer stats
+                // IMPORTANT: pour les Pokémon du joueur, la source de vérité est l'XP.
+                // On normalise le niveau AVANT calcul des stats et AVANT l'initialisation du battleState,
+                // sinon l'XP display peut rejouer des levels (ex: 5→6→7→8) car currentLevel serait stale.
                 for (const pokemon of playerTeam) {
+                    if (pokemon && pokemon.experience !== undefined && pokemon.experience !== null) {
+                        pokemon.level = this.calculateLevel(pokemon.experience);
+                    }
                     const speciesData = await this.getSpeciesData(pokemon.species_id);
                     pokemon.speciesData = speciesData;
                     pokemon.stats = this.calculateStats(pokemon, speciesData);
@@ -195,12 +222,12 @@ class PokemonBattleManager {
                     if (!opponentId) {
                         return res.status(400).json({ error: 'opponentId requis pour combat PvP' });
                     }
-                    opponentTeam = await pokemonCollection.find({
-                        owner_id: new ObjectId(opponentId),
-                        position: { $gte: 1, $lte: 6 }
-                    }).sort({ position: 1 }).toArray();
+                    opponentTeam = await fetchTeam(opponentId);
 
                     for (const pokemon of opponentTeam) {
+                        if (battleType === 'pvp' && pokemon && pokemon.experience !== undefined && pokemon.experience !== null) {
+                            pokemon.level = this.calculateLevel(pokemon.experience);
+                        }
                         const speciesData = await this.getSpeciesData(pokemon.species_id);
                         pokemon.speciesData = speciesData;
                         pokemon.stats = this.calculateStats(pokemon, speciesData);
@@ -1103,6 +1130,7 @@ class PokemonBattleManager {
                         
                         // 🆕 Recalculer MaxHP si niveau gagné
                         if (xpResult.leveledUp && pokemon.speciesData && pokemon.speciesData.stats) {
+                            const oldMaxHP = Number(pokemon?.stats?.maxHP ?? pokemon?.maxHP ?? pokemon?.currentHP ?? 0) || 0;
                             const baseHP = pokemon.speciesData.stats.hp || 45;
                             const ivHP = pokemon.ivs?.hp || 0;
                             const evHP = pokemon.evs?.hp || 0;
@@ -1118,8 +1146,20 @@ class PokemonBattleManager {
                             
                             // Mettre à jour l'objet en mémoire
                             pokemon.maxHP = newMaxHP;
-                            // Soigner le gain de PV (optionnel, mais sympa)
-                            // pokemon.currentHP += (newMaxHP - oldMaxHP);
+                            if (!pokemon.stats) pokemon.stats = {};
+                            pokemon.stats.maxHP = newMaxHP;
+
+                            // Soigner le gain de PV (comme dans les jeux Pokémon): +ΔmaxHP
+                            if (oldMaxHP > 0 && Number.isFinite(oldMaxHP)) {
+                                const delta = newMaxHP - oldMaxHP;
+                                if (delta > 0) {
+                                    pokemon.currentHP = Math.min(newMaxHP, Number(pokemon.currentHP || 0) + delta);
+                                }
+                            }
+
+                            // Exposer pour le frontend (animation + UI)
+                            xpResult.oldMaxHP = oldMaxHP;
+                            xpResult.newMaxHP = newMaxHP;
                             
                             console.log(`  → Level Up! MaxHP: ${newMaxHP} (Base: ${baseHP})`);
                         }

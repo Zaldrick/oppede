@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="18" height="34" tilewidth="48" tileheight="48" infinite="0" nextlayerid="22" nextobjectid="160">
  <editorsettings>
-  <export format="json"/>
+  <export target="qwest.tmj" format="json"/>
  </editorsettings>
  <tileset firstgid="1" name="Room_Builder_48x48" tilewidth="48" tileheight="48" tilecount="8588" columns="76">
   <image source="Room_Builder_48x48.png" width="3648" height="5424"/>
@@ -14,7 +14,7 @@
  <tileset firstgid="8589" name="Interiors_48x48" tilewidth="48" tileheight="48" tilecount="13744" columns="16">
   <image source="Interiors_48x48.png" width="768" height="41232"/>
  </tileset>
- <layer id="10" name="3" width="18" height="34">
+ <layer id="10" name="1" width="18" height="34">
   <data encoding="csv">
 22317,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 22317,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -52,7 +52,7 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <layer id="1" name="4" width="18" height="34">
+ <layer id="1" name="2" width="18" height="34">
   <data encoding="csv">
 0,539,621,621,621,621,621,396,621,621,621,621,396,621,395,0,0,0,
 0,546,0,0,0,0,0,472,0,0,0,0,472,0,472,0,0,0,
@@ -90,7 +90,7 @@
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 </data>
  </layer>
- <layer id="8" name="5" width="18" height="34">
+ <layer id="8" name="3" width="18" height="34">
   <data encoding="csv">
 0,0,0,0,0,0,0,0,10421,10422,0,0,0,0,0,0,0,0,
 0,0,0,20127,20128,0,0,0,10437,10438,0,0,0,0,0,0,0,0,

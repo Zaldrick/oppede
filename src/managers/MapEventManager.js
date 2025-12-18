@@ -4,6 +4,8 @@ import { QuestRouter } from "../quests/QuestRouter";
 import { EtoileDuSoirQuest } from "../quests/EtoileDuSoirQuest";
 import { BesoinDunTicketQuest } from "../quests/BesoinDunTicketQuest";
 import { RentrerALaMaisonQuest } from "../quests/RentrerALaMaisonQuest";
+import { SePreparerQuest } from "../quests/SePreparerQuest";
+import { QwestEvents } from "../quests/QwestEvents";
 
 export class MapEventManager {
     constructor(scene, mapManager) {
@@ -29,7 +31,9 @@ export class MapEventManager {
             handlers: [
                 new EtoileDuSoirQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
                 new BesoinDunTicketQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
-                new RentrerALaMaisonQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
+                new RentrerALaMaisonQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new SePreparerQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new QwestEvents({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
             ]
         });
     }
@@ -1110,6 +1114,11 @@ export class MapEventManager {
         if (npc.npcType === "ralof") {
             const answer = window.prompt("What's my Name ?");
             if (answer && answer.toLowerCase() === "ralof") {
+                try {
+                    this.scene.registry.set('teleport:ralof->qwest', true);
+                } catch (e) {
+                    // ignore
+                }
                 this.mapManager.changeMap("qwest", 3 * 48 + 24, 4 * 48 + 24);
             }
         } else if (npc.npcType === "booster_vendor") {

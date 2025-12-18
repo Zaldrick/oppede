@@ -524,10 +524,13 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("battle-wild", "/assets/musics/pkm/battle-wild.mp3");
         this.load.audio("battle-trainer", "/assets/musics/pkm/battle-trainer.mp3");
         this.load.audio("victory-wild", "/assets/musics/pkm/victory-wild.mp3");
+        this.load.audio("victory-trainer", "/assets/musics/pkm/victory-trainer.mp3");
         // Preload item sounds
         this.load.audio("item_get", "/assets/sounds/Item_Get.wav?v=1");
         this.load.audio("keyitem_get", "/assets/sounds/KeyItem_Get.wav?v=1");
-        this.load.image("qwest", "/assets/qwest.png");
+        this.load.audio("potion", "/assets/sounds/potion.mp3");
+        this.load.audio("faint", "/assets/sounds/fainted.mp3");
+        this.load.image("qwest", "/assets/maps/qwest.png");
         this.load.image("defaut", "/assets/defaut.png");
         // Dialogue avatars (optional; only shown if the texture exists)
         this.load.image("avatarMarin", "/assets/avatars/avatarMarin.png");
@@ -637,9 +640,10 @@ export class GameScene extends Phaser.Scene {
         this.load.image("collision", "/assets/maps/collision.png");
         
         // Load split tilesets for mobile compatibility
+        // These are tileset images referenced by Tiled (.tmj). They must be loaded as images (not spritesheets).
+        // IMPORTANT: TMJs rewritten by our tileset split script reference them under /assets/maps/sliced/
         for (let i = 0; i <= 10; i++) {
-            // These are tileset images referenced by Tiled (.tmj). They must be loaded as images (not spritesheets).
-            this.load.image(`Interiors_48x48_part_${i}`, `/assets/maps/Interiors_48x48_part_${i}.png`);
+            this.load.image(`Interiors_48x48_part_${i}`, `/assets/maps/sliced/Interiors_48x48_part_${i}.png`);
         }
 
         // Événements de diagnostic

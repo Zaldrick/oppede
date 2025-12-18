@@ -166,40 +166,60 @@ class PokemonBattleLogicManager {
      * @param {string} statName - 'hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed'
      * @returns {number}
      */
-    calculateStat(pokemon, statName,level = 1) {
-        // 🆕 Si les stats sont déjà calculées dans l'objet (via PokemonBattleManager), les utiliser directement
-        if (pokemon.stats && pokemon.stats[statName] && typeof pokemon.stats[statName] === 'number' && pokemon.stats[statName] > 0) {
-            // Vérifier si c'est une stat calculée (valeur > 5) ou une base stat (valeur brute)
-            // Pour être sûr, on recalcule si on a un doute, mais si PokemonBattleManager a fait son job, c'est bon.
-            // Le problème est que pokemon.stats contient parfois les Base Stats (si speciesData) et parfois les Calculated Stats.
-            
-            // Si on a maxHP dans stats, c'est probablement un objet de stats calculées
-            if (pokemon.stats.maxHP) {
+    calculateStat(pokemon, statName, level = undefined) {
+        if (!pokemon || !statName) return 1;
+
+        // Prefer the pokemon's own level when level is not explicitly provided.
+        // (Many callsites call calculateStat(p, 'speed') without passing a level.)
+        const resolvedLevel = (typeof level === 'number' && !isNaN(level) && level > 0)
+            ? level
+            : ((typeof pokemon.level === 'number' && !isNaN(pokemon.level) && pokemon.level > 0) ? pokemon.level : 1);
+
+        // If computed stats are already present, trust them.
+        // IMPORTANT: backend calculated stats contain maxHP (not hp), so handle HP explicitly.
+        if (statName === 'hp') {
+            if (pokemon.stats && typeof pokemon.stats.maxHP === 'number' && pokemon.stats.maxHP > 0) {
+                return pokemon.stats.maxHP;
+            }
+            if (typeof pokemon.maxHP === 'number' && pokemon.maxHP > 0) {
+                return pokemon.maxHP;
+            }
+        } else {
+            if (
+                pokemon.stats &&
+                pokemon.stats.maxHP &&
+                typeof pokemon.stats[statName] === 'number' &&
+                pokemon.stats[statName] > 0
+            ) {
                 return pokemon.stats[statName];
             }
         }
 
-        // Fallback: Recalcul complet (comme avant)
+        // Determine base stats source.
+        // - speciesData.stats is always base stats
+        // - pokemon.stats may be either base stats or computed stats; if it contains maxHP, it is computed stats
+        const baseStats =
+            (pokemon.speciesData && pokemon.speciesData.stats) ? pokemon.speciesData.stats
+                : (pokemon.stats && !pokemon.stats.maxHP) ? pokemon.stats
+                    : (pokemon.baseStats || pokemon.base_stats || null);
+
+        // Fallback base stat defaults (avoid NaN)
         let base = 50;
-        
-        if (pokemon.speciesData && pokemon.speciesData.stats) {
-            // speciesData.stats est toujours Base Stats
-            base = pokemon.speciesData.stats[statName];
-        } else if (pokemon.stats) {
-            base = pokemon.stats[statName];
+        if (baseStats) {
+            if (statName === 'hp') {
+                if (typeof baseStats.hp === 'number') base = baseStats.hp;
+            } else if (typeof baseStats[statName] === 'number') {
+                base = baseStats[statName];
+            }
         }
 
-        const iv = pokemon.ivs?.[statName] || 15;
-        const ev = pokemon.evs?.[statName] || 0;
-        
-        // 🔧 FIXE: S'assurer que le niveau est valide
-        //let level = pokemon.level;
-        if (!level || isNaN(level)) level = 1;
+        const iv = (pokemon.ivs && typeof pokemon.ivs[statName] === 'number') ? pokemon.ivs[statName] : 0;
+        const ev = (pokemon.evs && typeof pokemon.evs[statName] === 'number') ? pokemon.evs[statName] : 0;
+
         if (statName === 'hp') {
-            return calculateMaxHP(base, level, iv, ev);
-        } else {
-            return calculateStat(statName, base, level, iv, ev, pokemon.nature);
+            return calculateMaxHP(base, resolvedLevel, iv, ev);
         }
+        return calculateStat(statName, base, resolvedLevel, iv, ev, pokemon.nature || 'hardy');
     }
 
     /**
@@ -531,7 +551,7 @@ class PokemonBattleLogicManager {
 
             // Facteur Lucky Egg (e)
             const hasLuckyEgg = pokemon.heldItem === 'lucky-egg';
-            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 9.0;
+            const luckyEggMultiplier = hasLuckyEgg ? 1.5 : 1.0;
 
             // Calcul de base
             let xpGained = Math.floor((tradedMultiplier * baseXP * level) / (7 * participantCount));

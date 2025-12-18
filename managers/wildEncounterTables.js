@@ -15,23 +15,23 @@ const WILD_ENCOUNTER_TABLES = {
   douai_marchienne: {
     entries: [
       // Commun (facile à rencontrer)
-      { speciesId: 19, weight: 40, minLevel: 2, maxLevel: 4 },  // Rattata
-      { speciesId: 16, weight: 35, minLevel: 2, maxLevel: 5 },  // Pidgey
-      { speciesId: 41, weight: 20, minLevel: 3, maxLevel: 6 },  // Zubat
+      { speciesId: 19, weight: 40, minLevel: 7, maxLevel: 9 },  // Rattata
+      { speciesId: 16, weight: 35, minLevel: 7, maxLevel: 9 },  // Pidgey
+      { speciesId: 41, weight: 20, minLevel: 7, maxLevel: 9 },  // Zubat
 
       // Rare (pour valider que le tirage pondéré marche)
-      { speciesId: 133, weight: 4, minLevel: 5, maxLevel: 7 },  // Eevee
+      { speciesId: 133, weight: 4, minLevel: 9, maxLevel: 10 },  // Eevee
       { speciesId: 142, weight: 1, minLevel: 10, maxLevel: 12 } // Aerodactyl
     ]
   },
   // Exemple (à adapter):
-  // "lille_grass_1": {
-  //   entries: [
-  //     { speciesId: 50, weight: 80, minLevel: 3, maxLevel: 6 },
-  //     { speciesId: 51, weight: 18, minLevel: 4, maxLevel: 7 },
-  //     { speciesId: 142, weight: 2, minLevel: 10, maxLevel: 12 }
-  //   ]
-  // }
+  "lille": {
+     entries: [
+     { speciesId: 56, weight: 20, minLevel: 3, maxLevel: 6 },
+       { speciesId: 51, weight: 30, minLevel: 3, maxLevel: 5 },
+       { speciesId: 43, weight: 35, minLevel: 4, maxLevel: 6 }
+     ]
+   }
 };
 
 function pickFromEncounterTable(tableId) {

@@ -86,6 +86,24 @@ export class PokemonTeamScene extends Phaser.Scene {
         // Charger et afficher l'équipe
         this.loadAndDisplayTeam();
 
+        // 🔄 If this scene is paused/resumed (typical menu flow), refresh the team on resume
+        // so HP/XP changes made elsewhere (e.g., potion use) are reflected.
+        try {
+            if (!this.__resumeRefreshHooked) {
+                this.__resumeRefreshHooked = true;
+                this.events.on('resume', () => {
+                    try {
+                        // Silent refresh to avoid flashing "Chargement..."
+                        this.loadAndDisplayTeam(true);
+                    } catch (e) {
+                        // ignore
+                    }
+                });
+            }
+        } catch (e) {
+            // ignore
+        }
+
         // Bouton Combat Sauvage (en haut à droite)
         this.createBattleButton();
 
@@ -336,7 +354,7 @@ export class PokemonTeamScene extends Phaser.Scene {
                         if (battlePokemon.species_name_fr) pokemon.species_name_fr = battlePokemon.species_name_fr;
                         if (battlePokemon.species_name) pokemon.species_name = battlePokemon.species_name;
                         
-                        const maxHP = pokemon.stats ? pokemon.stats.maxHP : 1;
+                        const maxHP = Number(pokemon?.stats?.maxHP ?? pokemon?.maxHP ?? 1);
                         console.log(`  -> ${getPokemonDisplayName(pokemon) || 'Pokemon'}: ${pokemon.currentHP}/${maxHP} PV`);
                     }
                 });
@@ -514,7 +532,7 @@ export class PokemonTeamScene extends Phaser.Scene {
         // HP actuel/Max
         const currentHP = pokemon.currentHP || 0;
         // 🔧 FIXE: Utiliser stats calculées
-        const maxHP = pokemon.stats ? pokemon.stats.maxHP : 20;
+        const maxHP = Number(pokemon?.stats?.maxHP ?? pokemon?.maxHP ?? 20);
         const hpPercent = (currentHP / maxHP) * 100;
         const hpColor = hpPercent > 50 ? '#00FF00' : (hpPercent > 25 ? '#FFFF00' : '#FF0000');
         
@@ -575,7 +593,10 @@ export class PokemonTeamScene extends Phaser.Scene {
                 } catch (e) {
                     console.warn('[PokemonTeam] Erreur emit pokemonSelected:', e);
                 }
-                this.returnToScene();
+                const autoReturn = this.selectionMode?.autoReturn !== false;
+                if (autoReturn) {
+                    this.returnToScene();
+                }
             });
         } else {
             // Mode normal: drag & drop + clic pour détail
@@ -767,6 +788,54 @@ export class PokemonTeamScene extends Phaser.Scene {
             this.scene.start(this.returnScene, { 
                 playerId: this.currentPlayer 
             });
+        }
+    }
+
+    showToast(message) {
+        try {
+            const text = String(message || '').trim();
+            if (!text) return;
+
+            // Clean previous
+            if (this.__toastGroup) {
+                try { this.__toastGroup.destroy(true); } catch (e) { /* ignore */ }
+                this.__toastGroup = null;
+            }
+
+            const w = this.cameras.main.width;
+            const h = this.cameras.main.height;
+            const x = w / 2;
+            const y = h * 0.92;
+
+            const paddingX = 16;
+            const paddingY = 10;
+            const toastText = this.add.text(x, y, text, {
+                fontSize: `${Math.max(14, Math.floor(Math.min(w, h) * 0.028))}px`,
+                fill: '#FFFFFF',
+                align: 'center',
+                wordWrap: { width: w * 0.9 }
+            }).setOrigin(0.5).setDepth(9999);
+
+            const bounds = toastText.getBounds();
+            const bg = this.add.rectangle(
+                x,
+                y,
+                Math.min(w * 0.95, bounds.width + paddingX * 2),
+                bounds.height + paddingY * 2,
+                0x000000,
+                0.75
+            ).setOrigin(0.5).setDepth(9998);
+
+            this.__toastGroup = this.add.container(0, 0, [bg, toastText]).setDepth(9999);
+
+            this.time.delayedCall(1400, () => {
+                if (this.__toastGroup) {
+                    try { this.__toastGroup.destroy(true); } catch (e) { /* ignore */ }
+                    this.__toastGroup = null;
+                }
+            });
+        } catch (e) {
+            // ignore
         }
     }
 

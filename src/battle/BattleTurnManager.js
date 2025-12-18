@@ -196,17 +196,76 @@ export default class BattleTurnManager {
             const pokemonName = getPokemonDisplayName(pokemon) || gain.pokemonName;
             await this.scene.menuManager.showDialog(`${pokemonName} gagne ${gain.xpGained} points d'expérience !`);
 
-            // Sync local state for future switches
-            if (typeof gain.newLevel === 'number') pokemon.level = gain.newLevel;
-            if (typeof gain.currentXP === 'number' && typeof gain.xpGained === 'number') {
-                pokemon.experience = gain.currentXP + gain.xpGained;
-            }
+            // IMPORTANT: Pour que l'animation soit cohérente, on doit animer depuis l'XP/Niv AVANT le gain.
+            // Si on met à jour pokemon.level/pokemon.experience avant l'animation, la barre repart à 0
+            // et le level-up peut ne pas être visible.
+            const xpGained = Number(gain.xpGained ?? 0);
+            const oldXP = (typeof gain.currentXP === 'number')
+                ? Number(gain.currentXP)
+                : Number(pokemon.experience ?? 0);
+            const oldLevel = (typeof gain.currentLevel === 'number')
+                ? Number(gain.currentLevel)
+                : (Number.isFinite(Number(pokemon.level)) ? Number(pokemon.level) : this.scene.calculateLevelFromXP(oldXP));
+
+            const newXP = oldXP + xpGained;
+            const newLevel = (typeof gain.newLevel === 'number')
+                ? Number(gain.newLevel)
+                : this.scene.calculateLevelFromXP(newXP);
 
             // Animer la barre XP uniquement pour le Pokémon actif
-            if (pokemon._id && this.scene.battleState.playerActive &&
-                (pokemon._id === this.scene.battleState.playerActive._id || pokemon._id.toString() === this.scene.battleState.playerActive._id.toString())) {
-                const oldXP = gain.currentXP || 0;
-                await this.scene.animManager.animateXPGain(gain.xpGained, oldXP);
+            const isActive = pokemon._id && this.scene.battleState.playerActive &&
+                (pokemon._id === this.scene.battleState.playerActive._id || pokemon._id.toString() === this.scene.battleState.playerActive._id.toString());
+            if (isActive) {
+                await this.scene.animManager.animateXPGain(xpGained, oldXP, oldLevel);
+            }
+
+            // Sync local state for future switches (après l'animation)
+            pokemon.experience = newXP;
+            pokemon.level = newLevel;
+
+            // 🆕 Si le niveau-up a changé le MaxHP, le refléter immédiatement dans l'UI.
+            // Le serveur peut aussi avoir augmenté currentHP via +ΔmaxHP; ici on se contente
+            // de synchroniser maxHP côté client pour éviter l'affichage ancien (ex: 24/32).
+            const newMaxHP = Number(gain?.newMaxHP);
+            if (Number.isFinite(newMaxHP) && newMaxHP > 0) {
+                if (!pokemon.stats) pokemon.stats = {};
+                pokemon.stats.maxHP = newMaxHP;
+                pokemon.maxHP = newMaxHP;
+
+                if (isActive) {
+                    const active = this.scene.battleState.playerActive;
+                    // Assurer cohérence active.stats.maxHP
+                    if (active) {
+                        if (!active.stats) active.stats = {};
+                        active.stats.maxHP = newMaxHP;
+                        active.maxHP = newMaxHP;
+                    }
+
+                    if (this.scene.playerHPText) {
+                        this.scene.playerHPText.setText(`${pokemon.currentHP}/${newMaxHP}`);
+                    }
+
+                    if (this.scene.playerHPBarProps && this.scene.playerHPBar) {
+                        this.scene.playerHPBarProps.maxHP = newMaxHP;
+                        const hpPercent = (Number(pokemon.currentHP || 0) / newMaxHP) * 100;
+                        const { x, y, width, height } = this.scene.playerHPBarProps;
+
+                        let hpColor1, hpColor2;
+                        if (hpPercent > 50) { hpColor1 = 0x2ECC71; hpColor2 = 0x27AE60; }
+                        else if (hpPercent > 25) { hpColor1 = 0xF39C12; hpColor2 = 0xE67E22; }
+                        else { hpColor1 = 0xE74C3C; hpColor2 = 0xC0392B; }
+
+                        this.scene.playerHPBar.clear();
+                        this.scene.playerHPBar.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
+                        this.scene.playerHPBar.fillRoundedRect(
+                            x + 2,
+                            y - height/2 + 2,
+                            (width - 4) * Math.max(0, Math.min(100, hpPercent)) / 100,
+                            height - 4,
+                            4
+                        );
+                    }
+                }
             }
         }
     }

@@ -352,11 +352,27 @@ class PokemonDatabaseManager {
     async getPlayerTeam(playerId) {
         try {
             const objectId = new ObjectId(playerId);
-            const team = await this.pokemonPlayerCollection
+            // Compat: certains documents historiques utilisent `position` (1-based)
+            // alors que le système actuel utilise `teamPosition` (0-based).
+            // On récupère un set un peu plus large puis on trie côté JS pour garantir
+            // que toutes les scènes (Team, Battle, Items) ciblent les mêmes IDs.
+            const rawTeam = await this.pokemonPlayerCollection
                 .find({ owner_id: objectId })
-                .sort({ teamPosition: 1 })
-                .limit(6)
+                .limit(24)
                 .toArray();
+
+            const getSortPos = (p) => {
+                const tp = Number(p?.teamPosition);
+                if (Number.isFinite(tp)) return tp;
+                const pos = Number(p?.position);
+                if (Number.isFinite(pos)) return Math.max(0, pos - 1);
+                return 999;
+            };
+
+            const team = rawTeam
+                .slice()
+                .sort((a, b) => getSortPos(a) - getSortPos(b))
+                .slice(0, 6);
             
             // Calculer le level, stats dynamiques et traductions FR si disponibles
             for (const pokemon of team) {
@@ -589,7 +605,8 @@ class PokemonDatabaseManager {
             for (let i = 0; i < newOrder.length; i++) {
                 await this.pokemonPlayerCollection.updateOne(
                     { _id: new ObjectId(newOrder[i]) },
-                    { $set: { teamPosition: i, updatedAt: new Date() } }
+                    // Compat: `teamPosition` (0-based) + `position` (1-based)
+                    { $set: { teamPosition: i, position: i + 1, updatedAt: new Date() } }
                 );
             }
 
@@ -939,6 +956,42 @@ class PokemonDatabaseManager {
         }
 
         const finalNickname = nickname || (speciesNameFR ? (speciesNameFR.charAt(0).toUpperCase() + speciesNameFR.slice(1)) : (speciesName.charAt(0).toUpperCase() + speciesName.slice(1)));
+
+        // Special-case: if this is the custom 'Gaara' pickup (nickname 'Gaara'), ensure it knows 'bite' (morsure)
+        try {
+            const normNick = String(finalNickname || '').trim().toLowerCase();
+            if (normNick === 'gaara') {
+                // Check if 'bite' already present
+                const hasBite = moveset.some(m => (m && (m.name === 'bite' || (m.name && m.name.toLowerCase() === 'morsure'))));
+                if (!hasBite) {
+                    try {
+                        const fetch = (await import('node-fetch')).default;
+                        const mvRes = await fetch('https://pokeapi.co/api/v2/move/bite');
+                        if (mvRes.ok) {
+                            const mv = await mvRes.json();
+                            const biteMove = {
+                                name: mv.name || 'bite',
+                                type: mv.type?.name || 'normal',
+                                category: mv.damage_class?.name || 'physical',
+                                power: mv.power || 60,
+                                accuracy: mv.accuracy || 100,
+                                pp: mv.pp || 25,
+                                maxPP: mv.pp || 25,
+                                learnLevel: 0
+                            };
+                            // Prepend and ensure max 4 moves
+                            moveset.unshift(biteMove);
+                            if (moveset.length > 4) moveset.splice(4);
+                        }
+                    } catch (e) {
+                        // Non-blocking: if fetch fails, ignore
+                        console.warn('[PokemonDB] Could not fetch bite move for Gaara:', e && e.message ? e.message : e);
+                    }
+                }
+            }
+        } catch (e) {
+            // ignore any error in this special-case
+        }
 
         return {
             owner_id: ownerId ? new ObjectId(ownerId) : null,

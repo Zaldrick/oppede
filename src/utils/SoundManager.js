@@ -40,7 +40,7 @@ export default class SoundManager {
         this.specialMappings = {
             'generic': 'Hit Normal Damage',
             'critical': 'Hit Super Effective',
-            'faint': 'In-Battle Faint No Health',
+            'faint': 'fainted',
             'hit': 'Hit Normal Damage'
         };
         // Additional event sounds mapping (request list)
@@ -355,7 +355,13 @@ export default class SoundManager {
     async tryLoadMoveSound(moveName) {
         const baseKey = this.buildKey(moveName);
         // already loaded
-        if (this.loaded.has(baseKey) || (this.scene.sound && this.scene.sound.get(baseKey))) return baseKey;
+        if (
+            this.loaded.has(baseKey) ||
+            (this.scene && this.scene.cache && this.scene.cache.audio && this.scene.cache.audio.exists(baseKey))
+        ) {
+            this.loaded.add(baseKey);
+            return baseKey;
+        }
         if (this.loading.has(baseKey)) return this.loading.get(baseKey);
 
         const promise = (async () => {
@@ -465,10 +471,11 @@ export default class SoundManager {
 
         console.debug(`[SoundManager] playMoveSound requested ${moveName} -> key ${key}`);
         try {
-            // If loaded, play directly
-            if (this.scene.sound.get(key)) {
-                console.debug(`[SoundManager] Playing preloaded move sound key=${key}`);
+            // If cached, play directly. (sound.get() only returns live Sound instances, not cached audio.)
+            if (this.scene.cache && this.scene.cache.audio && this.scene.cache.audio.exists(key)) {
+                console.debug(`[SoundManager] Playing cached move sound key=${key}`);
                 this.scene.sound.play(key, { volume, rate, loop });
+                this.loaded.add(key);
                 return true;
             }
 
@@ -497,6 +504,37 @@ export default class SoundManager {
             } catch (tErr) {
                 // ignore and continue to other fallbacks
                 console.warn('[SoundManager] Fallback Tackle absent or failed to load:', tErr && tErr.message ? tErr.message : tErr);
+            }
+
+            // fallback: play generic move sound if exists
+            // Try direct HTMLAudio fallback for 'Tackle' (most reliable last-resort)
+            try {
+                const exts = ['mp3', 'wav', 'ogg'];
+                const nameVariants = ['Tackle', 'tackle', 'TACKLE'];
+                const basePaths = [this.movePath, this.sfxPath, `/public${this.movePath}`, `/public${this.sfxPath}`];
+                for (const base of basePaths) {
+                    for (const name of nameVariants) {
+                        for (const ext of exts) {
+                            const url = `${base}${encodeURIComponent(name)}.${ext}`;
+                            try {
+                                const audio = new Audio(url);
+                                audio.volume = Math.max(0, Math.min(1, volume));
+                                const p = audio.play();
+                                if (p && typeof p.then === 'function') {
+                                    await p;
+                                    console.warn('[SoundManager] Played fallback Tackle via HTMLAudio:', url);
+                                    return true;
+                                }
+                            } catch (htmlErr) {
+                                // try next
+                                // console.debug('[SoundManager] HTMLAudio fallback failed for', url, htmlErr && htmlErr.message);
+                                continue;
+                            }
+                        }
+                    }
+                }
+            } catch (audioErr) {
+                console.warn('[SoundManager] HTMLAudio fallback error:', audioErr && audioErr.message ? audioErr.message : audioErr);
             }
 
             // fallback: play generic move sound if exists

@@ -136,8 +136,35 @@ class ItemActionManager {
     }
 
     getItemType(item) {
-        if (item.type) return item.type;
-        const name = item.nom.toLowerCase();
+        const rawType = (item?.type ?? '').toString().trim().toLowerCase();
+        const name = (item?.nom ?? '').toString().toLowerCase();
+
+        // Normalize legacy / backend types to the manager's handled types
+        if (rawType) {
+            // Healing family
+            if (
+                ['heal', 'healing', 'healing-item', 'healing_item', 'status-heal', 'status_heal', 'revive', 'soin'].includes(rawType)
+            ) {
+                return 'healing';
+            }
+
+            // Pokéballs
+            if (rawType === 'pokeball' || rawType.includes('ball')) {
+                return 'pokeball';
+            }
+
+            // Boosters
+            if (rawType === 'booster') {
+                return 'booster';
+            }
+
+            // TM/HM
+            if (['tm_hm', 'tm', 'hm'].includes(rawType)) {
+                return 'tm_hm';
+            }
+        }
+
+        // Fallback: infer from name
         if (name.includes('ball')) return 'pokeball';
         if (name.includes('potion') || name.includes('soin')) return 'healing';
         if (name.includes('booster')) return 'booster';
@@ -211,12 +238,30 @@ class ItemActionManager {
                 playerId,
                 returnScene: currentSceneKey || 'InventoryScene',
                 inBattle: false,
+                // Retour auto au menu (après sélection) pour revenir à l'inventaire
                 selectionMode: { type: 'useItem', itemId }
             });
             this.scene.scene.bringToTop('PokemonTeamScene');
 
             const teamScene = this.scene.scene.get('PokemonTeamScene');
             if (teamScene && teamScene.events) {
+                // Ne réafficher l'inventaire DOM qu'une fois la TeamScene fermée.
+                const restoreInventoryUi = () => {
+                    try {
+                        if (this.scene.domContainer) {
+                            this.scene.domContainer.style.display = 'flex';
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                };
+
+                try {
+                    teamScene.events.once('shutdown', restoreInventoryUi);
+                } catch (e) {
+                    // ignore
+                }
+
                 teamScene.events.once('pokemonSelected', async (pokemon) => {
                     try {
                         const targetPokemonId = pokemon?._id;
@@ -239,17 +284,46 @@ class ItemActionManager {
                             this.scene.updateGlobalInventoryCache();
                         }
 
-                        // Message feedback
-                        this.scene.displayMessage(result?.message || 'Objet utilisé !');
+                        // Feedback + son potion depuis la scène d'origine (InventoryScene)
+                        try {
+                            const msg = result?.message || 'Objet utilisé !';
+                            if (typeof this.scene.displayMessage === 'function') {
+                                this.scene.displayMessage(msg);
+                            }
+                        } catch (e) { /* ignore */ }
+
+                        // 🔊 Son potion après utilisation réussie (après sélection)
+                        try {
+                            const itemName = (item?.nom ?? '').toString().toLowerCase();
+                            const itemType = (item?.type ?? '').toString().toLowerCase();
+                            if (itemType === 'healing' || itemType === 'heal' || itemName.includes('potion') || itemName.includes('soin')) {
+                                if (this.scene?.sound) {
+                                    try {
+                                        const ctx = this.scene.sound.context;
+                                        if (ctx && ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+                                            await ctx.resume();
+                                        }
+                                        if (this.scene.sound.locked && typeof this.scene.sound.unlock === 'function') {
+                                            this.scene.sound.unlock();
+                                        }
+                                    } catch (e) { /* ignore */ }
+                                    this.scene.sound.play('potion', { volume: 0.8 });
+                                }
+                            }
+                        } catch (e) { /* ignore */ }
 
                         // Event global pour autres vues
                         try { this.scene.game?.events?.emit('inventory:update'); } catch (e) { /* ignore */ }
                     } catch (e) {
-                        this.scene.displayMessage(e.message || "Erreur lors de l'utilisation");
-                    } finally {
-                        if (this.scene.domContainer) {
-                            this.scene.domContainer.style.display = 'flex';
-                        }
+                        // L'inventaire DOM est masqué: on log et on tentera via TeamScene si possible
+                        const msg = e?.message || "Erreur lors de l'utilisation";
+                        try {
+                            if (teamScene && typeof teamScene.showToast === 'function') {
+                                teamScene.showToast(msg);
+                            }
+                        } catch (err) { /* ignore */ }
+
+                        console.warn('[ItemActionManager] Erreur utilisation item:', msg);
                     }
                 });
             }

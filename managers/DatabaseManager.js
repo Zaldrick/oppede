@@ -1,11 +1,44 @@
 const { MongoClient, ObjectId } = require('mongodb');
+const { calculateMaxHP } = require('../utils/pokemonStats');
 
 class DatabaseManager {
     constructor() {
         this.mongoClient = null;
         this.db = null;
         this.photosCollection = null;
+        this.pokemonBaseStatsCache = new Map();
         this.MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://zaldrick:xtHDAM0ZFpq2iL9L@oppede.zfhlzph.mongodb.net/oppede';
+    }
+
+    async getPokemonBaseStats(speciesId) {
+        const sid = Number(speciesId);
+        if (!sid || sid <= 0) return null;
+
+        const cached = this.pokemonBaseStatsCache.get(sid);
+        if (cached) return cached;
+
+        try {
+            const fetch = (await import('node-fetch')).default;
+            const response = await fetch(`https://pokeapi.co/api/v2/pokemon/${sid}`);
+            if (!response.ok) return null;
+            const data = await response.json();
+
+            const getStat = (key) => Number(data?.stats?.find(s => s?.stat?.name === key)?.base_stat ?? 0);
+            const baseStats = {
+                hp: getStat('hp'),
+                attack: getStat('attack'),
+                defense: getStat('defense'),
+                sp_attack: getStat('special-attack'),
+                sp_defense: getStat('special-defense'),
+                speed: getStat('speed')
+            };
+
+            if (!baseStats.hp) return null;
+            this.pokemonBaseStatsCache.set(sid, baseStats);
+            return baseStats;
+        } catch (e) {
+            return null;
+        }
     }
 
     async connectToDatabase() {
@@ -511,7 +544,47 @@ class DatabaseManager {
                 let message = '';
 
                 if (actionDoc.action_type === 'heal') {
-                    const maxHP = Number(pokemon.stats?.maxHP ?? pokemon.maxHP ?? 0);
+                    let maxHP = Number(pokemon.stats?.maxHP ?? pokemon.maxHP ?? 0);
+                    if (!maxHP || maxHP <= 0) {
+                        // Beaucoup de Pokémon persistés n'ont pas maxHP en DB (seulement currentHP + iv/ev/level)
+                        // -> on le calcule ici pour que les potions fonctionnent.
+                        const baseStats = await this.getPokemonBaseStats(pokemon.species_id);
+                        if (baseStats?.hp) {
+                            // ⚠️ Many persisted pokemon don't store `level` (it's derived from XP on fetch).
+                            // If we default to 1, maxHP becomes wrong and potions are refused as "PV déjà au maximum".
+                            const resolveLevelFromXP = (experience) => {
+                                const xpVal = Number(experience ?? 0);
+                                if (!Number.isFinite(xpVal) || xpVal < 0) return 1;
+                                if (xpVal === 0) return 1;
+                                for (let lvl = 1; lvl <= 100; lvl++) {
+                                    const xpNeeded = Math.floor(1.2 * Math.pow(lvl, 3) - 15 * Math.pow(lvl, 2) + 100 * lvl - 140);
+                                    if (xpVal < xpNeeded) return Math.max(1, lvl - 1);
+                                }
+                                return 100;
+                            };
+
+                            // Source of truth: XP. Ne pas utiliser `pokemon.level` stocké (souvent stale)
+                            // sinon maxHP peut devenir trop bas et déclencher à tort "PV déjà au maximum".
+                            const level = resolveLevelFromXP(pokemon.experience);
+                            const iv = Number(pokemon.ivs?.hp ?? 0);
+                            const ev = Number(pokemon.evs?.hp ?? 0);
+                            const safeIv = Number.isFinite(iv) ? iv : 0;
+                            const safeEv = Number.isFinite(ev) ? ev : 0;
+                            try {
+                                maxHP = calculateMaxHP(baseStats.hp, level, safeIv, safeEv);
+                            } catch (e) {
+                                maxHP = 0;
+                            }
+
+                            // Persist pour les prochains usages (non bloquant)
+                            if (maxHP && maxHP > 0) {
+                                pokemonCol.updateOne(
+                                    { _id: pokemonObjectId },
+                                    { $set: { maxHP: Number(maxHP), updatedAt: new Date() } }
+                                ).catch(() => {});
+                            }
+                        }
+                    }
                     const currentHP = Number(pokemon.currentHP ?? 0);
                     const amount = Number(actionDoc.parameters?.amount ?? 0);
 
@@ -566,7 +639,7 @@ class DatabaseManager {
                     pokemon: {
                         _id: targetPokemonId,
                         currentHP: Number(updatedPokemon?.currentHP ?? (pokemon.currentHP + healed)),
-                        maxHP: Number(updatedPokemon?.stats?.maxHP ?? updatedPokemon?.maxHP ?? pokemon.stats?.maxHP ?? pokemon.maxHP ?? 0)
+                        maxHP: Number(updatedPokemon?.stats?.maxHP ?? updatedPokemon?.maxHP ?? pokemon.stats?.maxHP ?? pokemon.maxHP ?? maxHP ?? 0)
                     },
                     inventory: {
                         itemId,

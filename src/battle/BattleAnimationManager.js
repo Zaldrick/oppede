@@ -703,6 +703,13 @@ export default class BattleAnimationManager {
         const startPercent = Math.max(0, Math.min(100, (startXPInLevel / xpNeededForLevel) * 100));
         const endPercent = Math.max(0, Math.min(100, (endXPInLevel / xpNeededForLevel) * 100));
 
+        // Play XP gain sound before animating the XP bar. Fire-and-forget to avoid blocking.
+        try {
+            if (this.scene && this.scene.soundManager && typeof this.scene.soundManager.playMoveSound === 'function') {
+                try { this.scene.soundManager.playMoveSound('xp-gain', { volume: 0.8 }).catch(() => {}); } catch (e) { /* ignore */ }
+            }
+        } catch (e) { /* ignore */ }
+
         await new Promise(resolve => {
             const props = this.scene.playerXPBarProps;
             const duration = 800;
