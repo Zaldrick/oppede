@@ -301,8 +301,35 @@ export default class SoundManager {
         const nospace = lower.replace(/\s+/g, '');
         const sanitized = this.sanitizeName(trimmed);
 
+        // Also handle common move id formats like "fire-fang" / "fire_fang".
+        // Our assets are often Title Case with spaces or hyphens: "Fire Fang.mp3" and/or "Fire-Fang.mp3".
+        const delimsToSpace = trimmed.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const delimsLower = delimsToSpace.toLowerCase();
+        const delimsTitle = delimsToSpace
+            .split(' ')
+            .filter(Boolean)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(' ');
+        const delimsTitleHyphen = delimsTitle.replace(/\s+/g, '-');
+        const delimsTitleUnderscore = delimsTitle.replace(/\s+/g, '_');
+
         // Prefer the Title-case and hyphen variants first (asset filenames are often Title-case like 'Bite.mp3')
-        const candidates = [title, titleHyphen, titleUnderscore, trimmed, lower, hyphen, underscore, nospace, titleNoSpace, sanitized];
+        const candidates = [
+            delimsTitle,
+            delimsTitleHyphen,
+            delimsTitleUnderscore,
+            title,
+            titleHyphen,
+            titleUnderscore,
+            trimmed,
+            lower,
+            delimsLower,
+            hyphen,
+            underscore,
+            nospace,
+            titleNoSpace,
+            sanitized
+        ];
 
         // Remove duplicates while preserving order
         return [...new Set(candidates.filter(Boolean))];
@@ -369,26 +396,8 @@ export default class SoundManager {
             // Simplified loading strategy: files are named with their exact English names (Nuzzle.mp3, etc.)
             const specialName = this.specialMappings[moveName?.toLowerCase()];
             
-            // Build simple list of candidates: exact move name is primary
-            let candidateNames = [moveName]; // ex: "nuzzle" or "levelUp"
-
-            // Add Title-case variant (most likely match: Nuzzle or LevelUp)
-            // Handle both space-separated words AND camelCase
-            let titleCase;
-            if (moveName.includes(' ')) {
-                // Space-separated: "quick attack" → "Quick Attack"
-                titleCase = moveName
-                    .trim()
-                    .split(' ')
-                    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                    .join(' ');
-            } else {
-                // camelCase: "levelUp" → "LevelUp"
-                titleCase = moveName.charAt(0).toUpperCase() + moveName.slice(1);
-            }
-            if (titleCase !== moveName) {
-                candidateNames.push(titleCase); // ex: "Nuzzle" or "LevelUp"
-            }
+            // Build a robust list of candidates matching how the asset filenames are stored.
+            let candidateNames = this.buildCandidateNames(moveName);
             // Add special mapping if exists
             if (specialName) {
                 candidateNames.unshift(specialName);
@@ -422,6 +431,18 @@ export default class SoundManager {
                         for (const ext of tryExtensions) {
                             const url = this.buildUrl(candidate, ext, tryPath);
                             try {
+                                // Guard: avoid decoding HTML as audio when the host returns SPA index.html for missing files.
+                                // We keep this guard permissive (do NOT require "audio/*"), only skip obvious non-audio.
+                                try {
+                                    const head = await fetch(url, { method: 'HEAD' });
+                                    if (!head.ok) continue;
+                                    const ct = (head.headers.get('content-type') || '').toLowerCase();
+                                    if (ct.includes('text/html') || ct.startsWith('text/') || ct.includes('application/json')) {
+                                        continue;
+                                    }
+                                } catch (headErr) {
+                                    // If HEAD is blocked, fall back to Phaser load attempt.
+                                }
                                 await this.loadAudioForKey(baseKey, url);
                                 this.loaded.add(baseKey);
                                 console.log(`[SoundManager] ✓ Loaded move sound: ${candidate} (${url})`);
@@ -448,6 +469,75 @@ export default class SoundManager {
             this.loading.delete(baseKey);
             throw e;
         }
+    }
+
+    buildSfxKey(sfxName) {
+        const safe = this.sanitizeName(sfxName).replace(/ /g, '-');
+        return `sfx_${safe}`;
+    }
+
+    // Play an event/UI SFX from /assets/sounds (no /moves lookup, no Tackle fallback)
+    async playSfxSound(sfxName, { volume = 1.0, rate = 1.0, loop = false } = {}) {
+        if (!this.scene || !this.scene.sound) return false;
+
+        const requested = sfxName && String(sfxName).trim() ? String(sfxName).trim() : '';
+        if (!requested) return false;
+
+        // Project rule: LevelUp uses exactly /assets/sounds/levelup.mp3
+        const canonical = requested.toLowerCase() === 'levelup' ? 'levelup' : requested;
+        const key = this.buildSfxKey(canonical);
+
+        // Try Phaser loader + Phaser playback first
+        try {
+            if (this.scene.cache && this.scene.cache.audio && this.scene.cache.audio.exists(key)) {
+                this.scene.sound.play(key, { volume, rate, loop });
+                return true;
+            }
+
+            const urls = [
+                `${this.sfxPath}${encodeURIComponent(canonical)}.mp3`,
+                `/public${this.sfxPath}${encodeURIComponent(canonical)}.mp3`
+            ];
+            for (const url of urls) {
+                try {
+                    await this.loadAudioForKey(key, url);
+                    this.scene.sound.play(key, { volume, rate, loop });
+                    return true;
+                } catch (e) {
+                    // try next
+                }
+            }
+        } catch (e) {
+            // fall through
+        }
+
+        // Mobile-friendly last resort: HTMLAudio playback
+        try {
+            const urls = [
+                `${this.sfxPath}${encodeURIComponent(canonical)}.mp3`,
+                `/public${this.sfxPath}${encodeURIComponent(canonical)}.mp3`
+            ];
+            for (const url of urls) {
+                try {
+                    const audio = new Audio(url);
+                    audio.volume = Math.max(0, Math.min(1, volume));
+                    try { audio.playbackRate = rate; } catch (rateErr) {}
+                    audio.loop = !!loop;
+                    const p = audio.play();
+                    if (p && typeof p.then === 'function') {
+                        await p;
+                        console.warn('[SoundManager] Played SFX via HTMLAudio fallback:', canonical, url);
+                        return true;
+                    }
+                } catch (htmlErr) {
+                    continue;
+                }
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        return false;
     }
 
     // Play a move sound with an optional volume and rate
