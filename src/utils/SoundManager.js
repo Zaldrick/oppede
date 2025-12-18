@@ -10,6 +10,11 @@ export default class SoundManager {
         this.scene = scene;
         this.loaded = new Set();
         this.loading = new Map(); // key -> Promise
+        this.sfxLoading = new Map(); // sfxKey -> Promise
+
+        // Prevent fallback spam (missing moves can trigger multiple play calls per animation)
+        this.lastTackleFallbackAt = 0;
+        this.tackleFallbackCooldownMs = 250;
 
         // Supported extensions to try when loading a sound file (prefer wav where possible)
         this.extensions = ['wav', 'mp3', 'ogg'];
@@ -487,57 +492,75 @@ export default class SoundManager {
         const canonical = requested.toLowerCase() === 'levelup' ? 'levelup' : requested;
         const key = this.buildSfxKey(canonical);
 
-        // Try Phaser loader + Phaser playback first
-        try {
-            if (this.scene.cache && this.scene.cache.audio && this.scene.cache.audio.exists(key)) {
-                this.scene.sound.play(key, { volume, rate, loop });
-                return true;
+        // Concurrency-safe: avoid starting multiple loads for the same SFX key.
+        if (this.sfxLoading.has(key)) {
+            try {
+                return await this.sfxLoading.get(key);
+            } catch (e) {
+                // fall through to HTMLAudio attempt
             }
+        }
 
-            const urls = [
-                `${this.sfxPath}${encodeURIComponent(canonical)}.mp3`,
-                `/public${this.sfxPath}${encodeURIComponent(canonical)}.mp3`
-            ];
-            for (const url of urls) {
-                try {
-                    await this.loadAudioForKey(key, url);
+        const sfxPromise = (async () => {
+            // Try Phaser loader + Phaser playback first
+            try {
+                if (this.scene.cache && this.scene.cache.audio && this.scene.cache.audio.exists(key)) {
                     this.scene.sound.play(key, { volume, rate, loop });
                     return true;
-                } catch (e) {
-                    // try next
                 }
-            }
-        } catch (e) {
-            // fall through
-        }
 
-        // Mobile-friendly last resort: HTMLAudio playback
-        try {
-            const urls = [
-                `${this.sfxPath}${encodeURIComponent(canonical)}.mp3`,
-                `/public${this.sfxPath}${encodeURIComponent(canonical)}.mp3`
-            ];
-            for (const url of urls) {
-                try {
-                    const audio = new Audio(url);
-                    audio.volume = Math.max(0, Math.min(1, volume));
-                    try { audio.playbackRate = rate; } catch (rateErr) {}
-                    audio.loop = !!loop;
-                    const p = audio.play();
-                    if (p && typeof p.then === 'function') {
-                        await p;
-                        console.warn('[SoundManager] Played SFX via HTMLAudio fallback:', canonical, url);
+                const urls = [
+                    `${this.sfxPath}${encodeURIComponent(canonical)}.mp3`,
+                    `/public${this.sfxPath}${encodeURIComponent(canonical)}.mp3`
+                ];
+                for (const url of urls) {
+                    try {
+                        await this.loadAudioForKey(key, url);
+                        this.scene.sound.play(key, { volume, rate, loop });
                         return true;
+                    } catch (e) {
+                        // try next
                     }
-                } catch (htmlErr) {
-                    continue;
                 }
+            } catch (e) {
+                // fall through
             }
-        } catch (e) {
-            // ignore
-        }
 
-        return false;
+            // Mobile-friendly last resort: HTMLAudio playback
+            try {
+                const urls = [
+                    `${this.sfxPath}${encodeURIComponent(canonical)}.mp3`,
+                    `/public${this.sfxPath}${encodeURIComponent(canonical)}.mp3`
+                ];
+                for (const url of urls) {
+                    try {
+                        const audio = new Audio(url);
+                        audio.volume = Math.max(0, Math.min(1, volume));
+                        try { audio.playbackRate = rate; } catch (rateErr) {}
+                        audio.loop = !!loop;
+                        const p = audio.play();
+                        if (p && typeof p.then === 'function') {
+                            await p;
+                            console.warn('[SoundManager] Played SFX via HTMLAudio fallback:', canonical, url);
+                            return true;
+                        }
+                    } catch (htmlErr) {
+                        continue;
+                    }
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            return false;
+        })();
+
+        this.sfxLoading.set(key, sfxPromise);
+        try {
+            return await sfxPromise;
+        } finally {
+            this.sfxLoading.delete(key);
+        }
     }
 
     // Play a move sound with an optional volume and rate
@@ -601,17 +624,25 @@ export default class SoundManager {
             // fallback: play generic move sound if exists
             // Try explicit fallback: attempt to load and play 'Tackle' sound
             try {
+                // Cooldown to avoid spamming tackle when a missing move triggers multiple sound attempts
+                const now = Date.now();
+                if (now - (this.lastTackleFallbackAt || 0) < (this.tackleFallbackCooldownMs || 0)) {
+                    return true;
+                }
+
                 const tackleName = 'tackle';
                 const tackleKey = this.buildKey(tackleName);
                 // If already loaded, play directly
                 if (this.scene.sound.get(tackleKey)) {
                     this.scene.sound.play(tackleKey, { volume, rate, loop });
+                    this.lastTackleFallbackAt = now;
                     return true;
                 }
                 // Try to load 'tackle' sound (will throw if not found)
                 await this.tryLoadMoveSound(tackleName);
                 if (this.scene.sound.get(tackleKey)) {
                     this.scene.sound.play(tackleKey, { volume, rate, loop });
+                    this.lastTackleFallbackAt = now;
                     return true;
                 }
             } catch (tErr) {
@@ -622,6 +653,11 @@ export default class SoundManager {
             // fallback: play generic move sound if exists
             // Try direct HTMLAudio fallback for 'Tackle' (most reliable last-resort)
             try {
+                const now = Date.now();
+                if (now - (this.lastTackleFallbackAt || 0) < (this.tackleFallbackCooldownMs || 0)) {
+                    return true;
+                }
+
                 const exts = ['mp3', 'wav', 'ogg'];
                 const nameVariants = ['Tackle', 'tackle', 'TACKLE'];
                 const basePaths = [this.movePath, this.sfxPath, `/public${this.movePath}`, `/public${this.sfxPath}`];
@@ -636,6 +672,7 @@ export default class SoundManager {
                                 if (p && typeof p.then === 'function') {
                                     await p;
                                     console.warn('[SoundManager] Played fallback Tackle via HTMLAudio:', url);
+                                    this.lastTackleFallbackAt = now;
                                     return true;
                                 }
                             } catch (htmlErr) {
