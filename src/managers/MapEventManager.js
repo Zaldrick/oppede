@@ -593,7 +593,8 @@ export class MapEventManager {
             const xPx = tileX * 48 + 24;
             const yPx = tileY * 48 ;
 
-            const npc = this.scene.physics.add.sprite(xPx, yPx, def?.spriteKey || 'player', 0);
+            const resolvedSpriteKey = this.resolveTrainerSpriteKey(def?.spriteKey);
+            const npc = this.scene.physics.add.sprite(xPx, yPx, resolvedSpriteKey, 0);
             npc.body.setSize(32, 32);
             npc.body.setOffset(8, 64);
             npc.setImmovable(true);
@@ -629,6 +630,48 @@ export class MapEventManager {
 
             this.activeEvents.push(npc);
         }
+    }
+
+    resolveTrainerSpriteKey(spriteKey) {
+        const fallback = this.scene?.textures?.exists('npc_didier') ? 'npc_didier' : 'player';
+
+        const raw = (spriteKey || '').toString().trim();
+        if (!raw) return fallback;
+
+        // 1) Exact match first
+        if (this.scene?.textures?.exists(raw)) return raw;
+
+        // 2) Normalize common forms
+        // Accept "Alex" -> npc_alex
+        if (!raw.startsWith('npc_')) {
+            const candidate = `npc_${raw.toLowerCase()}`;
+            if (this.scene?.textures?.exists(candidate)) return candidate;
+        }
+
+        // Accept casing differences: "npc_Alex" -> npc_alex
+        if (raw.startsWith('npc_')) {
+            const id = raw.slice(4);
+            const candidate = `npc_${id.toLowerCase()}`;
+            if (this.scene?.textures?.exists(candidate)) return candidate;
+        }
+
+        // 3) Legacy mapping (old assets renamed)
+        const legacy = raw.toLowerCase();
+        const legacyMap = {
+            // Old EN names -> new FR names / new sprite set
+            'npc_edward': 'npc_edouard',
+            'npc_lucy': 'npc_lucie',
+            // Removed sprites: map to something that exists
+            'npc_adam': 'npc_didier',
+            'npc_dan': 'npc_didier',
+            'npc_bruce': 'npc_brandon',
+            'npc_ash': 'npc_antoine'
+        };
+
+        const mapped = legacyMap[legacy];
+        if (mapped && this.scene?.textures?.exists(mapped)) return mapped;
+
+        return fallback;
     }
 
     populateAmbientNPCs(mapKey) {

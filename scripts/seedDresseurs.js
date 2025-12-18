@@ -47,7 +47,7 @@ async function seedDresseurs() {
         tileY: 7,
 
         // Sprite (par défaut: spritesheet "player")
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_didier',
 
         // Comportement
         blocks: true,
@@ -82,7 +82,7 @@ async function seedDresseurs() {
         tileY: 7,
 
         // Sprite (par défaut: spritesheet "player")
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_didier',
 
         // Comportement
         blocks: true,
@@ -116,7 +116,7 @@ async function seedDresseurs() {
         tileY: 7,
 
         // Sprite (par défaut: spritesheet "player")
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_didier',
 
         // Comportement
         blocks: true,
@@ -152,7 +152,7 @@ async function seedDresseurs() {
         tileY: 23,
 
         // Sprite
-        spriteKey: 'npc_dan',
+        spriteKey: 'npc_didier',
 
         // Comportement
         blocks: true,
@@ -188,7 +188,7 @@ async function seedDresseurs() {
         tileY: 11,
 
         // Sprite
-        spriteKey: 'npc_bruce',
+        spriteKey: 'npc_brandon',
 
         // Comportement
         blocks: true,
@@ -223,7 +223,7 @@ async function seedDresseurs() {
         tileY: 25,
 
         // Sprite
-        spriteKey: 'npc_lucy',
+        spriteKey: 'npc_lucie',
 
         // Comportement
         blocks: true,
@@ -257,7 +257,7 @@ async function seedDresseurs() {
         tileY: 12,
 
         // Sprite (réutilise un sprite existant)
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_didier',
 
         // Comportement
         blocks: true,
@@ -292,7 +292,7 @@ async function seedDresseurs() {
         tileY: 47,
 
         // Sprite (réutilise un sprite existant)
-        spriteKey: 'npc_adam',
+        spriteKey: 'npc_didier',
 
         // Comportement
         blocks: true,
