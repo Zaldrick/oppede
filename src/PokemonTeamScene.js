@@ -327,38 +327,47 @@ export class PokemonTeamScene extends Phaser.Scene {
             }
 
             // Charger l'équipe
-            const team = await this.pokemonManager.getTeam(this.currentPlayer);
-            if (loadingText) loadingText.destroy();
-
-            // 🆕 Si en combat, mettre à jour avec les PV actuels du battleState
-            if (this.inBattle && this.battleState && this.battleState.playerTeam) {
-                console.log('[PokemonTeam] Mise à jour des stats depuis battleState');
-                
-                team.forEach(pokemon => {
-                    // Trouver le Pokémon correspondant dans le state du combat
-                    const battlePokemon = this.battleState.playerTeam.find(p => 
-                        p._id.toString() === pokemon._id.toString()
-                    );
-                    
-                    if (battlePokemon) {
-                        // Mettre à jour les stats vitales pour l'affichage
-                        pokemon.currentHP = battlePokemon.currentHP;
-                        if (battlePokemon.stats) {
-                            if (!pokemon.stats) pokemon.stats = {};
-                            pokemon.stats.maxHP = battlePokemon.stats.maxHP;
-                        }
-                        pokemon.level = battlePokemon.level;
-                        pokemon.experience = battlePokemon.experience;
-                        // Mettre à jour le surnom et le nom FR si présent dans le state du combat
-                        if (battlePokemon.nickname) pokemon.nickname = battlePokemon.nickname;
-                        if (battlePokemon.species_name_fr) pokemon.species_name_fr = battlePokemon.species_name_fr;
-                        if (battlePokemon.species_name) pokemon.species_name = battlePokemon.species_name;
-                        
-                        const maxHP = Number(pokemon?.stats?.maxHP ?? pokemon?.maxHP ?? 1);
-                        console.log(`  -> ${getPokemonDisplayName(pokemon) || 'Pokemon'}: ${pokemon.currentHP}/${maxHP} PV`);
-                    }
-                });
+            // 🔧 IMPORTANT: en combat, la source de vérité est le battleState (pas la BDD)
+            // pour éviter les désynchros PV/maxPV pendant le combat.
+            let team = null;
+            if (this.inBattle && this.battleState && Array.isArray(this.battleState.playerTeam) && this.battleState.playerTeam.length > 0) {
+                console.log('[PokemonTeam] Chargement équipe depuis battleState (inBattle)');
+                team = this.battleState.playerTeam;
+                if (loadingText) loadingText.destroy();
+            } else {
+                team = await this.pokemonManager.getTeam(this.currentPlayer);
+                if (loadingText) loadingText.destroy();
             }
+
+            // Normaliser les champs critiques pour l'affichage (PV/maxPV + position)
+            team = team.map((p, index) => {
+                const pokemon = p || {};
+
+                // Compat position (legacy 1..6) / teamPosition (0..5)
+                let position = Number.isFinite(Number(pokemon.position)) ? Number(pokemon.position) : null;
+                if (!Number.isFinite(position) && Number.isFinite(Number(pokemon.teamPosition))) {
+                    position = Number(pokemon.teamPosition) + 1;
+                }
+                if (!Number.isFinite(position)) {
+                    position = index + 1;
+                }
+
+                // Compat maxHP: certains écrans lisent pokemon.stats.maxHP, d'autres pokemon.maxHP
+                const maxHPFromStats = Number(pokemon?.stats?.maxHP);
+                const maxHPFromRoot = Number(pokemon?.maxHP);
+                const maxHP = (Number.isFinite(maxHPFromStats) && maxHPFromStats > 0)
+                    ? maxHPFromStats
+                    : ((Number.isFinite(maxHPFromRoot) && maxHPFromRoot > 0) ? maxHPFromRoot : null);
+
+                const next = { ...pokemon, position };
+                if (maxHP !== null) {
+                    if (!next.stats) next.stats = {};
+                    next.stats.maxHP = maxHP;
+                    next.maxHP = maxHP;
+                }
+
+                return next;
+            });
 
             // FILTRER: Seulement les Pokémon avec position entre 1 et 6
             const activeTeam = team
@@ -371,7 +380,7 @@ export class PokemonTeamScene extends Phaser.Scene {
                 this.add.text(
                     this.cameras.main.centerX,
                     this.cameras.main.centerY,
-                    'Aucun Pokémon dans l\'équipe\nCaptez-en un pour commencer!',
+                    'Personne dans votre équipe.',
                     {
                         fontSize: '18px',
                         fill: '#FFFFFF',
@@ -468,6 +477,33 @@ export class PokemonTeamScene extends Phaser.Scene {
         // Fond carte
         const card = this.add.rectangle(0, 0, width, height, 0x1e1e3f);
         card.setStrokeStyle(2, 0x888888);
+        // Si c'est la position 1, ajouter un cadre/indicateur pour montrer que ce Pokémon ira en combat
+        let highlightRect = null;
+        if (pokemon && Number(pokemon.position) === 1) {
+            try {
+                highlightRect = this.add.rectangle(0, 0, width + 10, height + 10, 0xFFD700, 0.06).setOrigin(0.5);
+                // Insérer derrière la carte (index 0)
+                container.addAt(highlightRect, 0);
+                // Accentuer la bordure
+                card.setStrokeStyle(4, 0xFFD700);
+
+                const activeLabel = this.add.text(width * 0.35, -height * 0.55, 'EN COMBAT', {
+                    fontSize: `${minDim * 0.02}px`,
+                    fill: '#FFD700',
+                    fontStyle: 'bold'
+                }).setOrigin(0.5);
+                container.add(activeLabel);
+
+                // Pulse subtil sur le highlight
+                this.tweens.add({
+                    targets: highlightRect,
+                    alpha: { from: 0.06, to: 0.18 },
+                    duration: 900,
+                    yoyo: true,
+                    repeat: -1
+                });
+            } catch (e) { /* ignore on render error */ }
+        }
         card.setInteractive({ useHandCursor: true, draggable: !this.selectionMode });
         container.add(card);
 

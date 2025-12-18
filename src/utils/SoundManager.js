@@ -549,6 +549,86 @@ export default class SoundManager {
         }
     }
 
+    /**
+     * Returns the decoded audio duration in seconds if available.
+     * Falls back to `fallbackSeconds` when duration cannot be determined.
+     */
+    getAudioDurationSecondsByKey(key, fallbackSeconds = 2.0) {
+        try {
+            const cache = this.scene?.cache?.audio;
+            if (!cache || !cache.exists(key)) return fallbackSeconds;
+
+            const entry = cache.get(key);
+
+            // WebAudio: { data: AudioBuffer }
+            const duration = entry?.data?.duration;
+            if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+                return duration;
+            }
+
+            // Some Phaser builds may store an array of HTMLAudioElements
+            if (Array.isArray(entry) && entry[0] && typeof entry[0].duration === 'number' && entry[0].duration > 0) {
+                return entry[0].duration;
+            }
+        } catch (e) {
+            // ignore
+        }
+        return fallbackSeconds;
+    }
+
+    /**
+     * Plays a slice of an audio track (seek + duration).
+     * Useful for dynamic XP-gain audio (only play the segment matching the bar movement).
+     *
+     * Returns the created sound instance (or null if not played).
+     */
+    async playMoveSoundSegment(
+        moveName,
+        { volume = 1.0, rate = 1.0, seek = 0.0, duration = null } = {}
+    ) {
+        const requested = moveName && String(moveName).trim() ? moveName : 'generic';
+        if (!this.scene || !this.scene.sound) return null;
+
+        const key = this.buildKey(requested);
+
+        try {
+            if (!(this.scene.cache && this.scene.cache.audio && this.scene.cache.audio.exists(key))) {
+                await this.tryLoadMoveSound(requested);
+            }
+
+            const instance = this.scene.sound.add(key);
+            if (!instance) return null;
+
+            const safeSeek = Math.max(0, Number(seek) || 0);
+            const safeRate = (Number.isFinite(Number(rate)) && Number(rate) > 0) ? Number(rate) : 1.0;
+
+            instance.play({ volume, rate: safeRate, loop: false, seek: safeSeek });
+
+            if (duration !== null && duration !== undefined) {
+                const safeDuration = Math.max(0, Number(duration) || 0);
+                const realMs = Math.max(0, (safeDuration / safeRate) * 1000);
+                setTimeout(() => {
+                    try { instance.stop(); } catch (e) { /* ignore */ }
+                    try { instance.destroy(); } catch (e) { /* ignore */ }
+                }, realMs);
+            } else {
+                // Auto-cleanup when it ends
+                try {
+                    instance.once('complete', () => {
+                        try { instance.destroy(); } catch (e) { /* ignore */ }
+                    });
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+            return instance;
+        } catch (e) {
+            console.warn('[SoundManager] playMoveSoundSegment failed for', moveName || requested, e && e.message ? e.message : e);
+            return null;
+        }
+    }
+
     // Play music track (looped) - similar to move sound loader but using music path
     async playMusic(trackName, { volume = 0.6, rate = 1.0, loop = true } = {}) {
         if (!trackName || !this.scene || !this.scene.sound) return false;

@@ -1,10 +1,8 @@
-export class BesoinDunTicketQuest {
-  constructor({ scene, mapManager, eventManager }) {
-    this.scene = scene;
-    this.mapManager = mapManager;
-    this.eventManager = eventManager;
+import { BaseQuest } from './BaseQuest';
 
-    this.questId = "Besoin d'un ticket";
+export class BesoinDunTicketQuest extends BaseQuest {
+  constructor({ scene, mapManager, eventManager }) {
+    super({ scene, mapManager, eventManager, questId: "Besoin d'un ticket" });
 
     // Runtime objects
     this.machineNpc = null;
@@ -20,15 +18,7 @@ export class BesoinDunTicketQuest {
     this.lastSafePos = null;
   }
 
-  getPlayerContext() {
-    const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
-    const playerData = this.scene.registry.get('playerData');
-    const playerId = playerData ? playerData._id : null;
-
-    if (playerData && !playerData.quests) playerData.quests = {};
-
-    return { playerPseudo, playerData, playerId };
-  }
+  // getPlayerContext is inherited from BaseQuest
 
   hasTicket() {
     const inv = Array.isArray(this.scene.inventory) ? this.scene.inventory : [];
@@ -69,50 +59,23 @@ export class BesoinDunTicketQuest {
   }
 
   async startQuestIfMissing({ playerData, playerId }) {
-    if (!playerData) return false;
-    if (playerData.quests[this.questId] !== undefined) return false;
-
-    playerData.quests[this.questId] = 0;
-    this.scene.registry.set('playerData', playerData);
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[BesoinDunTicketQuest] start failed', e);
-      }
-    }
-
-    this.scene.displayMessage(`Quête ajoutée : ${this.questId}`, 'Système');
-    return true;
+    return super.startQuestIfMissing({
+      playerData,
+      playerId,
+      questId: this.questId,
+      showSystemMessage: true,
+      logPrefix: 'BesoinDunTicketQuest'
+    });
   }
 
   async advanceQuestByOne({ playerId, playerData }) {
-    if (!playerData) return;
-
-    const current = Number(playerData.quests?.[this.questId] ?? 0) || 0;
-    const next = current + 1;
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/advance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[BesoinDunTicketQuest] advance failed', e);
-      }
-    }
-
-    playerData.quests[this.questId] = next;
-    this.scene.registry.set('playerData', playerData);
+    return super.advanceQuest({
+      playerId,
+      playerData,
+      questId: this.questId,
+      // step omitted => +1
+      logPrefix: 'BesoinDunTicketQuest'
+    });
   }
 
   async completeQuest({ playerId, playerData }) {
@@ -131,21 +94,13 @@ export class BesoinDunTicketQuest {
       // If advance fails, still attempt to complete.
     }
 
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[BesoinDunTicketQuest] complete failed', e);
-      }
-    }
-
-    playerData.quests[this.questId] = targetLastIndex;
-    this.scene.registry.set('playerData', playerData);
+    await super.completeQuest({
+      playerId,
+      playerData,
+      questId: this.questId,
+      step: targetLastIndex,
+      logPrefix: 'BesoinDunTicketQuest'
+    });
   }
 
   spawnForMap(mapKey) {

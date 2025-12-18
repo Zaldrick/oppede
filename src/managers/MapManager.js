@@ -73,17 +73,17 @@ export class MapManager {
         { x: 38 * 48 + 24, y: 5 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24  }
       ],
       qwest: [
-        { x: 13 * 48 + 24, y: 13 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 },
+       // { x: 13 * 48 + 24, y: 13 * 48 + 24, targetMap: "map3", targetX: 42 * 48 + 24, targetY: 6 * 48 + 24 },
         { x: 13 * 48 + 24, y: 21 * 48 + 24, targetMap: "douai", targetX: 40 * 48 + 24, targetY: 73 * 48, requiredItemName: "Clés de voiture" },
         { x: 15 * 48 + 24, y: 27 * 48, targetMap: "lille", targetX: 61 * 48 + 24, targetY: 61 * 48 + 24 }
       ],
       lille: [
-        { x: 19 * 48 + 24, y:22 * 48 + 24, targetMap: "metro", targetX: 26 * 48 + 24, targetY: 25 * 48 + 24 },
+        { x: 19 * 48 + 24, y:22 * 48 + 24, targetMap: "metro", targetX: 26 * 48 + 24, targetY: 25 * 48 },
         { x: 61 * 48 + 24, y: 60 * 48 + 24, targetMap: "qwest", targetX: 15 * 48 + 24, targetY: 25 * 48  }
       ],
       metro: [
-        { x: 26 * 48 + 24, y: 26* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
-        { x: 27 * 48 + 24, y: 26* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 + 24 },
+        { x: 26 * 48 + 24, y: 26* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 },
+        { x: 27 * 48 + 24, y: 26* 48 + 24, targetMap: "lille", targetX: 19 * 48 + 24, targetY: 23 * 48 },
         { x: 26* 48+21, y: 10 * 48-10, targetMap: "metroInterieur",  targetX: 10 * 48 + 24, targetY: 7 * 48 + 24 }
       ],
       metroInterieur: [

@@ -1,10 +1,8 @@
-export class SePreparerQuest {
-  constructor({ scene, mapManager, eventManager }) {
-    this.scene = scene;
-    this.mapManager = mapManager;
-    this.eventManager = eventManager;
+import { BaseQuest } from './BaseQuest';
 
-    this.questId = 'Se préparer';
+export class SePreparerQuest extends BaseQuest {
+  constructor({ scene, mapManager, eventManager }) {
+    super({ scene, mapManager, eventManager, questId: 'Se préparer' });
 
     this.gateBlocker = null;
     this.gateCollider = null;
@@ -13,15 +11,7 @@ export class SePreparerQuest {
     this.isResolvingGate = false;
   }
 
-  getPlayerContext() {
-    const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
-    const playerData = this.scene.registry.get('playerData');
-    const playerId = playerData ? playerData._id : null;
-
-    if (playerData && !playerData.quests) playerData.quests = {};
-
-    return { playerPseudo, playerData, playerId };
-  }
+  // getPlayerContext is inherited from BaseQuest
 
   getCurrentMapKey() {
     return this.mapManager?.map?.key || this.scene.registry.get('currentMapKey') || '';
@@ -57,48 +47,23 @@ export class SePreparerQuest {
   }
 
   async startQuestIfMissing({ playerData, playerId }) {
-    if (!playerData) return false;
-    if (playerData.quests?.[this.questId] !== undefined) return false;
-
-    if (!playerData.quests) playerData.quests = {};
-    playerData.quests[this.questId] = 0;
-    this.scene.registry.set('playerData', playerData);
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[SePreparerQuest] start failed', e);
-      }
-    }
-
-    return true;
+    return super.startQuestIfMissing({
+      playerData,
+      playerId,
+      questId: this.questId,
+      showSystemMessage: false,
+      logPrefix: 'SePreparerQuest'
+    });
   }
 
   async completeQuest({ playerId, playerData }) {
-    if (!playerData) return;
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[SePreparerQuest] complete failed', e);
-      }
-    }
-
-    if (!playerData.quests) playerData.quests = {};
-    playerData.quests[this.questId] = 1;
-    this.scene.registry.set('playerData', playerData);
+    return super.completeQuest({
+      playerId,
+      playerData,
+      questId: this.questId,
+      step: 1,
+      logPrefix: 'SePreparerQuest'
+    });
   }
 
   async hasAnyPokemon({ playerId }) {

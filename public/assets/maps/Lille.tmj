@@ -6730,14 +6730,14 @@
    "name": "encounters",
    "objects": [
     {
-     "height": 2891.87878787879,
+     "height": 2891.88,
      "id": 4,
      "name": "",
      "properties": [
       {
        "name": "encounterRate",
        "type": "string",
-       "value": "8"
+       "value": "6"
       },
       {
        "name": "encounterTableId",
@@ -6748,9 +6748,9 @@
      "rotation": 0,
      "type": "",
      "visible": true,
-     "width": 2474.9696969697,
-     "x": 686.757575757575,
-     "y": 257.090909090909
+     "width": 2474.97,
+     "x": 686.758,
+     "y": 257.091
     }
    ],
    "opacity": 1,

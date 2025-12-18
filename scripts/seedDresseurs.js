@@ -18,6 +18,23 @@ async function seedDresseurs() {
 
     const db = client.db('oppede');
     const trainerNpcs = db.collection('trainerNpcs');
+    const trainerNpcDefeats = db.collection('trainerNpcDefeats');
+
+    // ⚠️ Mode destructif (vide les collections) : nécessite confirmation explicite
+    const wantsReset = process.argv.includes('--reset') || process.env.SEED_RESET === '1' || process.env.SEED_RESET === 'true';
+    const confirmedReset = process.argv.includes('--confirm-reset') || process.env.CONFIRM_RESET === '1' || process.env.CONFIRM_RESET === 'true';
+
+    if (wantsReset && !confirmedReset) {
+      console.error('[seedDresseurs] REFUS: reset demandé mais non confirmé. Ajoute --confirm-reset (ou CONFIRM_RESET=1).');
+      process.exit(1);
+    }
+
+    if (wantsReset && confirmedReset) {
+      console.warn('[seedDresseurs] RESET: suppression de TOUTES les entrées trainerNpcs + trainerNpcDefeats');
+      await trainerNpcs.deleteMany({});
+      await trainerNpcDefeats.deleteMany({});
+      console.log('[seedDresseurs] RESET terminé');
+    }
 
     // ⚠️ Pas de drop/suppression. On fait des upserts par trainerId.
     const docs = [
@@ -193,6 +210,38 @@ async function seedDresseurs() {
         afterWinTileY: 11,
         afterWinFacing: 'right',
         initialFacing: 'down',
+
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        trainerId: 'qwest:15:25:blocker',
+        mapKey: 'qwest',
+
+        // Coordonnées en cases (tile)
+        tileX: 15,
+        tileY: 25,
+
+        // Sprite
+        spriteKey: 'npc_lucy',
+
+        // Comportement
+        blocks: true,
+        facePlayerOnInteract: false,
+        hideOnDefeat: true,
+
+        // Dialogue / identité
+        name: 'Voisine',
+        dialogue: "Tu viens de sortir de CET appart ?! T'es qui exactement ? C'est privé ici !",
+
+        // Team (speciesId = id PokéAPI)
+        team: [
+          { speciesId: 129, level: 1 }, // Magicarpe
+          { speciesId: 91, level: 4 }   // Crustabri
+        ],
+
+        // Orientation initiale (vers le haut)
+        initialFacing: 'up',
 
         createdAt: new Date(),
         updatedAt: new Date()

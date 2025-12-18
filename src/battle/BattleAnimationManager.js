@@ -16,6 +16,72 @@ export default class BattleAnimationManager {
     constructor(scene) {
         this.scene = scene;
     }
+    
+    computeXPGainSoundSlice(startPercent, endPercent) {
+        const start = Math.max(0, Math.min(100, Number(startPercent) || 0));
+        const end = Math.max(0, Math.min(100, Number(endPercent) || 0));
+        const delta = end - start;
+        if (delta <= 0.01) return null;
+
+        const sm = this.scene?.soundManager;
+        const key = sm?.buildKey ? sm.buildKey('xp-gain') : 'move_xp-gain';
+        const totalSeconds = (sm && typeof sm.getAudioDurationSecondsByKey === 'function')
+            ? sm.getAudioDurationSecondsByKey(key, 2.0)
+            : 2.0;
+
+        let seek = (start / 100) * totalSeconds;
+        let duration = (delta / 100) * totalSeconds;
+
+        // Enforce a minimum duration: keep the start point, ignore the end point.
+        const minSliceSeconds = 0.05;
+        if (duration < minSliceSeconds) duration = minSliceSeconds;
+
+        // If the slice would exceed the track length, shift seek backward to keep duration.
+        if (seek + duration > totalSeconds) {
+            seek = Math.max(0, totalSeconds - duration);
+        }
+
+        // Safety clamp
+        seek = Math.max(0, Number(seek) || 0);
+        duration = Math.max(0, Number(duration) || 0);
+
+        return { seek, duration };
+    }
+
+    playXPGainSoundSlice(startPercent, endPercent) {
+        try {
+            const sm = this.scene?.soundManager;
+            if (!sm || typeof sm.playMoveSoundSegment !== 'function') return null;
+
+            const slice = this.computeXPGainSoundSlice(startPercent, endPercent);
+            if (!slice) return null;
+
+            // Stop any previous slice to avoid stacking during multi-segment XP gains.
+            const prev = this.scene._xpGainSoundInstance;
+            if (prev) {
+                try { prev.stop(); } catch (e) { /* ignore */ }
+                try { prev.destroy(); } catch (e) { /* ignore */ }
+                this.scene._xpGainSoundInstance = null;
+            }
+
+            sm.playMoveSoundSegment('xp-gain', {
+                volume: 0.6,
+                rate: 1.0,
+                seek: slice.seek,
+                duration: slice.duration,
+            })
+                .then((instance) => {
+                    if (instance) this.scene._xpGainSoundInstance = instance;
+                })
+                .catch(() => {
+                    // ignore
+                });
+
+            return slice;
+        } catch (e) {
+            return null;
+        }
+    }
 
     /**
      * Transition d'entrée avec spiral
@@ -23,7 +89,7 @@ export default class BattleAnimationManager {
     async playEntryTransition(width, height) {
         // Flash 1
         const flash1 = this.scene.add.rectangle(0, 0, width, height, 0xFFFFFF, 1).setOrigin(0);
-        flash1.setDepth(300000);
+        flash1.setDepth(10000);
         await new Promise(resolve => {
             this.scene.tweens.add({
                 targets: flash1,
@@ -38,7 +104,7 @@ export default class BattleAnimationManager {
         
         // Flash 2
         const flash2 = this.scene.add.rectangle(0, 0, width, height, 0xFFFFFF, 1).setOrigin(0);
-        flash2.setDepth(300000);
+        flash2.setDepth(10000);
         await new Promise(resolve => {
             this.scene.tweens.add({
                 targets: flash2,
@@ -51,7 +117,7 @@ export default class BattleAnimationManager {
         
         // Spiral
         const spiral = this.scene.add.graphics();
-        spiral.setDepth(300000);
+        spiral.setDepth(10000);
         const centerX = width * 0.5;
         const centerY = height * 0.5;
         const maxRadius = Math.sqrt(width * width + height * height);
@@ -258,12 +324,9 @@ export default class BattleAnimationManager {
         await this.scene.wait(200);
         
         const opponent = this.scene.battleState.opponentActive;
-        await this.scene.menuManager.showDialog(`Un ${getPokemonDisplayName(opponent)} sauvage apparaît !`);
-        if (this.scene?.menuManager?.showPrompt) {
-            this.scene.menuManager.showPrompt(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
-        } else {
-            await this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
-        }
+        this.scene.menuManager.showDialog(`Un ${getPokemonDisplayName(opponent)} sauvage apparaît !`);
+        await this.scene.wait(1500);
+        this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
     }
 
     /**
@@ -449,7 +512,7 @@ export default class BattleAnimationManager {
                     this.scene.cameras.main.width,
                     this.scene.cameras.main.height,
                     0xFFFF00, 0.5
-                ).setOrigin(0).setDepth(300000);
+                ).setOrigin(0).setDepth(9999);
                 
                 this.scene.tweens.add({
                     targets: flash,
@@ -477,9 +540,6 @@ export default class BattleAnimationManager {
      */
     async animateHPDrain(hpBar, hpText, newHP, maxHP) {
         if (!hpBar) return;
-
-        // Préserver la profondeur actuelle (en portrait, l'UI peut sinon repasser sous les sprites)
-        const depthBefore = hpBar.depth;
 
         const hpPercent = Math.max(0, (newHP / maxHP) * 100);
         const props = hpBar === this.scene.playerHPBar ? this.scene.playerHPBarProps : this.scene.opponentHPBarProps;
@@ -522,9 +582,7 @@ export default class BattleAnimationManager {
                     props.height - 4,
                     4
                 );
-                if (typeof depthBefore === 'number') {
-                    hpBar.setDepth(depthBefore);
-                }
+                hpBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
 
                 if (hpText) {
                     hpText.setText(`${Math.max(0, Math.floor(newHP))}/${maxHP}`);
@@ -669,7 +727,8 @@ export default class BattleAnimationManager {
             await this.scene.wait(300);
 
             // 5. Message de level-up
-            await this.scene.menuManager.showDialog(`${getPokemonDisplayName(player)} passe niveau ${currentLevel} !`);
+            this.scene.menuManager.showDialog(`${getPokemonDisplayName(player)} passe niveau ${currentLevel} !`);
+            await this.scene.wait(1500);
 
             // 6. Vider la barre (reset à 0%)
             currentXP = nextLevelXP;
@@ -702,27 +761,20 @@ export default class BattleAnimationManager {
 
         const startPercent = Math.max(0, Math.min(100, (startXPInLevel / xpNeededForLevel) * 100));
         const endPercent = Math.max(0, Math.min(100, (endXPInLevel / xpNeededForLevel) * 100));
-
-        // Play XP gain sound before animating the XP bar. Fire-and-forget to avoid blocking.
-        try {
-            if (this.scene && this.scene.soundManager && typeof this.scene.soundManager.playMoveSound === 'function') {
-                try { this.scene.soundManager.playMoveSound('xp-gain', { volume: 0.8 }).catch(() => {}); } catch (e) { /* ignore */ }
-            }
-        } catch (e) { /* ignore */ }
+        
+        // Play only the relevant slice of the xp-gain SFX (mapped to bar %)
+        // and match the bar animation duration to the slice duration.
+        const xpSlice = this.playXPGainSoundSlice(startPercent, endPercent);
 
         await new Promise(resolve => {
             const props = this.scene.playerXPBarProps;
-            const duration = 800;
+            const duration = xpSlice && xpSlice.duration ? Math.max(50, xpSlice.duration * 1000) : 800;
             const startTime = Date.now();
 
             const updateXP = () => {
                 const elapsed = Date.now() - startTime;
                 const progress = Math.min(elapsed / duration, 1);
                 const currentPercent = startPercent + (endPercent - startPercent) * progress;
-
-                // Keep XP bar visible even if the dialog box overlaps the player UI.
-                const dialogDepth = this.scene.dialogBox?.depth ?? 0;
-                const desiredDepth = Math.max(3, dialogDepth + 1);
 
                 this.scene.playerXPBar.clear();
                 this.scene.playerXPBar.fillGradientStyle(0x3498DB, 0x3498DB, 0x2980B9, 0x2980B9, 1, 1, 1, 1);
@@ -733,7 +785,7 @@ export default class BattleAnimationManager {
                     props.height - 2,
                     3
                 );
-                this.scene.playerXPBar.setDepth(desiredDepth); // 🔧 FIXE: Réappliquer depth après clear()
+                this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
 
                 if (progress < 1) {
                     requestAnimationFrame(updateXP);
@@ -757,9 +809,6 @@ export default class BattleAnimationManager {
         ];
 
         for (const flash of flashColors) {
-            const dialogDepth = this.scene.dialogBox?.depth ?? 0;
-            const desiredDepth = Math.max(3, dialogDepth + 1);
-
             // Flash sur la barre XP
             this.scene.playerXPBar.clear();
             this.scene.playerXPBar.fillStyle(flash.color, 1);
@@ -770,7 +819,7 @@ export default class BattleAnimationManager {
                 this.scene.playerXPBarProps.height - 2,
                 3
             );
-            this.scene.playerXPBar.setDepth(desiredDepth); // 🔧 FIXE: Réappliquer depth après clear()
+            this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
             
             await this.scene.wait(flash.duration);
         }

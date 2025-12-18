@@ -18,41 +18,28 @@ export class MainMenuScene extends Phaser.Scene {
     preload() {
         this.load.image("mainMenuBackground", "/assets/mainMenuBackground.png"); // Load the background image
         this.load.audio("silentSound", "/assets/musics/silent.mp3");
-        this.load.audio("mainMenuMusic", "/assets/musics/mainMenuMusic.mp3"); // Load background music with cache buster
+        this.load.audio("mainMenuMusic", "/assets/musics/mainMenuMusic.mp3?v=1"); // Load background music with cache buster
         this.load.image("logo", "/assets/logo.png"); // Load the logo image
     }
 
     async create() {
         // 1. Récupère toutes les cartes de la BDD
-        // IMPORTANT: sur mobile, ne doit pas bloquer l'affichage/transition.
         const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:5000";
         let allCards = [];
         try {
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const id = controller ? setTimeout(() => controller.abort(), 2500) : null;
-            const res = await fetch(`${apiUrl}/api/cards`, { signal: controller ? controller.signal : undefined });
-            if (id) clearTimeout(id);
-            allCards = res.ok ? await res.json() : [];
+            const res = await fetch(`${apiUrl}/api/cards`);
+            allCards = await res.json();
         } catch (e) {
             allCards = [];
         }
         this.registry.set("allCards", allCards);
 
-        // 2. ⚠️ Ne pas précharger toutes les images de cartes au menu.
-        // Sur Android, ça peut saturer mémoire/réseau et entraîner un écran noir lors du passage à GameScene.
-        // Opt-in uniquement via: ?preloadCards=1
-        const preloadCards = (() => {
-            try {
-                return new URLSearchParams(window.location.search).get('preloadCards') === '1';
-            } catch (e) {
-                return false;
-            }
-        })();
-
-        if (preloadCards && allCards.length) {
-            loadCardImages(this, allCards);
-            this.load.start();
-        }
+        // 2. Charge dynamiquement toutes les images de cartes
+        loadCardImages(this, allCards);
+        this.load.once('complete', () => {
+            // Les images sont prêtes, tu peux lancer la suite du menu ici si besoin
+        });
+        this.load.start();
 
 
 
@@ -252,10 +239,6 @@ export class MainMenuScene extends Phaser.Scene {
                         // Add fade-out effect before transitioning to GameScene
                         this.cameras.main.fadeOut(1000, 0, 0, 0); // 1-second fade to black
                         this.cameras.main.once("camerafadeoutcomplete", () => {
-                            try {
-                                window.__phaserStatus = 'MainMenu: lancement GameScene…';
-                                window.dispatchEvent(new Event('phaser-status'));
-                            } catch (e) {}
                             this.scene.start("GameScene"); // Transition to GameScene
                         });
 

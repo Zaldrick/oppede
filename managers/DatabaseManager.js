@@ -552,20 +552,23 @@ class DatabaseManager {
                         if (baseStats?.hp) {
                             // ⚠️ Many persisted pokemon don't store `level` (it's derived from XP on fetch).
                             // If we default to 1, maxHP becomes wrong and potions are refused as "PV déjà au maximum".
-                            const resolveLevelFromXP = (experience) => {
-                                const xpVal = Number(experience ?? 0);
-                                if (!Number.isFinite(xpVal) || xpVal < 0) return 1;
-                                if (xpVal === 0) return 1;
-                                for (let lvl = 1; lvl <= 100; lvl++) {
-                                    const xpNeeded = Math.floor(1.2 * Math.pow(lvl, 3) - 15 * Math.pow(lvl, 2) + 100 * lvl - 140);
-                                    if (xpVal < xpNeeded) return Math.max(1, lvl - 1);
+                            const resolveLevel = (pokemonDoc) => {
+                                const xpVal = Number(pokemonDoc?.experience ?? 0);
+                                if (Number.isFinite(xpVal) && xpVal > 0) {
+                                    for (let lvl = 1; lvl <= 100; lvl++) {
+                                        const xpNeeded = Math.floor(1.2 * Math.pow(lvl, 3) - 15 * Math.pow(lvl, 2) + 100 * lvl - 140);
+                                        if (xpVal < xpNeeded) return Math.max(1, lvl - 1);
+                                    }
+                                    return 100;
                                 }
-                                return 100;
+                                // Fallback: si l'XP est absente/0, utiliser le niveau persisté (meilleur que 1)
+                                const lvl = Number(pokemonDoc?.level ?? 0);
+                                if (Number.isFinite(lvl) && lvl > 0) return Math.floor(lvl);
+                                return 1;
                             };
 
-                            // Source of truth: XP. Ne pas utiliser `pokemon.level` stocké (souvent stale)
-                            // sinon maxHP peut devenir trop bas et déclencher à tort "PV déjà au maximum".
-                            const level = resolveLevelFromXP(pokemon.experience);
+                            // Source of truth: XP quand dispo, sinon fallback niveau persisté.
+                            const level = resolveLevel(pokemon);
                             const iv = Number(pokemon.ivs?.hp ?? 0);
                             const ev = Number(pokemon.evs?.hp ?? 0);
                             const safeIv = Number.isFinite(iv) ? iv : 0;
@@ -1017,19 +1020,33 @@ class DatabaseManager {
                 if (!pokemon1 || !pokemon2) {
                     return res.status(404).json({ error: 'Pokémon non trouvé' });
                 }
+
+                // 🔧 IMPORTANT:
+                // Le client (TeamScene) manipule historiquement `position` (1-based).
+                // Le combat serveur utilise aussi `teamPosition` (0-based) pour trier/charger.
+                // Si on swap seulement `position`, on crée une désynchronisation:
+                // - UI affiche un ordre
+                // - serveur démarre/switch sur un autre index
+                // => bugs "mauvais Pokémon actif" et "déjà actif".
+                // Donc on maintient les deux champs en sync.
+                const pos1 = Number(pokemon1.position);
+                const pos2 = Number(pokemon2.position);
+                const safePos1 = Number.isFinite(pos1) ? pos1 : null;
+                const safePos2 = Number.isFinite(pos2) ? pos2 : null;
+                const tp1 = (safePos2 && safePos2 >= 1) ? (safePos2 - 1) : null;
+                const tp2 = (safePos1 && safePos1 >= 1) ? (safePos1 - 1) : null;
                 
                 // Échanger les positions
-                const temp = pokemon1.position;
                 await pokemonCollection.updateOne(
                     { _id: new ObjectId(pokemon1Id) },
-                    { $set: { position: pokemon2.position } }
+                    { $set: { position: safePos2, teamPosition: tp1, updatedAt: new Date() } }
                 );
                 await pokemonCollection.updateOne(
                     { _id: new ObjectId(pokemon2Id) },
-                    { $set: { position: temp } }
+                    { $set: { position: safePos1, teamPosition: tp2, updatedAt: new Date() } }
                 );
                 
-                console.log(`[Pokemon] Positions échangées: ${pokemon1.nickname} (${temp}) <-> ${pokemon2.nickname} (${pokemon2.position})`);
+                console.log(`[Pokemon] Positions échangées: ${pokemon1.nickname} (${safePos1}) <-> ${pokemon2.nickname} (${safePos2})`);
                 
                 res.json({
                     success: true,

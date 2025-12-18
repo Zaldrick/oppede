@@ -6,6 +6,8 @@ import { BesoinDunTicketQuest } from "../quests/BesoinDunTicketQuest";
 import { RentrerALaMaisonQuest } from "../quests/RentrerALaMaisonQuest";
 import { SePreparerQuest } from "../quests/SePreparerQuest";
 import { QwestEvents } from "../quests/QwestEvents";
+import { LeMessageManquantQuest } from "../quests/LeMessageManquantQuest";
+import { AHauteurDeBetteuQuest } from "../quests/AHauteurDeBetteuQuest";
 
 export class MapEventManager {
     constructor(scene, mapManager) {
@@ -33,7 +35,9 @@ export class MapEventManager {
                 new BesoinDunTicketQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
                 new RentrerALaMaisonQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
                 new SePreparerQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
-                new QwestEvents({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
+                new QwestEvents({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new LeMessageManquantQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new AHauteurDeBetteuQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
             ]
         });
     }
@@ -307,6 +311,14 @@ export class MapEventManager {
                 tileY: 21
             });
         }
+        if (mapKey === 'qwest') {
+            this.createPokeCenterZone({
+                id: 'pokecenter_metro_3_2',
+                mapKey: 'qwest',
+                tileX: 3,
+                tileY: 2
+            });
+        }
 
         // 🆕 Coffres statiques (coffre.png) -> 2 potions
         if (mapKey === 'metro') {
@@ -322,7 +334,7 @@ export class MapEventManager {
         // 🆕 Événement type Poké Ball (1 fois) : donne Gaara et disparaît définitivement
         // Si besoin de déplacer l'event sur une autre map, changez le mapKey ici.
         if (mapKey === 'lille') {
-            this.createGaaraPokeballPickup({ id: 'pickup_gaara_18_37', tileX: 18, tileY: 37 });
+            this.createGaaraPokeballPickup({ id: 'pickup_gaara_18_63', tileX: 18, tileY: 63});
         }
 
         // Quêtes (spawn/cleanup) pour la map courante
@@ -457,12 +469,35 @@ export class MapEventManager {
 
         if (defeated) {
             npc.trainerDefeated = true;
+
+            if (npc.trainerHideOnDefeat) {
+                try {
+                    npc.setVisible(false);
+                    npc.setActive(false);
+                    if (npc.body) npc.body.enable = false;
+                    if (typeof npc.disableInteractive === 'function') npc.disableInteractive();
+                } catch (e) {
+                    // ignore
+                }
+                return;
+            }
+
             if (afterWinTile) {
                 npc.setPosition(afterWinTile.x * 48 + 24, afterWinTile.y * 48 + 24 - 24);
             }
             this.setNpcFacing(npc, afterWinFacing || 'down');
         } else {
             npc.trainerDefeated = false;
+            if (npc.trainerHideOnDefeat) {
+                try {
+                    npc.setVisible(true);
+                    npc.setActive(true);
+                    if (npc.body) npc.body.enable = true;
+                    // Leave interactive state as-is; spawn code sets it.
+                } catch (e) {
+                    // ignore
+                }
+            }
             this.setNpcFacing(npc, initialFacing || 'down');
         }
     }
@@ -546,6 +581,7 @@ export class MapEventManager {
             npc.trainerAfterWinFacing = def?.afterWinFacing || 'down';
             npc.trainerInitialFacing = def?.initialFacing || 'down';
             npc.facePlayerOnInteract = def?.facePlayerOnInteract === false ? false : true;
+            npc.trainerHideOnDefeat = def?.hideOnDefeat === true;
 
             // Blocage du chemin
             if (def?.blocks !== false) {
@@ -620,8 +656,130 @@ export class MapEventManager {
             });
             return;
         } else if (mapKey === "douai") {
-            npcsToSpawn = npcListDouai;
-            startX = 110; startY = 25;
+            // Placement manuel des PNJ d'ambiance (coordonnées en tuiles + direction + nom affiché + dialogue)
+            // L'utilisateur fournit: x:y + direction + nom + dialogue.
+            const placements = [
+                {
+                    tileX: 117,
+                    tileY: 26,
+                    facing: 'right',
+                    displayName: 'Douaisien',
+                    dialogue: "J'ai enfin l'eau potable chez moi, t'imagine ?"
+                },
+                {
+                    tileX: 118,
+                    tileY: 26,
+                    facing: 'left',
+                    displayName: 'Douaisienne',
+                    dialogue: "Oh wow, c'est vraiment le futur ici !"
+                },
+                {
+                    tileX: 84,
+                    tileY: 17,
+                    facing: 'left',
+                    displayName: 'Douaisien',
+                    dialogue: "C'est pas n'importe quelle passerelle Harry !"
+                },
+                {
+                    tileX: 84,
+                    tileY: 26,
+                    facing: 'up',
+                    displayName: 'Pauvre',
+                    dialogue: "Mais quelle invention génial le parkmètre quand même"
+                },
+                {
+                    tileX: 126,
+                    tileY: 25,
+                    facing: 'right',
+                    displayName: 'Sceptique',
+                    dialogue: "Hmmm, tu avais déjà vu cette fontaine ici avant toi ? C'est certainement un complot"
+                },
+                {
+                    tileX: 72,
+                    tileY: 36,
+                    facing: 'down',
+                    displayName: 'Douaisien',
+                    dialogue: "J'adore les bancs putain"
+                },
+                {
+                    tileX: 14,
+                    tileY: 40,
+                    facing: 'left',
+                    displayName: 'Douaisienne',
+                    dialogue: "Comment je vais faire pour rentrer chez moi…"
+                },
+                {
+                    tileX: 0,
+                    tileY: 17,
+                    facing: 'right',
+                    displayName: 'Douaisien',
+                    dialogue: "C'est pas trop frustrant de pas avoir de pokéball ? Peut-être qu'il y en a ..."
+                }
+            ];
+
+            const maleSprites = ['adam', 'alex', 'ash', 'bob', 'bruce', 'dan', 'edward', 'pier', 'rob', 'roki', 'samuel', 'bouncer', 'old_man_josh'];
+            const femaleSprites = ['amelia', 'lucy', 'molly', 'old_woman_jenny', 'kid_abby', 'kid_karen'];
+
+            const used = new Set();
+            let maleCursor = 0;
+            let femaleCursor = 0;
+
+            const pickSprite = (gender) => {
+                const list = gender === 'female' ? femaleSprites : maleSprites;
+                let cursor = gender === 'female' ? femaleCursor : maleCursor;
+
+                for (let tries = 0; tries < list.length; tries++) {
+                    const name = list[cursor % list.length];
+                    cursor++;
+                    if (!name) continue;
+                    if (used.has(name)) continue;
+                    if (!this.scene.textures.exists(`npc_${name}`)) continue;
+                    used.add(name);
+
+                    if (gender === 'female') femaleCursor = cursor;
+                    else maleCursor = cursor;
+
+                    return name;
+                }
+
+                // Fallback: n'importe quel sprite dispo
+                for (const anyName of [...femaleSprites, ...maleSprites]) {
+                    if (!anyName) continue;
+                    if (used.has(anyName)) continue;
+                    if (!this.scene.textures.exists(`npc_${anyName}`)) continue;
+                    used.add(anyName);
+                    return anyName;
+                }
+
+                return null;
+            };
+
+            const normalizeFacing = (f) => {
+                const v = (f || '').toString().trim().toLowerCase();
+                if (v === 'top' || v === 'up') return 'up';
+                if (v === 'down' || v === 'bottom') return 'down';
+                if (v === 'left') return 'left';
+                if (v === 'right') return 'right';
+                return 'down';
+            };
+
+            placements.forEach((p) => {
+                const facing = normalizeFacing(p.facing);
+                const isFemale = (p.displayName || '').toLowerCase().includes('douaisienne');
+                const gender = isFemale ? 'female' : 'male';
+                const npcName = pickSprite(gender);
+                if (!npcName) return;
+
+                const x = p.tileX * 48 + 24;
+                const y = p.tileY * 48 + 24;
+                this.createAmbientNPC(npcName, x, y, facing, p.dialogue, p.displayName);
+            });
+
+            // Garder l'ancien comportement d'ajout d'autres PNJ si besoin:
+            // on spawn le reste en zone dédiée pour éviter les chevauchements.
+            npcsToSpawn = npcListDouai.filter((n) => !used.has(n));
+            startX = 110;
+            startY = 32;
         } else if (mapKey === "metro") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
 
@@ -679,7 +837,7 @@ export class MapEventManager {
         });
     }
 
-    createAmbientNPC(npcName, x, y, facing = 'down', dialogue = null) {
+    createAmbientNPC(npcName, x, y, facing = 'down', dialogue = null, displayName = null) {
         const spriteKey = `npc_${npcName}`;
         if (!this.scene.textures.exists(spriteKey)) return;
 
@@ -698,6 +856,7 @@ export class MapEventManager {
         npc.setInteractive();
         npc.npcType = "ambient";
         npc.npcName = npcName;
+        npc.displayName = typeof displayName === 'string' && displayName.trim().length > 0 ? displayName : null;
         npc.ambientDialogue = typeof dialogue === 'string' ? dialogue : null;
         if (this.ambientGroup) {
             this.ambientGroup.add(npc);
@@ -1133,8 +1292,10 @@ export class MapEventManager {
                 ? npc.ambientDialogue
                 : null;
 
+            const speakerName = npc.displayName || npc.npcName || "Habitant";
+
             if (manual) {
-                this.scene.displayMessage(manual, npc.npcName || "Habitant");
+                this.scene.displayMessage(manual, speakerName);
                 return;
             }
 
@@ -1142,7 +1303,7 @@ export class MapEventManager {
             const currentMapKey = this.mapManager?.map?.key || this.scene.registry.get('currentMapKey') || '';
             const pool = this.getAmbientDialoguePool(currentMapKey, npc.npcName);
             const randomDialogue = pool[Math.floor(Math.random() * pool.length)];
-            this.scene.displayMessage(randomDialogue, npc.npcName || "Habitant");
+            this.scene.displayMessage(randomDialogue, speakerName);
         } else if (npc.npcType === 'pokemon_trainer') {
             // Déjà battu -> il s'est écarté, pas de combat
             if (npc.trainerDefeated) {
@@ -1232,6 +1393,46 @@ export class MapEventManager {
             zone.pokeCenterId = id;
             zone.pokeCenterData = { id, mapKey, tileX, tileY, posX: x, posY: y };
 
+            // Add a small pokecenter icon at the zone position if available,
+            // otherwise draw a small fallback graphic so heal zones are visible.
+            try {
+                let icon = null;
+                if (this.scene.textures && this.scene.textures.exists && this.scene.textures.exists('pokecenter')) {
+                    icon = this.scene.add.image(x, y, 'pokecenter').setOrigin(0.5).setScale(0.5);
+                } else {
+                    icon = this.scene.add.graphics();
+                    icon.fillStyle(0xff5a5a, 1);
+                    icon.fillCircle(x, y - 8, 6);
+                }
+                if (icon) {
+                    icon.setDepth(1000);
+                    zone.pokeCenterIcon = icon;
+                }
+            } catch (e) {}
+
+            // Add a pulsing ring effect behind the icon to improve visibility
+            try {
+                const ring = this.scene.add.graphics();
+                ring.lineStyle(2, 0xffe066, 0.95);
+                // draw around the icon slightly above ground
+                ring.strokeCircle(x, y - 8, 14);
+                ring.setDepth(999);
+                // animate pulse
+                try {
+                    this.scene.tweens.add({
+                        targets: ring,
+                        scaleX: { from: 1, to: 1.25 },
+                        scaleY: { from: 1, to: 1.25 },
+                        alpha: { from: 1, to: 0.25 },
+                        duration: 1000,
+                        yoyo: true,
+                        repeat: -1,
+                        ease: 'Sine.easeInOut'
+                    });
+                } catch (e) {}
+                zone.pokeCenterEffect = ring;
+            } catch (e) {}
+
             this.activeEvents.push(zone);
         } catch (e) {
             console.warn('[MapEventManager] createPokeCenterZone failed:', e);
@@ -1274,7 +1475,43 @@ export class MapEventManager {
 
         // Sound + message
         try { this.scene.sound?.play?.('pkmncenter', { volume: 0.5 }); } catch (e) {}
-        this.scene.displayMessage("Votre équipe est soignée !", playerPseudo);
+        this.scene.displayMessage("L'équipe est soignée !", playerPseudo);
+
+        // Double camera flash for emphasis and a short pulse on the icon/ring
+        try {
+            const cam = this.scene.cameras?.main;
+            if (cam) {
+                cam.flash(120, 255, 255, 255);
+                this.scene.time.delayedCall(160, () => {
+                    try { cam.flash(120, 255, 255, 255); } catch (e) {}
+                });
+            }
+        } catch (e) {}
+
+        try {
+            if (zone?.pokeCenterEffect) {
+                this.scene.tweens.add({
+                    targets: zone.pokeCenterEffect,
+                    scaleX: { from: 1, to: 1.7 },
+                    scaleY: { from: 1, to: 1.7 },
+                    alpha: { from: 1, to: 0.2 },
+                    duration: 180,
+                    yoyo: true,
+                    repeat: 1,
+                    ease: 'Cubic.easeOut'
+                });
+            }
+            if (zone?.pokeCenterIcon) {
+                this.scene.tweens.add({
+                    targets: zone.pokeCenterIcon,
+                    scale: { from: zone.pokeCenterIcon.scale || 1, to: (zone.pokeCenterIcon.scale || 1) * 1.25 },
+                    duration: 180,
+                    yoyo: true,
+                    repeat: 1,
+                    ease: 'Cubic.easeOut'
+                });
+            }
+        } catch (e) {}
 
         // Persist lastHeal for respawn
         try {
@@ -1377,7 +1614,7 @@ export class MapEventManager {
         const lootName = chest.lootName || 'Potion';
         const lootQty = Number(chest.lootQty) || 1;
         const lootLabel = `${lootQty} ${lootName}${lootQty > 1 ? 's' : ''}`;
-        this.scene.displayMessage(`Vous trouvez : ${lootLabel}`, playerPseudo);
+        this.scene.displayMessage(`J'ai trouvé ${lootLabel}`, playerPseudo);
 
         // Donner les objets
         try {
@@ -1412,7 +1649,7 @@ export class MapEventManager {
         }
 
         try {
-            this.scene.sound?.play?.('item_get', { volume: 0.85 });
+            this.scene.sound?.play?.('item_get', { volume: 0.5 });
         } catch (e) { /* ignore */ }
     }
 
@@ -1430,9 +1667,9 @@ export class MapEventManager {
             pickup.setInteractive();
             pickup.setDepth(6);
             pickup.setDisplaySize(36, 36);
-
+            pickup.facePlayerOnInteract = false;
             // Hitbox un peu plus petite que le sprite
-            pickup.body.setSize(24, 24, true);
+            pickup.body.setSize(36, 36, true);
 
             const player = this.scene.playerManager?.getPlayer();
             if (player) {
@@ -1535,7 +1772,7 @@ export class MapEventManager {
             chest.setFrame(4);
         });
 
-        this.scene.displayMessage(`Vous trouvez : ${eventData.properties.loot}`, playerPseudo);
+        this.scene.displayMessage(`J'ai trouvé ${eventData.properties.loot}`, playerPseudo);
 
         fetch(`${process.env.REACT_APP_API_URL}/api/world-events/${eventData._id}/state`, {
             method: "POST",
@@ -1548,7 +1785,7 @@ export class MapEventManager {
         
         try {
             if (this.scene && this.scene.sound) {
-                this.scene.sound.play('item_get', { volume: 0.85 });
+                this.scene.sound.play('item_get', { volume: 0.5 });
             }
         } catch (e) { /* ignore */ }
     }

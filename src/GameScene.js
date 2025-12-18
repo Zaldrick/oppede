@@ -174,14 +174,16 @@ export class GameScene extends Phaser.Scene {
             }
         } catch (e) {}
         
-        // DEBUG: Log click coordinates
-        this.input.on('pointerdown', (pointer) => {
-            const worldX = pointer.worldX;
-            const worldY = pointer.worldY;
-            const tileX = Math.floor(worldX / 48);
-            const tileY = Math.floor(worldY / 48);
-            console.log(`DEBUG CLICK - World: (${Math.round(worldX)}, ${Math.round(worldY)}) | Tile: ${tileX}:${tileY}`);
-        });
+        // DEBUG: Log click coordinates (only when ?debug=1 is present)
+        if (debugOverlayEnabled) {
+            this.input.on('pointerdown', (pointer) => {
+                const worldX = pointer.worldX;
+                const worldY = pointer.worldY;
+                const tileX = Math.floor(worldX / 48);
+                const tileY = Math.floor(worldY / 48);
+                console.log(`DEBUG CLICK - World: (${Math.round(worldX)}, ${Math.round(worldY)}) | Tile: ${tileX}:${tileY}`);
+            });
+        }
 
         this.cameras.main.fadeIn(1000, 0, 0, 0);
 
@@ -638,7 +640,7 @@ export class GameScene extends Phaser.Scene {
         this.load.image("18_Jail_48x48", "/assets/maps/18_Jail_48x48.png");
         this.load.image("20_Subway_and_Train_Station_48x48", "/assets/maps/20_Subway_and_Train_Station_48x48.png");
         this.load.image("collision", "/assets/maps/collision.png");
-        
+        this.load.image('pokecenter', '/assets/sprites/pokecenter.png')
         // Load split tilesets for mobile compatibility
         // These are tileset images referenced by Tiled (.tmj). They must be loaded as images (not spritesheets).
         // IMPORTANT: TMJs rewritten by our tileset split script reference them under /assets/maps/sliced/
@@ -856,14 +858,14 @@ export class GameScene extends Phaser.Scene {
 
         // Texte
         const textStyle = {
-            font: `${Math.max(12, Math.round(22 / cameraZoom))}px Arial`,
+            font: `${Math.max(10, Math.round(22 / cameraZoom))}px Arial`,
             fill: "#ffffff",
             wordWrap: { width: boxWidth - (padding * 2) - (hasAvatar ? (avatarSize + avatarGap) : 0) },
             align: "left"
         };
 
         const textX = boxX + padding + (hasAvatar ? (avatarSize + avatarGap) : 0);
-        const messageText = this.add.text(textX, boxY + padding + (speakerName ? 10 : 0), "", textStyle);
+        const messageText = this.add.text(textX, boxY + padding/2 + (speakerName ? 10 : 0), "", textStyle);
         messageText.setScrollFactor(0);
         messageText.setDepth(DIALOGUE_DEPTH);
         container.add(messageText);
@@ -937,7 +939,18 @@ export class GameScene extends Phaser.Scene {
                 }
 
                 // Fin de chaîne : on débloque le joueur
-                if (this.uiManager) this.uiManager.isDialogueActive = false;
+                if (this.uiManager) {
+                    this.uiManager.isDialogueActive = false;
+                    // Anti-boucle: évite de relancer une interaction PNJ sur le même appui (Enter/Space)
+                    // à cause du key repeat ou de l'ordre des handlers.
+                    try {
+                        if (typeof this.uiManager.setInteractionCooldown === 'function') {
+                            this.uiManager.setInteractionCooldown(300);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
             }
         };
 

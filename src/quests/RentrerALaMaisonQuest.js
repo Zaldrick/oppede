@@ -1,8 +1,8 @@
-export class RentrerALaMaisonQuest {
+import { BaseQuest } from './BaseQuest';
+
+export class RentrerALaMaisonQuest extends BaseQuest {
   constructor({ scene, mapManager, eventManager }) {
-    this.scene = scene;
-    this.mapManager = mapManager;
-    this.eventManager = eventManager;
+    super({ scene, mapManager, eventManager, questId: 'Rentrer à la maison' });
 
     this.homeQuestId = 'Rentrer à la maison';
 
@@ -10,15 +10,7 @@ export class RentrerALaMaisonQuest {
     this.arrivalHandled = false;
   }
 
-  getPlayerContext() {
-    const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
-    const playerData = this.scene.registry.get('playerData');
-    const playerId = playerData ? playerData._id : null;
-
-    if (playerData && !playerData.quests) playerData.quests = {};
-
-    return { playerPseudo, playerData, playerId };
-  }
+  // getPlayerContext is inherited from BaseQuest
 
   getCurrentMapKey() {
     return this.mapManager?.map?.key || this.scene.registry.get('currentMapKey') || '';
@@ -42,49 +34,23 @@ export class RentrerALaMaisonQuest {
   }
 
   async startQuestIfMissing({ playerData, playerId, questId }) {
-    if (!playerData) return false;
-    if (playerData.quests[questId] !== undefined) return false;
-
-    playerData.quests[questId] = 0;
-    this.scene.registry.set('playerData', playerData);
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId })
-        });
-      } catch (e) {
-        console.warn('[RentrerALaMaisonQuest] start failed', e);
-      }
-    }
-
-    return true;
+    return super.startQuestIfMissing({
+      playerData,
+      playerId,
+      questId,
+      showSystemMessage: false,
+      logPrefix: 'RentrerALaMaisonQuest'
+    });
   }
 
   async advanceQuestByOne({ playerId, playerData, questId }) {
-    if (!playerData) return;
-
-    const current = Number(playerData.quests?.[questId] ?? 0) || 0;
-    const next = current + 1;
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/advance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId })
-        });
-      } catch (e) {
-        console.warn('[RentrerALaMaisonQuest] advance failed', e);
-      }
-    }
-
-    playerData.quests[questId] = next;
-    this.scene.registry.set('playerData', playerData);
+    return super.advanceQuest({
+      playerId,
+      playerData,
+      questId,
+      // step omitted => +1
+      logPrefix: 'RentrerALaMaisonQuest'
+    });
   }
 
   async completeQuest({ playerId, playerData, questId, lastIndex }) {
@@ -99,21 +65,13 @@ export class RentrerALaMaisonQuest {
       // ignore
     }
 
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId })
-        });
-      } catch (e) {
-        console.warn('[RentrerALaMaisonQuest] complete failed', e);
-      }
-    }
-
-    playerData.quests[questId] = lastIndex;
-    this.scene.registry.set('playerData', playerData);
+    await super.completeQuest({
+      playerId,
+      playerData,
+      questId,
+      step: lastIndex,
+      logPrefix: 'RentrerALaMaisonQuest'
+    });
   }
 
   async hasAnyPokemon({ playerId }) {

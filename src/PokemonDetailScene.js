@@ -33,6 +33,7 @@ export class PokemonDetailScene extends Phaser.Scene {
         this.returnScene = data?.returnScene || 'PokemonTeamScene';
         this.inBattle = data?.inBattle || false; // 🆕 FLAG combat
         this.battleState = data?.battleState || null; // 🆕 State combat
+        // Lire la préférence d'utilisation des sprites animés (GIF) depuis le localStorag
         
         // 🆕 Réinitialiser les données de la scène précédente
         this.stats = null;
@@ -52,6 +53,16 @@ export class PokemonDetailScene extends Phaser.Scene {
 
         // Initialiser le SoundManager local pour lire les cries et SFX
         try { this.soundManager = new SoundManager(this); } catch (e) { this.soundManager = null; }
+
+        // Nettoyage des GIFs DOM lorsque la scène se ferme/est arrêtée
+        try {
+            this.events.on('shutdown', () => {
+                try { SpriteLoader.clearAllGifs(this); } catch (e) { /* ignore */ }
+            });
+            this.events.on('destroy', () => {
+                try { SpriteLoader.clearAllGifs(this); } catch (e) { /* ignore */ }
+            });
+        } catch (e) { /* ignore */ }
 
         // Fond
         this.add.rectangle(
@@ -356,7 +367,7 @@ export class PokemonDetailScene extends Phaser.Scene {
             
             // Nom stat
             this.add.text(x - boxWidth * 0.35, statY, stat.name, {
-                fontSize: `${Math.min(screenWidth, screenHeight) * 0.05}px`,
+                fontSize: `${Math.min(screenWidth, screenHeight) * 0.045}px`,
                 fill: '#FFFFFF',
                 fontStyle: 'bold'
             });
@@ -364,7 +375,7 @@ export class PokemonDetailScene extends Phaser.Scene {
             // Valeur stat
             const valueStr = (stat.value !== undefined && stat.value !== null) ? stat.value.toString() : '?';
             this.add.text(x + boxWidth * 0.3, statY, valueStr, {
-                fontSize: `${Math.min(screenWidth, screenHeight) * 0.05}px`,
+                fontSize: `${Math.min(screenWidth, screenHeight) * 0.045}px`,
                 fill: '#00FF00'
             }).setOrigin(1, 0);
         });
@@ -554,6 +565,28 @@ export class PokemonDetailScene extends Phaser.Scene {
 
             const moveData = await response.json();
             console.log('[PokemonDetail] Données move récupérées:', moveData);
+
+            // ✅ Traduire le nom + la description en FR pour l'affichage
+            try {
+                const key = (moveData?.name || moveName || '').toString();
+                if (key) {
+                    const tRes = await fetch(`${backendUrl}/api/translations/move/${encodeURIComponent(key)}`);
+                    if (tRes.ok) {
+                        const tData = await tRes.json();
+                        const nameFR = tData?.name_fr;
+                        const descFR = tData?.description_fr;
+                        if (typeof nameFR === 'string' && nameFR.trim()) {
+                            moveData.name = nameFR;
+                        }
+                        if (typeof descFR === 'string' && descFR.trim()) {
+                            // MoveDetailModal affiche moveData.effect
+                            moveData.effect = descFR;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[PokemonDetail] Traduction move (FR) échouée:', e);
+            }
 
             // Afficher le modal
             this.moveModal.show(moveData);

@@ -31,6 +31,24 @@ async function seedDatabase() {
 
         const db = client.db("oppede");
 
+        // ⚠️ Mode destructif (vide les collections) : nécessite confirmation explicite
+        // Usage: node scripts/seedDatabase.js --reset --confirm-reset
+        // ou SEED_RESET=1 CONFIRM_RESET=1 node scripts/seedDatabase.js
+        const wantsReset = process.argv.includes('--reset') || process.env.SEED_RESET === '1' || process.env.SEED_RESET === 'true';
+        const confirmedReset = process.argv.includes('--confirm-reset') || process.env.CONFIRM_RESET === '1' || process.env.CONFIRM_RESET === 'true';
+
+        if (wantsReset && !confirmedReset) {
+            console.error('[seedDatabase] REFUS: reset demandé mais non confirmé. Ajoute --confirm-reset (ou CONFIRM_RESET=1).');
+            process.exit(1);
+        }
+
+        if (wantsReset && confirmedReset) {
+            console.warn('[seedDatabase] RESET: suppression de TOUTES les entrées player_quests + pokemonPlayer');
+            await db.collection('player_quests').deleteMany({});
+            await db.collection('pokemonPlayer').deleteMany({});
+            console.log('[seedDatabase] RESET terminé');
+        }
+
         // Collections
         const playersCollection = db.collection("players");
         const itemsCollection = db.collection("items");
@@ -63,7 +81,7 @@ async function seedDatabase() {
             [
                 {
                     "nom": "Potion",
-                    "image": "fc265.png",
+                    "image": "potion.png",
                     "is_echangeable": true,
                     "prix": 10,
                     "type": "item"

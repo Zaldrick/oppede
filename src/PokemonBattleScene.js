@@ -524,7 +524,7 @@ export class PokemonBattleScene extends Phaser.Scene {
         // Badge de niveau (cercle stylé) - agrandi et responsive
         const levelBadgeX = boxX + boxWidth * 0.88;
         const levelBadgeY = boxY + boxHeight * 0.305;
-        const badgeRadius = Math.min(width, height) * 0.030; // Plus grand
+        const badgeRadius = Math.min(width, height) * 0.50; // Plus grand
         
         // Calculer le level depuis l'XP si manquant ou en désaccord avec l'XP envoyé
         const calculatedLevel = this.calculateLevelFromXP(player.experience || 0);
@@ -1023,6 +1023,9 @@ export class PokemonBattleScene extends Phaser.Scene {
      */
     async createMoveButton(move, x, y, width, height) {
         const container = this.add.container(x, y);
+
+        const minDim = Math.min(this.cameras.main.width, this.cameras.main.height);
+        await this.ensureMoveCategoryIconsLoaded();
         
         // Type info
         const typeColor = this.getTypeColor(move.type);
@@ -1050,24 +1053,52 @@ export class PokemonBattleScene extends Phaser.Scene {
         // Nom du move (traduit)
         const moveNameFR = await this.getMoveName(move.name);
         const nameText = this.add.text(width * 0.2, height * 0.2, moveNameFR.toUpperCase(), {
-            fontSize: `${Math.min(this.cameras.main.width, this.cameras.main.height) * 0.025}px`,
+            fontSize: `${minDim * 0.022}px`,
             fill: '#2C3E50',
             fontStyle: 'bold',
             fontFamily: 'Arial'
         }).setOrigin(0, 0.5);
         container.add(nameText);
-        
-        // PP
-        const ppText = this.add.text(width * 0.95, height * 0.8, `PP ${move.pp}/${move.maxPP}`, {
-            fontSize: `${Math.min(this.cameras.main.width, this.cameras.main.height) * 0.020}px`,
+
+        // PP (aligné à droite du nom)
+        const ppText = this.add.text(width * 0.95, height * 0.2, `PP ${move.pp}/${move.maxPP}`, {
+            fontSize: `${minDim * 0.016}px`,
             fill: '#7F8C8D',
             fontFamily: 'Arial'
         }).setOrigin(1, 0.5);
         container.add(ppText);
+
+        // Anti-overflow: adapter la taille (et tronquer) le nom pour qu'il ne chevauche pas les PP
+        this.fitTextToWidth(nameText, (ppText.x - nameText.x) - width * 0.03, minDim * 0.014);
+
+        // Puissance (en bas à droite) + icône category en fond
+        const powerValue = (typeof move.power === 'number' && move.power > 0) ? move.power : '—';
+
+        const category = (move.category || '').toString().toLowerCase();
+        const iconKey = category === 'physical'
+            ? 'move-category-physical'
+            : (category === 'special' ? 'move-category-special' : null);
+
+        if (iconKey && this.textures.exists(iconKey)) {
+            const icon = this.add.image(width * 0.88, height * 0.78, iconKey);
+            icon.setOrigin(0.5);
+            icon.setAlpha(0.22);
+            icon.setDisplaySize(height * 0.55, height * 0.55);
+            container.add(icon);
+        }
+
+        const powerText = this.add.text(width * 0.95, height * 0.82, `${powerValue}`, {
+            fontSize: `${minDim * 0.020}px`,
+            fill: '#2C3E50',
+            fontStyle: 'bold',
+            fontFamily: 'Arial'
+        }).setOrigin(1, 0.5);
+        container.add(powerText);
         
         // Type icône/texte
-        const typeText = this.add.text(width * 0.075, height * 0.5, move.type.substring(0, 3).toUpperCase(), {
-            fontSize: `${Math.min(this.cameras.main.width, this.cameras.main.height) * 0.018}px`,
+        const { getPokemonTypeLabelFR } = await import('./utils/typeLabelsFR');
+        const typeText = this.add.text(width * 0.075, height * 0.5, getPokemonTypeLabelFR(move.type, { short: true }), {
+            fontSize: `${minDim * 0.014}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold',
             fontFamily: 'Arial'
@@ -1098,6 +1129,64 @@ export class PokemonBattleScene extends Phaser.Scene {
         });
         
         return container;
+    }
+
+    fitTextToWidth(textObject, maxWidth, minFontSizePx) {
+        if (!textObject || typeof textObject.setFontSize !== 'function') return;
+        if (!maxWidth || maxWidth <= 0) return;
+
+        const parsePx = (value) => {
+            const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+            return Number.isFinite(n) ? n : 0;
+        };
+
+        let fontSize = parsePx(textObject.style?.fontSize);
+        const minSize = Math.max(8, parsePx(minFontSizePx));
+
+        // Réduire la police si besoin
+        while (textObject.width > maxWidth && fontSize > minSize) {
+            fontSize = Math.max(minSize, fontSize - 1);
+            textObject.setFontSize(fontSize);
+        }
+
+        // Si ça dépasse encore: tronquer
+        if (textObject.width > maxWidth) {
+            const original = String(textObject.text || '');
+            let truncated = original;
+            const ellipsis = '…';
+
+            while (truncated.length > 1 && textObject.width > maxWidth) {
+                truncated = truncated.slice(0, -2);
+                textObject.setText(truncated + ellipsis);
+            }
+        }
+    }
+
+    async ensureMoveCategoryIconsLoaded() {
+        if (this._moveCategoryIconsLoaded) return;
+
+        const physicalKey = 'move-category-physical';
+        const specialKey = 'move-category-special';
+
+        if (this.textures.exists(physicalKey) && this.textures.exists(specialKey)) {
+            this._moveCategoryIconsLoaded = true;
+            return;
+        }
+
+        // Charger à la demande (évite de dépendre d'un preload global)
+        if (!this.textures.exists(physicalKey)) {
+            this.load.image(physicalKey, 'assets/sprites/physical.png');
+        }
+        if (!this.textures.exists(specialKey)) {
+            this.load.image(specialKey, 'assets/sprites/special.png');
+        }
+
+        await new Promise((resolve) => {
+            this.load.once('complete', resolve);
+            this.load.start();
+        });
+
+        this._moveCategoryIconsLoaded = true;
     }
 
     /**
@@ -1418,85 +1507,22 @@ export class PokemonBattleScene extends Phaser.Scene {
                         const targetPokemonId = pokemon?._id;
                         if (!targetPokemonId) throw new Error('Pokémon invalide');
 
-                        const res = await fetch(`${backendUrl}/api/inventory/use`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                playerId: this.playerId,
-                                itemId,
-                                targetPokemonId
-                            })
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) {
-                            throw new Error(data?.error || "Erreur lors de l'utilisation");
-                        }
-
-                        // Mettre à jour battleState (team + actif)
-                        const healedPokemonId = String(targetPokemonId);
-                        if (Array.isArray(this.battleState.playerTeam)) {
-                            const teamPoke = this.battleState.playerTeam.find(p => String(p._id) === healedPokemonId);
-                            if (teamPoke) {
-                                teamPoke.currentHP = data?.pokemon?.currentHP ?? teamPoke.currentHP;
-                                if (teamPoke.stats && data?.pokemon?.maxHP) {
-                                    teamPoke.stats.maxHP = data.pokemon.maxHP;
-                                }
-                                if (!teamPoke.maxHP && data?.pokemon?.maxHP) {
-                                    teamPoke.maxHP = data.pokemon.maxHP;
-                                }
-                            }
-                        }
-
-                        if (this.battleState.playerActive && String(this.battleState.playerActive._id) === healedPokemonId) {
-                            this.battleState.playerActive.currentHP = data?.pokemon?.currentHP ?? this.battleState.playerActive.currentHP;
-                            if (this.battleState.playerActive.stats && data?.pokemon?.maxHP) {
-                                this.battleState.playerActive.stats.maxHP = data.pokemon.maxHP;
-                            }
-                            if (!this.battleState.playerActive.maxHP && data?.pokemon?.maxHP) {
-                                this.battleState.playerActive.maxHP = data.pokemon.maxHP;
-                            }
-
-                            // Refresh UI HP text + bar
-                            const active = this.battleState.playerActive;
-                            const maxHP = active.stats ? active.stats.maxHP : (active.maxHP || 1);
-                            if (this.playerHPText) {
-                                this.playerHPText.setText(`${active.currentHP}/${maxHP}`);
-                            }
-                            if (this.playerHPBarProps && this.playerHPBar) {
-                                this.playerHPBarProps.maxHP = maxHP;
-                                const hpPercent = (active.currentHP / maxHP) * 100;
-                                const { x, y, width, height } = this.playerHPBarProps;
-
-                                let hpColor1, hpColor2;
-                                if (hpPercent > 50) { hpColor1 = 0x2ECC71; hpColor2 = 0x27AE60; }
-                                else if (hpPercent > 25) { hpColor1 = 0xF39C12; hpColor2 = 0xE67E22; }
-                                else { hpColor1 = 0xE74C3C; hpColor2 = 0xC0392B; }
-
-                                this.playerHPBar.clear();
-                                this.playerHPBar.fillGradientStyle(hpColor1, hpColor1, hpColor2, hpColor2, 1, 1, 1, 1);
-                                this.playerHPBar.fillRoundedRect(
-                                    x + 2,
-                                    y - height/2 + 2,
-                                    (width - 4) * hpPercent / 100,
-                                    height - 4,
-                                    4
-                                );
-                            }
-                        }
-
-                        // Feedback + décrément inventaire (déjà fait serveur)
-                        this.menuManager.showDialog(data?.message || `${item.itemData.name_fr} utilisé !`);
-                        await this.wait(1200);
-                        this.menuManager.hideDialog();
+                        // ⚠️ IMPORTANT: En combat, l'état serveur est la source de vérité.
+                        // On exécute l'item comme un tour serveur (actionType=item) pour éviter les désync HP.
+                        this.turnInProgress = false; // laisser BattleTurnManager gérer le flag
+                        const turnResult = await this.turnManager.useItem(
+                            itemId,
+                            targetPokemonId,
+                            item?.itemData?.name_fr || item?.itemData?.nom || 'Objet'
+                        );
 
                         // Event global pour forcer le refresh inventaire ailleurs
                         try { this.game?.events?.emit('inventory:update'); } catch (e) { /* ignore */ }
 
-                        // L'adversaire joue ensuite
-                        await this.turnManager.opponentTurn();
-
-                        this.menuManager.hideDialog();
-                        this.menuManager.showMainMenu();
+                        // Si le combat continue, s'assurer qu'on revient au menu principal
+                        if (turnResult && !turnResult.isOver) {
+                            this.menuManager.showMainMenu();
+                        }
                     } catch (e) {
                         this.menuManager.showDialog(e.message || 'Erreur');
                         await this.wait(1500);

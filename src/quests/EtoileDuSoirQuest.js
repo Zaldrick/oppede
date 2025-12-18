@@ -1,70 +1,31 @@
-export class EtoileDuSoirQuest {
-  constructor({ scene, mapManager, eventManager }) {
-    this.scene = scene;
-    this.mapManager = mapManager;
-    this.eventManager = eventManager;
+import { BaseQuest } from './BaseQuest';
 
-    this.questId = 'Etoile du Soir';
+export class EtoileDuSoirQuest extends BaseQuest {
+  constructor({ scene, mapManager, eventManager }) {
+    super({ scene, mapManager, eventManager, questId: 'Etoile du Soir' });
 
     // Empêche les relances de PinCodeScene pendant un enchaînement de dialogues
     this.isPinCodeActive = false;
   }
 
-  getPlayerContext() {
-    const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
-    const playerData = this.scene.registry.get('playerData');
-    const playerId = playerData ? playerData._id : null;
-
-    if (playerData && !playerData.quests) playerData.quests = {};
-
-    return { playerPseudo, playerData, playerId };
-  }
-
   async startQuestIfMissing({ playerData, playerId }) {
-    if (!playerData) return false;
-    if (playerData.quests[this.questId] !== undefined) return false;
-
-    // State local d'abord (évite les doubles starts si l'API est lente)
-    playerData.quests[this.questId] = 0;
-    this.scene.registry.set('playerData', playerData);
-
-    // Persistance backend ensuite
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[EtoileDuSoirQuest] start failed', e);
-      }
-    }
-
-    // Message uniquement si on vient vraiment d'ajouter la quête
-    this.scene.displayMessage(`Quête ajoutée : ${this.questId}`, 'Système');
-    return true;
+    return super.startQuestIfMissing({
+      playerData,
+      playerId,
+      questId: this.questId,
+      showSystemMessage: true,
+      logPrefix: 'EtoileDuSoirQuest'
+    });
   }
 
   async advanceQuest({ playerId, playerData, step }) {
-    if (!playerData) return;
-
-    const apiUrl = process.env.REACT_APP_API_URL;
-    if (apiUrl && playerId) {
-      try {
-        await fetch(`${apiUrl}/api/quests/advance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId, questId: this.questId })
-        });
-      } catch (e) {
-        console.warn('[EtoileDuSoirQuest] advance failed', e);
-      }
-    }
-
-    playerData.quests[this.questId] = step;
-    this.scene.registry.set('playerData', playerData);
+    return super.advanceQuest({
+      playerId,
+      playerData,
+      questId: this.questId,
+      step,
+      logPrefix: 'EtoileDuSoirQuest'
+    });
   }
 
   spawnForMap(mapKey) {
@@ -132,7 +93,7 @@ export class EtoileDuSoirQuest {
       // Si on est à l'étape 3, on doit attendre la fermeture du dialogue avant de téléporter
       if (questStep === 3) {
         this.scene.displayMessage(
-          "Hmm c'est bizarre, c'est comme si il y avait quelque chose de caché dans la pochette arrière du siège passager",
+          "Oh ! Il y aquelque chose de caché dans la pochette arrière du siège passager",
           playerPseudo,
           async () => {
             await this.advanceQuest({ playerId, playerData, step: 4 });

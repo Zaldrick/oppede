@@ -178,8 +178,8 @@ export default class BattleSpriteManager {
                 
                 // 🆕 LIMITER LA TAILLE DU SPRITE (Responsive)
                 // Adversaire (face) = un peu plus petit
-                const maxWidth = Math.max(width * 0.45, 300); 
-                const maxHeight = Math.max(height * 0.50, 300);
+                const maxWidth = Math.max(width * 0.50, 300); 
+                const maxHeight = Math.max(height * 0.55, 300);
                 
                 if (result.type === 'phaser' && result.sprite) {
                     // NOUVELLE LOGIQUE RESPONSIVE (Portrait vs Landscape)

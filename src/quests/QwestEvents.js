@@ -1,8 +1,8 @@
-export class QwestEvents {
+import { BaseQuest } from './BaseQuest';
+
+export class QwestEvents extends BaseQuest {
   constructor({ scene, mapManager, eventManager }) {
-    this.scene = scene;
-    this.mapManager = mapManager;
-    this.eventManager = eventManager;
+    super({ scene, mapManager, eventManager, questId: '' });
 
     this.chestNpc = null;
     this.memoNpc = null;
@@ -12,13 +12,7 @@ export class QwestEvents {
     this.lastHealAt = 0;
   }
 
-  getPlayerContext() {
-    const playerPseudo = this.scene.registry.get('playerPseudo') || 'Moi';
-    const playerData = this.scene.registry.get('playerData');
-    const playerId = playerData ? playerData._id : null;
-
-    return { playerPseudo, playerData, playerId };
-  }
+  // getPlayerContext is inherited from BaseQuest
 
   destroyRuntimeObjects() {
     try {
@@ -130,23 +124,6 @@ export class QwestEvents {
     this.memoNpc = sparkles;
     this.eventManager.activeEvents.push(sparkles);
 
-    // --- Pokémon Center sparkle at 3:2 (row 4 idle) ---
-    const healX = 3 * 48 + 24;
-    const healY = 2 * 48 + 24;
-
-    const healSparkles = this.scene.physics.add.sprite(healX, healY, 'sparkles');
-    healSparkles.play(animKey);
-    healSparkles.setImmovable(true);
-    healSparkles.setInteractive();
-    healSparkles.npcType = 'qwest_pkmncenter_sparkles';
-    healSparkles.facePlayerOnInteract = false;
-    try {
-      healSparkles.body.setSize(32, 32);
-      healSparkles.body.setOffset(8, 8);
-    } catch (e) {}
-
-    this.healNpc = healSparkles;
-    this.eventManager.activeEvents.push(healSparkles);
   }
 
   persistChestOpened({ playerId, playerData, chestId }) {

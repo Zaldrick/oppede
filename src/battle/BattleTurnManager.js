@@ -182,6 +182,120 @@ export default class BattleTurnManager {
     }
 
     /**
+     * Utilise un item en combat (consomme le tour) via le serveur.
+     */
+    async useItem(itemId, targetPokemonId, itemName = 'Objet') {
+        if (this.scene.turnInProgress) return;
+
+        this.scene.turnInProgress = true;
+        console.log('[BattleTurnManager] Item utilisé:', { itemId, targetPokemonId, itemName });
+
+        try {
+            const result = await this.scene.battleManager.useItem(
+                this.scene.battleId,
+                itemId,
+                targetPokemonId
+            );
+
+            if (result.playerAction) result.playerAction.isPlayer = true;
+            if (result.opponentAction) result.opponentAction.isPlayer = false;
+
+            await this.animateTurn(result);
+            await this.updateBattleState(result);
+
+            await this.processXPGains(result.xpGains);
+            await this.handleOpponentAutoSwitch(result);
+
+            if (result.isOver) {
+                console.log('[BattleTurnManager] Combat terminé (item) - winner:', result.winner);
+
+                if (result.winner === 'player') {
+                    await this.scene.menuManager.showDialog('Vous avez gagné !');
+                } else {
+                    await this.scene.menuManager.showDialog('Vous avez perdu...');
+                }
+
+                try {
+                    if (this.scene?.battleManager?.endBattle && this.scene?.battleId && result?.winner) {
+                        await this.scene.battleManager.endBattle(this.scene.battleId, result.winner);
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] Erreur endBattle (item) non bloquant:', e);
+                }
+
+                try {
+                    if (result.winner === 'player' && this.scene?.battleType === 'trainer' && this.scene?.trainerBattle?.trainerId) {
+                        const returnSceneKey = this.scene.returnScene || 'GameScene';
+                        const returnScene = this.scene.scene?.get ? this.scene.scene.get(returnSceneKey) : null;
+                        const eventManager = returnScene?.mapManager?.eventManager;
+                        if (eventManager?.markTrainerDefeated) {
+                            eventManager.markTrainerDefeated(this.scene.trainerBattle.trainerId);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] Impossible de maj PNJ dresseur (item) non bloquant:', e);
+                }
+
+                try {
+                    if (result.winner !== 'player' && typeof this.scene?.applyDefeatConsequences === 'function') {
+                        await this.scene.applyDefeatConsequences();
+                    }
+                } catch (e) {
+                    console.warn('[BattleTurnManager] applyDefeatConsequences (item isOver) non bloquant:', e);
+                }
+
+                await this.scene.returnToSceneWithTransition();
+                return result;
+            }
+
+            if (this.scene.battleState.playerActive.currentHP <= 0) {
+                const alivePokemon = this.scene.battleState.playerTeam.filter(p => p.currentHP > 0);
+
+                if (alivePokemon.length === 0) {
+                    await this.scene.menuManager.showDialog('Vous n\'avez plus de Pokémon ! Vous avez perdu...');
+
+                    try {
+                        if (this.scene?.battleManager?.endBattle && this.scene?.battleId) {
+                            await this.scene.battleManager.endBattle(this.scene.battleId, 'opponent');
+                        }
+                    } catch (e) {
+                        console.warn('[BattleTurnManager] Erreur endBattle (item lose) non bloquant:', e);
+                    }
+
+                    try {
+                        if (typeof this.scene?.applyDefeatConsequences === 'function') {
+                            await this.scene.applyDefeatConsequences();
+                        }
+                    } catch (e) {
+                        console.warn('[BattleTurnManager] applyDefeatConsequences (item no alive) non bloquant:', e);
+                    }
+                    await this.scene.returnToSceneWithTransition();
+                } else {
+                    await this.scene.menuManager.showDialog('Choisissez un autre Pokémon !');
+                    this.scene.turnInProgress = false;
+                    this.scene.menuManager.showPokemonMenu();
+                }
+                return result;
+            }
+
+            if (this.scene?.menuManager?.showPrompt) {
+                this.scene.menuManager.showPrompt(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
+            } else {
+                this.scene.menuManager.showDialog(`Que va faire ${getPokemonDisplayName(this.scene.battleState.playerActive)} ?`);
+            }
+            this.scene.turnInProgress = false;
+
+            return result;
+        } catch (error) {
+            console.error('[BattleTurnManager] Erreur item:', error);
+            await this.scene.menuManager.showDialog(error?.message || 'Une erreur est survenue !');
+            this.scene.menuManager.hideDialog();
+            this.scene.turnInProgress = false;
+            throw error;
+        }
+    }
+
+    /**
      * Traite les gains d'XP à chaque K.O. adverse (et/ou fin de combat).
      */
     async processXPGains(xpGains) {
@@ -225,12 +339,25 @@ export default class BattleTurnManager {
 
             // 🆕 Si le niveau-up a changé le MaxHP, le refléter immédiatement dans l'UI.
             // Le serveur peut aussi avoir augmenté currentHP via +ΔmaxHP; ici on se contente
-            // de synchroniser maxHP côté client pour éviter l'affichage ancien (ex: 24/32).
+            // de synchroniser maxHP (+ optionnellement currentHP) côté client pour éviter les désynchros.
             const newMaxHP = Number(gain?.newMaxHP);
             if (Number.isFinite(newMaxHP) && newMaxHP > 0) {
+                const oldMaxHP = Number.isFinite(Number(gain?.oldMaxHP))
+                    ? Number(gain.oldMaxHP)
+                    : Number(pokemon?.stats?.maxHP ?? pokemon?.maxHP ?? 0);
+
                 if (!pokemon.stats) pokemon.stats = {};
                 pokemon.stats.maxHP = newMaxHP;
                 pokemon.maxHP = newMaxHP;
+
+                // 🔧 Match server behavior: on level-up, heal by +ΔmaxHP (capped).
+                // (Only if we have a sane oldMaxHP; otherwise we leave currentHP unchanged.)
+                if (Number.isFinite(oldMaxHP) && oldMaxHP > 0) {
+                    const delta = newMaxHP - oldMaxHP;
+                    if (delta > 0) {
+                        pokemon.currentHP = Math.min(newMaxHP, Number(pokemon.currentHP || 0) + delta);
+                    }
+                }
 
                 if (isActive) {
                     const active = this.scene.battleState.playerActive;
@@ -239,6 +366,13 @@ export default class BattleTurnManager {
                         if (!active.stats) active.stats = {};
                         active.stats.maxHP = newMaxHP;
                         active.maxHP = newMaxHP;
+
+                        if (Number.isFinite(oldMaxHP) && oldMaxHP > 0) {
+                            const delta = newMaxHP - oldMaxHP;
+                            if (delta > 0) {
+                                active.currentHP = pokemon.currentHP;
+                            }
+                        }
                     }
 
                     if (this.scene.playerHPText) {
@@ -344,7 +478,30 @@ export default class BattleTurnManager {
     async animateTurn(result) {
         // ========== ACTION DU JOUEUR ==========
         if (result.playerAction) {
-            if (result.playerAction.missed) {
+            // 🆕 Item (soins) : pas d'attaque, juste message + éventuelle animation HP (si cible active)
+            if (result.playerAction.actionType === 'item') {
+                const msg = result.playerAction.message
+                    || (result.playerAction.itemName ? `${result.playerAction.itemName} utilisé !` : 'Objet utilisé !');
+                await this.showAttackDialog(msg);
+
+                // Si la cible est le Pokémon actif, animer la barre HP vers la nouvelle valeur (après le tour complet)
+                const targetId = String(result.playerAction.targetPokemonId || result?.itemTarget?._id || '');
+                const activeId = String(this.scene?.battleState?.playerActive?._id || '');
+                if (targetId && activeId && targetId === activeId) {
+                    const maxHP = this.scene.battleState.playerActive.stats
+                        ? this.scene.battleState.playerActive.stats.maxHP
+                        : (this.scene.battleState.playerActive.maxHP || 1);
+                    const hpAfterItem = (typeof result.playerHPAfterItem === 'number')
+                        ? result.playerHPAfterItem
+                        : (typeof result?.itemTarget?.hpAfterItem === 'number' ? result.itemTarget.hpAfterItem : result.playerHP);
+                    await this.scene.animManager.animateHPDrain(
+                        this.scene.playerHPBar,
+                        this.scene.playerHPText,
+                        hpAfterItem,
+                        maxHP
+                    );
+                }
+            } else if (result.playerAction.missed) {
                 // AFFICHER MESSAGE DE RATÉ
                 const opponentName = getPokemonDisplayName(this.scene.battleState.opponentActive);
                 await this.showAttackDialog(`${getPokemonDisplayName(this.scene.battleState.playerActive)} rate ${opponentName} adverse !`);
@@ -427,6 +584,35 @@ export default class BattleTurnManager {
         );
         if (teamIndex !== -1) {
             this.scene.battleState.playerTeam[teamIndex].currentHP = result.playerHP;
+        }
+
+        // 🆕 Si l'item a ciblé un Pokémon (pas forcément actif), mettre à jour ses PV dans l'équipe.
+        if (result?.itemTarget?._id && Array.isArray(this.scene.battleState.playerTeam)) {
+            const targetId = String(result.itemTarget._id);
+            const idx = this.scene.battleState.playerTeam.findIndex(p => String(p?._id) === targetId);
+            if (idx !== -1) {
+                this.scene.battleState.playerTeam[idx].currentHP = Number(result.itemTarget.currentHP ?? this.scene.battleState.playerTeam[idx].currentHP);
+                const maxHP = Number(result.itemTarget.maxHP ?? 0);
+                if (maxHP > 0) {
+                    if (this.scene.battleState.playerTeam[idx].stats) {
+                        this.scene.battleState.playerTeam[idx].stats.maxHP = maxHP;
+                    }
+                    if (!this.scene.battleState.playerTeam[idx].maxHP) {
+                        this.scene.battleState.playerTeam[idx].maxHP = maxHP;
+                    }
+                }
+
+                // Si c'est aussi le Pokémon actif, garder la cohérence
+                if (String(this.scene.battleState.playerActive?._id) === targetId) {
+                    this.scene.battleState.playerActive.currentHP = this.scene.battleState.playerTeam[idx].currentHP;
+                    if (this.scene.battleState.playerActive.stats && maxHP > 0) {
+                        this.scene.battleState.playerActive.stats.maxHP = maxHP;
+                    }
+                    if (!this.scene.battleState.playerActive.maxHP && maxHP > 0) {
+                        this.scene.battleState.playerActive.maxHP = maxHP;
+                    }
+                }
+            }
         }
     }
 

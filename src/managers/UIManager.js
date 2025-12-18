@@ -73,7 +73,7 @@ export class UIManager {
     // Joystick
     const joystickRadius = gameWidth * 0.12 / this.zoomFactor;
     this.joystick = joystickPlugin.add(this.scene, {
-      x: gameWidth * 0.2,
+      x: gameWidth * 0.21,
       y: gameHeight * 0.82,
       radius: joystickRadius,
       base: this.scene.add.circle(0, 0, joystickRadius, CONFIG.joystick.baseColor).setDepth(200000),
@@ -105,10 +105,27 @@ export class UIManager {
               this.advanceDialogue();
           } else {
               this.scene.playerManager?.setSpeedBoost(true); 
-          }
-      })
-      .on('pointerup', () => { this.scene.playerManager?.setSpeedBoost(false); })
-      .on('pointerout', () => { this.scene.playerManager?.setSpeedBoost(false); });
+            // For the team option, prefer a pokéball image if available (size tuned to card)
+            if (option.label && option.label.toString().toLowerCase().includes('équipe') && this.scene.textures && this.scene.textures.exists && this.scene.textures.exists('overworld_pokeball')) {
+              try {
+                const img = this.scene.add.image(x, y - cardSize * 0.15, 'overworld_pokeball').setOrigin(0.5).setScrollFactor(0);
+                // size the icon to fit the card without overflowing
+                img.setDisplaySize(cardSize * 0.38, cardSize * 0.38);
+                this.startMenu.add(img);
+              } catch (e) {
+                const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
+                  font: `${Math.round(cardSize * 0.4)}px Arial`,
+                  fill: '#ffffff'
+                }).setOrigin(0.5).setScrollFactor(0);
+                this.startMenu.add(iconText);
+              }
+            } else {
+              const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
+                font: `${Math.round(cardSize * 0.4)}px Arial`,
+                fill: '#ffffff'
+              }).setOrigin(0.5).setScrollFactor(0);
+              this.startMenu.add(iconText);
+            }
     this.buttonBText = this.scene.add.text(gameWidth * 0.74, gameHeight * 0.85, "B", {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
@@ -122,13 +139,13 @@ export class UIManager {
     const startButtonHeight = gameHeight * 0.04 / this.zoomFactor;
     this.startButton = this.scene.add.rectangle(gameWidth * 0.5, gameHeight * 0.88, startButtonWidth, startButtonHeight, 0x808080)
       .setInteractive()
-      .setDepth(9999)
+      .setDepth(200000)
       .on('pointerdown', () => this.handleStartButton());
     this.startButtonText = this.scene.add.text(gameWidth * 0.5, gameHeight * 0.88, "Start", {
       font: `${gameWidth * 0.05 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
       align: "center"
-    }).setOrigin(0.5).setDepth(9999);
+    }).setOrigin(0.5).setDepth(200000);
     this.startButton.setScrollFactor(0);
     this.startButtonText.setScrollFactor(0);
   }

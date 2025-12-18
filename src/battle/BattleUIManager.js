@@ -62,7 +62,7 @@ export default class BattleUIManager {
         // Badge de niveau
         const levelBadgeX = boxX + boxWidth * 0.87;
         const levelBadgeY = boxY + boxHeight * 0.35;
-        const badgeRadius = Math.min(width, height) * 0.035;
+        const badgeRadius = Math.min(width, height) * 0.024;
         
         container.fillStyle(0x3498DB, 1);
         container.fillCircle(levelBadgeX, levelBadgeY, badgeRadius);
@@ -196,7 +196,7 @@ export default class BattleUIManager {
         // Badge de niveau
         const levelBadgeX = boxX + boxWidth * 0.88;
         const levelBadgeY = boxY + boxHeight * 0.30;
-        const badgeRadius = Math.min(width, height) * 0.035;
+        const badgeRadius = Math.min(width, height) * 0.030;
         
         // Calculer le level depuis l'XP si manquant ou incorrect
         if (!player.level || player.level === 1) {
@@ -674,6 +674,8 @@ export default class BattleUIManager {
             return this.scene.add.container(x, y);
         }
 
+        await this.ensureMoveCategoryIconsLoaded();
+
         // Traduire nom du move en FR
         const moveNameFR = await this.scene.getMoveName(move.name);
 
@@ -712,7 +714,7 @@ export default class BattleUIManager {
 
         // Nom de la capacité avec ombre (Utiliser nom traduit FR)
         const moveName = this.scene.add.text(width * 0.08, height * 0.20, moveNameFR, {
-            fontSize: `${minDim * 0.04}px`,
+            fontSize: `${minDim * 0.036}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold',
             fontFamily: 'Arial',
@@ -720,6 +722,21 @@ export default class BattleUIManager {
             strokeThickness: 3
         }).setOrigin(0);
         container.add(moveName);
+
+        // PP (aligné à droite du nom)
+        const ppValue = `${move.pp || 0}/${move.maxPP || move.pp || 0}`;
+        const ppText = this.scene.add.text(width * 0.92, height * 0.20, `PP ${ppValue}`, {
+            fontSize: `${minDim * 0.026}px`,
+            fill: '#FFFFFF',
+            fontStyle: 'bold',
+            fontFamily: 'Arial',
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(1, 0);
+        container.add(ppText);
+
+        // Anti-overflow: adapter le nom pour qu'il ne chevauche pas les PP
+        this.fitTextToWidth(moveName, (ppText.x - moveName.x) - width * 0.03, minDim * 0.020);
 
         // Badge de type avec ombre et bordure
         // ✅ FIXE: Limiter la taille du badge de type
@@ -745,9 +762,10 @@ export default class BattleUIManager {
         
         container.add(typeBadge);
 
-        // Texte du type
-        const typeText = this.scene.add.text(typeX + typeWidth / 2, typeY + typeHeight / 2, move.type.toUpperCase(), {
-            fontSize: `${minDim * 0.035}px`,
+        // Texte du type (FR)
+        const { getPokemonTypeLabelFR } = await import('../utils/typeLabelsFR');
+        const typeText = this.scene.add.text(typeX + typeWidth / 2, typeY + typeHeight / 2, getPokemonTypeLabelFR(move.type), {
+            fontSize: `${minDim * 0.030}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold',
             fontFamily: 'Arial',
@@ -756,25 +774,34 @@ export default class BattleUIManager {
         }).setOrigin(0.5);
         container.add(typeText);
 
-        // PP avec cercle élégant
-        const ppX = width * 0.70;
-        const ppY = height * 0.70;
-        
-        // Cercle pour PP
-        const ppCircle = this.scene.add.graphics();
-        ppCircle.fillStyle(0x000000, 0.4);
-        ppCircle.fillCircle(ppX, ppY, height * 0.18);
-        ppCircle.lineStyle(2, 0xFFFFFF, 0.9);
-        ppCircle.strokeCircle(ppX, ppY, height * 0.18);
-        container.add(ppCircle);
-        
-        const ppText = this.scene.add.text(ppX, ppY, `${move.pp || 0}`, {
-            fontSize: `${minDim * 0.04}px`,
+        // Puissance (sans "PUI") en bas à droite + icône category transparente derrière
+        const powerValue = (typeof move.power === 'number' && move.power > 0) ? move.power : '—';
+
+        const category = (move.category || '').toString().toLowerCase();
+        const iconKey = category === 'physical'
+            ? 'move-category-physical'
+            : (category === 'special' ? 'move-category-special' : null);
+
+        const powerX = width * 0.92;
+        const powerY = height * 0.72;
+
+        if (iconKey && this.scene.textures.exists(iconKey)) {
+            const icon = this.scene.add.image(width * 0.84, powerY, iconKey);
+            icon.setOrigin(0.5);
+            icon.setAlpha(0.22);
+            icon.setDisplaySize(height * 0.55, height * 0.55);
+            container.add(icon);
+        }
+
+        const powerText = this.scene.add.text(powerX, powerY, `${powerValue}`, {
+            fontSize: `${minDim * 0.040}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold',
-            fontFamily: 'Arial'
-        }).setOrigin(0.5);
-        container.add(ppText);
+            fontFamily: 'Arial',
+            stroke: '#000000',
+            strokeThickness: 3
+        }).setOrigin(1, 0.5);
+        container.add(powerText);
 
         // Interactions avec animations
         buttonBg.on('pointerover', () => {
@@ -818,6 +845,61 @@ export default class BattleUIManager {
         });
 
         return container;
+    }
+
+    fitTextToWidth(textObject, maxWidth, minFontSizePx) {
+        if (!textObject || typeof textObject.setFontSize !== 'function') return;
+        if (!maxWidth || maxWidth <= 0) return;
+
+        const parsePx = (value) => {
+            const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+            return Number.isFinite(n) ? n : 0;
+        };
+
+        let fontSize = parsePx(textObject.style?.fontSize);
+        const minSize = Math.max(8, parsePx(minFontSizePx));
+
+        while (textObject.width > maxWidth && fontSize > minSize) {
+            fontSize = Math.max(minSize, fontSize - 1);
+            textObject.setFontSize(fontSize);
+        }
+
+        if (textObject.width > maxWidth) {
+            const original = String(textObject.text || '');
+            let truncated = original;
+            const ellipsis = '…';
+
+            while (truncated.length > 1 && textObject.width > maxWidth) {
+                truncated = truncated.slice(0, -2);
+                textObject.setText(truncated + ellipsis);
+            }
+        }
+    }
+
+    async ensureMoveCategoryIconsLoaded() {
+        if (this._moveCategoryIconsLoaded) return;
+
+        const physicalKey = 'move-category-physical';
+        const specialKey = 'move-category-special';
+
+        if (this.scene.textures.exists(physicalKey) && this.scene.textures.exists(specialKey)) {
+            this._moveCategoryIconsLoaded = true;
+            return;
+        }
+
+        if (!this.scene.textures.exists(physicalKey)) {
+            this.scene.load.image(physicalKey, 'assets/sprites/physical.png');
+        }
+        if (!this.scene.textures.exists(specialKey)) {
+            this.scene.load.image(specialKey, 'assets/sprites/special.png');
+        }
+
+        await new Promise((resolve) => {
+            this.scene.load.once('complete', resolve);
+            this.scene.load.start();
+        });
+
+        this._moveCategoryIconsLoaded = true;
     }
 
     /**

@@ -310,7 +310,7 @@ class PokemonBattleManager {
         // Exécuter un tour
         app.post('/api/battle/turn', async (req, res) => {
             try {
-                const { battleId, actionType, moveId, moveName, targetId } = req.body;
+                const { battleId, actionType, moveId, moveName, targetId, itemId, targetPokemonId } = req.body;
 
                 if (!battleId) {
                     return res.status(400).json({ error: 'battleId requis' });
@@ -343,6 +343,199 @@ class PokemonBattleManager {
                 // Pokémon actifs
                 const playerPokemon = battleState.player_team[battleState.player_active_index];
                 let opponentPokemon = battleState.opponent_team[battleState.opponent_active_index];
+
+                // =========================
+                // 🆕 Tour d'item (Potion, etc.)
+                // =========================
+                if (actionType === 'item') {
+                    if (!itemId || !targetPokemonId) {
+                        return res.status(400).json({ error: 'itemId et targetPokemonId requis' });
+                    }
+
+                    // Vérifier que le Pokémon actif du joueur et l'adversaire sont vivants
+                    if (!playerPokemon || playerPokemon.currentHP <= 0) {
+                        return res.status(400).json({ error: 'Le Pokémon du joueur est K.O.' });
+                    }
+                    if (!opponentPokemon || opponentPokemon.currentHP <= 0) {
+                        return res.status(400).json({ error: 'Le Pokémon adverse est K.O.' });
+                    }
+
+                    const inventoryCol = db.collection('inventory');
+                    const itemsCol = db.collection('items');
+                    const itemActionsCol = db.collection('itemActions');
+
+                    let itemObjectId;
+                    let targetPokemonObjectId;
+                    try {
+                        itemObjectId = new ObjectId(itemId);
+                        targetPokemonObjectId = new ObjectId(targetPokemonId);
+                    } catch (e) {
+                        return res.status(400).json({ error: 'itemId/targetPokemonId invalides' });
+                    }
+
+                    // Vérifier possession de l'item
+                    const invEntry = await inventoryCol.findOne({
+                        player_id: new ObjectId(playerId),
+                        item_id: itemObjectId
+                    });
+                    if (!invEntry) {
+                        return res.status(404).json({ error: "Item non disponible dans l'inventaire" });
+                    }
+
+                    const quantityField = (invEntry['quantité'] !== undefined)
+                        ? 'quantité'
+                        : (invEntry.quantite !== undefined)
+                            ? 'quantite'
+                            : (invEntry.quantity !== undefined)
+                                ? 'quantity'
+                                : 'quantité';
+
+                    const currentQty = Number(invEntry[quantityField] ?? 0);
+                    if (currentQty <= 0) {
+                        return res.status(400).json({ error: "Item non disponible dans l'inventaire" });
+                    }
+
+                    const [itemDoc, actionDoc] = await Promise.all([
+                        itemsCol.findOne({ _id: itemObjectId }),
+                        itemActionsCol.findOne({ item_id: itemObjectId })
+                    ]);
+
+                    if (!itemDoc) {
+                        return res.status(404).json({ error: 'Item introuvable' });
+                    }
+                    if (!actionDoc) {
+                        return res.status(400).json({ error: 'Aucune action définie pour cet item' });
+                    }
+                    if (actionDoc.action_type !== 'heal') {
+                        return res.status(400).json({ error: `Action non supportée en combat: ${actionDoc.action_type}` });
+                    }
+
+                    // Trouver le Pokémon cible dans l'équipe du joueur (combat en mémoire)
+                    const targetIdStr = targetPokemonObjectId.toString();
+                    const targetPokemon = battleState.player_team.find(p => p && p._id && p._id.toString() === targetIdStr);
+                    if (!targetPokemon) {
+                        return res.status(404).json({ error: 'Pokémon cible introuvable dans ce combat' });
+                    }
+
+                    const maxHP = Number(targetPokemon.stats?.maxHP ?? targetPokemon.maxHP ?? 0);
+                    const currentHP = Number(targetPokemon.currentHP ?? 0);
+                    const amount = Number(actionDoc.parameters?.amount ?? 0);
+
+                    if (currentHP <= 0) {
+                        return res.status(400).json({ error: 'Ce Pokémon est K.O.' });
+                    }
+                    if (!maxHP || maxHP <= 0) {
+                        return res.status(400).json({ error: 'Stats Pokémon invalides' });
+                    }
+                    if (currentHP >= maxHP) {
+                        return res.status(400).json({ error: 'PV déjà au maximum' });
+                    }
+
+                    const healed = Math.min(amount, maxHP - currentHP);
+                    if (healed <= 0) {
+                        return res.status(400).json({ error: 'Aucun effet' });
+                    }
+
+                    // Appliquer le soin dans l'état de combat (source de vérité en combat)
+                    targetPokemon.currentHP = Math.min(maxHP, currentHP + healed);
+
+                    const targetHpAfterItem = Number(targetPokemon.currentHP ?? 0);
+                    const playerHpAfterItem = Number(playerPokemon.currentHP ?? 0);
+
+                    // Log combat
+                    try {
+                        const targetName = this.getDisplayName ? this.getDisplayName(targetPokemon) : (targetPokemon.nickname || targetPokemon.speciesData?.name_fr || targetPokemon.speciesData?.name || 'Le Pokémon');
+                        battleState.battle_log.push(`${targetName} récupère ${healed} PV !`);
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    // Décrémenter inventaire immédiatement (l'item est consommé)
+                    await inventoryCol.updateOne(
+                        { player_id: new ObjectId(playerId), item_id: itemObjectId },
+                        { $inc: { [quantityField]: -1 } }
+                    );
+                    await inventoryCol.deleteMany({
+                        player_id: new ObjectId(playerId),
+                        item_id: itemObjectId,
+                        [quantityField]: { $lte: 0 }
+                    });
+
+                    // L'adversaire attaque ensuite (l'item consomme le tour)
+                    battleState.turn_count++;
+                    const opponentMove = battleLogic.generateAIAction(opponentPokemon, playerPokemon);
+
+                    const playerResult = {
+                        actionType: 'item',
+                        itemName: itemDoc.nom,
+                        healed,
+                        targetPokemonId: targetIdStr,
+                        missed: false,
+                        damage: 0,
+                        effectiveness: 1.0,
+                        critical: false,
+                        message: `${itemDoc.nom} utilisé !`
+                    };
+
+                    let opponentResult;
+                    if (opponentPokemon.currentHP > 0) {
+                        opponentResult = battleLogic.processTurn(opponentPokemon, playerPokemon, opponentMove, 'opponent');
+                    } else {
+                        opponentResult = {
+                            attacker: opponentPokemon.nickname || opponentPokemon.speciesData?.name,
+                            defender: playerPokemon.nickname || playerPokemon.speciesData?.name,
+                            move: opponentMove.name,
+                            damage: 0,
+                            missed: true,
+                            defenderHP: playerPokemon.currentHP,
+                            defenderKO: false,
+                            message: `${opponentPokemon.nickname || opponentPokemon.speciesData?.name} est K.O. et ne peut pas attaquer!`
+                        };
+                    }
+
+                    const battleEnd = battleLogic.isBattleOver();
+
+                    // Sauvegarder l'état du combat en DB (log / indexes)
+                    const battlesCollection2 = db.collection('battles');
+                    await battlesCollection2.updateOne(
+                        { _id: new ObjectId(battleId) },
+                        {
+                            $set: {
+                                turn_count: battleState.turn_count,
+                                battle_log: battleState.battle_log,
+                                state: battleState.state,
+                                player_active_index: battleState.player_active_index,
+                                opponent_active_index: battleState.opponent_active_index,
+                                updated_at: new Date()
+                            }
+                        }
+                    );
+
+                    if (battleEnd.isOver) {
+                        await this.updatePokemonHPAndXP(battleState, null, playerId, battleId);
+                        this.activeBattles.delete(battleId);
+                    }
+
+                    return res.json({
+                        battleId,
+                        turnCount: battleState.turn_count,
+                        playerAction: playerResult,
+                        opponentAction: opponentResult,
+                        battleLog: battleState.battle_log.slice(-5),
+                        playerHPAfterItem: playerHpAfterItem,
+                        playerHP: playerPokemon.currentHP,
+                        opponentHP: opponentPokemon.currentHP,
+                        isOver: battleEnd.isOver,
+                        winner: battleEnd.winner,
+                        state: battleState.state,
+                        itemTarget: {
+                            _id: targetIdStr,
+                            hpAfterItem: targetHpAfterItem,
+                            currentHP: Number(targetPokemon.currentHP ?? 0),
+                            maxHP: Number(targetPokemon.stats?.maxHP ?? targetPokemon.maxHP ?? maxHP)
+                        }
+                    });
+                }
 
                 // 🆕 Combat dresseur: si le Pokémon adverse actif est déjà K.O., envoyer le suivant automatiquement
                 if (battleState.battle_type === 'trainer' && opponentPokemon && opponentPokemon.currentHP <= 0) {

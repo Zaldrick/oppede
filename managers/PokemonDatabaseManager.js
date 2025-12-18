@@ -280,8 +280,15 @@ class PokemonDatabaseManager {
         }
 
         const ownerObjectId = new ObjectId(playerId);
+        // Support both legacy `position` (1-based) and current `teamPosition` (0-based)
         const team = await this.pokemonPlayerCollection
-            .find({ owner_id: ownerObjectId, teamPosition: { $gte: 1, $lte: 6 } })
+            .find({
+                owner_id: ownerObjectId,
+                $or: [
+                    { teamPosition: { $gte: 0, $lte: 5 } },
+                    { position: { $gte: 1, $lte: 6 } }
+                ]
+            })
             .toArray();
 
         if (!team || team.length === 0) {
@@ -291,7 +298,8 @@ class PokemonDatabaseManager {
         const ops = [];
         for (const p of team) {
             const speciesId = p.species_id;
-            const level = Number(p.level ?? 1) || 1;
+            // Determine level from experience when available (XP is source-of-truth)
+            const level = this.calculateLevelFromXP(p.experience || p.level || 0) || 1;
             const iv = Number(p.ivs?.hp ?? 0) || 0;
             const ev = Number(p.evs?.hp ?? 0) || 0;
 

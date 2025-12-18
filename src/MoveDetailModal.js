@@ -3,6 +3,8 @@
  * Modal réutilisable pour afficher les détails d'un move Pokémon
  */
 
+import { getPokemonTypeLabelFR } from './utils/typeLabelsFR';
+
 export default class MoveDetailModal {
     constructor(scene) {
         this.scene = scene;
@@ -42,7 +44,7 @@ export default class MoveDetailModal {
 
         const fontSize = Math.min(width, height) * 0.04;
         const smallFontSize = Math.min(width, height) * 0.032;
-        const startY = modalY - modalHeight * 0.4;
+        const startY = modalY - modalHeight * 0.38;
 
         // Titre (nom du move)
         const titleText = this.scene.add.text(modalX, startY, moveData.name || 'Unknown Move', {
@@ -52,7 +54,7 @@ export default class MoveDetailModal {
         }).setOrigin(0.5);
         this.container.add(titleText);
 
-        let currentY = startY + fontSize * 2;
+        let currentY = startY + fontSize * 2.5;
 
         // Type et Catégorie
         const typeColor = this.getTypeColor(moveData.type);
@@ -67,7 +69,7 @@ export default class MoveDetailModal {
         typeBox.setStrokeStyle(2, 0xFFFFFF);
         this.container.add(typeBox);
 
-        const typeText = this.scene.add.text(modalX - modalWidth * 0.2, currentY, `TYPE: ${(moveData.type || 'normal').toUpperCase()}`, {
+        const typeText = this.scene.add.text(modalX - modalWidth * 0.2, currentY, `TYPE: ${getPokemonTypeLabelFR(moveData.type)}`, {
             fontSize: `${smallFontSize}px`,
             fill: '#FFFFFF',
             fontStyle: 'bold'
@@ -132,7 +134,7 @@ export default class MoveDetailModal {
             this.container.add(valueText);
         });
 
-        currentY += height * 0.1;
+        currentY += height * 0.15;
 
         // Effet du move
         if (moveData.effect) {

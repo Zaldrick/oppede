@@ -345,7 +345,21 @@ export class SpriteLoader {
      * @returns {Promise<Object>} - { type: 'phaser'|'gif', sprite: ..., container: ..., x, y, scale, depth }
      */
     static async displaySpriteAuto(scene, x, y, spriteUrl, fallbackText, scale, depth, useAnimated = null, options = {}) {
-        const shouldUseGif = useAnimated !== null ? useAnimated : this.isAnimatedGif(spriteUrl);
+        // Respect explicit caller preference first. If caller passed null, consult user's global preference
+        // stored in localStorage (`useAnimatedSprites`). This ensures GIFs stay disabled when the user
+        // turned them off globally, even if a caller forgets to forward the preference.
+        let globalPref = null;
+        try {
+            const v = (typeof localStorage !== 'undefined') ? localStorage.getItem('useAnimatedSprites') : null;
+            if (v === 'true') globalPref = true;
+            else if (v === 'false') globalPref = false;
+        } catch (e) {
+            // ignore localStorage errors
+        }
+
+        const shouldUseGif = (useAnimated !== null && useAnimated !== undefined)
+            ? useAnimated
+            : (globalPref !== null ? globalPref : this.isAnimatedGif(spriteUrl));
         
         if (shouldUseGif && this.isAnimatedGif(spriteUrl)) {
             // GIF animé

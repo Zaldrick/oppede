@@ -538,20 +538,12 @@ export class InventoryScene extends Phaser.Scene {
         let useBtn = null;
         if (item.type === 'booster') {
             useBtn = this.createActionButton('OUVRIR', '#27AE60', () => this.openBooster(item));
-        } else {
-            // ✅ Priorité au nouveau système (ItemActionManager) même si l'item possède un legacy `actions`.
-            // Beaucoup d'items (ex: Potion) ont `actions` en base, mais doivent passer par `useItem`.
-            const context = this.inBattle ? ITEM_CONTEXTS.BATTLE : ITEM_CONTEXTS.MENU;
-            const check = (this.actionManager && typeof this.actionManager.canUseItem === 'function')
-                ? this.actionManager.canUseItem(item, context)
-                : { allowed: false };
-
-            if (check.allowed || item.utiliser || (this.inBattle && ['healing', 'status-heal', 'pokeball'].includes(item.type))) {
-                useBtn = this.createActionButton('UTILISER', '#27AE60', () => this.useItem(item));
-            } else if (item.actions && item.actions.length > 0) {
-                // Fallback legacy (ancien système)
-                useBtn = this.createActionButton(item.actions[0].action_name || 'UTILISER', '#27AE60', () => this.executeAction(item.actions[0]));
-            }
+        } else if (item.actions && item.actions.length > 0) {
+            useBtn = this.createActionButton(item.actions[0].action_name || 'UTILISER', '#27AE60', () => this.executeAction(item.actions[0]));
+        } else if (item.utiliser) {
+            useBtn = this.createActionButton('UTILISER', '#27AE60', () => this.useItem(item));
+        } else if (this.inBattle && ['healing', 'status-heal', 'pokeball'].includes(item.type)) {
+             useBtn = this.createActionButton('UTILISER', '#27AE60', () => this.useItem(item));
         }
 
         if (useBtn) actionsDiv.appendChild(useBtn);
@@ -604,7 +596,7 @@ export class InventoryScene extends Phaser.Scene {
                 const battleScene = this.scene.get('PokemonBattleScene');
                 if (battleScene && battleScene.useItemInBattle) {
                     const battleItem = {
-                        item_id: item.item_id || item._id,
+                        item_id: item._id || item.item_id,
                         itemData: {
                             name_fr: item.nom,
                             type: this.categorizeItem(item) === 'pokeballs' ? 'pokeball' : 'healing'
@@ -620,7 +612,7 @@ export class InventoryScene extends Phaser.Scene {
         }
 
         // 3. Exécution de l'action hors combat via le Manager
-        await this.actionManager.executeAction(item, context, { playerId: this.playerId });
+        await this.actionManager.executeAction(item, context);
     }
 
     openBooster(item) {

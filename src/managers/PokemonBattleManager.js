@@ -107,6 +107,41 @@ export default class PokemonBattleManager {
     }
 
     /**
+     * Utilise un item pendant un combat (consomme le tour) via le serveur.
+     * @param {string} battleId
+     * @param {string} itemId
+     * @param {string} targetPokemonId
+     */
+    async useItem(battleId, itemId, targetPokemonId) {
+        try {
+            console.log('[BattleManager Client] Utilisation item en combat:', { battleId, itemId, targetPokemonId });
+
+            const response = await fetch(`${this.baseUrl}/api/battle/turn`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    battleId,
+                    actionType: 'item',
+                    itemId,
+                    targetPokemonId
+                })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Erreur utilisation item');
+            }
+
+            return data;
+        } catch (error) {
+            console.error('[BattleManager Client] Erreur useItem:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Récupère l'état actuel du combat
      * @param {string} battleId - ID du combat
      * @returns {Promise<Object>} - État du combat
