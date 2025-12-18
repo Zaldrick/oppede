@@ -53,11 +53,11 @@ export class MapManager {
       map2: "music1",
       map3: "music1",
       qwest: "qwest",
-      lille: "qwest",
-      metro: "qwest",
-      metroInterieur: "qwest",
-      douai: "qwest",
-      marin:"qwest"
+      lille: "lille",
+      metro: "metro",
+      metroInterieur: "metroInterieur",
+      douai: "douai",
+      marin:"marin"
     };
 
     this.teleportPoints = {

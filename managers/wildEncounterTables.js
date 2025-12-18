@@ -25,11 +25,17 @@ const WILD_ENCOUNTER_TABLES = {
     ]
   },
   // Exemple (à adapter):
-  "lille": {
+  lille: {
      entries: [
      { speciesId: 56, weight: 20, minLevel: 3, maxLevel: 6 },
        { speciesId: 51, weight: 30, minLevel: 3, maxLevel: 5 },
        { speciesId: 43, weight: 35, minLevel: 4, maxLevel: 6 }
+     ]
+   },
+  // Exemple (à adapter):
+  marin_jardin: {
+     entries: [
+     { speciesId: 1, weight: 100, minLevel: 12, maxLevel: 13 }
      ]
    }
 };

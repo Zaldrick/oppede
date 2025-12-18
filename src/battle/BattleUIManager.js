@@ -500,7 +500,9 @@ export default class BattleUIManager {
             buttonBg.setInteractive(new Phaser.Geom.Rectangle(0, 0, buttonWidth, buttonHeight), Phaser.Geom.Rectangle.Contains);
 
             // Texte du bouton avec ombre
-            const buttonText = this.scene.add.text(buttonWidth / 2, buttonHeight / 2, btn.label, {
+            // Default text position (centered). For some buttons we'll place an icon and shift text.
+            let textX = buttonWidth / 2;
+            const buttonText = this.scene.add.text(textX, buttonHeight / 2, btn.label, {
                 fontSize: `${Math.min(width, height) * 0.05}px`,
                 fill: '#FFFFFF',
                 fontStyle: 'bold',
@@ -509,6 +511,23 @@ export default class BattleUIManager {
                 strokeThickness: 3
             }).setOrigin(0.5);
             
+            // If this is the POKÉMON button, add a pokeball icon to the left and shift text
+            try {
+                if (String(btn.label || '').toUpperCase().includes('POKÉMON')) {
+                    const iconKey = this.scene.textures.exists('pokeball') ? 'pokeball' : (this.scene.textures.exists('overworld_pokeball') ? 'overworld_pokeball' : null);
+                    if (iconKey) {
+                        const iconSize = Math.min(buttonHeight * 0.6, 48);
+                        const icon = this.scene.add.image(buttonWidth * 0.18, buttonHeight / 2, iconKey).setOrigin(0.5);
+                        icon.setDisplaySize(iconSize, iconSize);
+                        btnContainer.add(icon);
+
+                        // Shift text to accommodate icon
+                        buttonText.x = buttonWidth * 0.60;
+                        buttonText.setOrigin(0.5);
+                    }
+                }
+            } catch (e) {}
+
             btnContainer.add(buttonText);
 
             // Interactions avec effets

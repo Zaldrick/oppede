@@ -336,6 +336,12 @@ export class MapEventManager {
         if (mapKey === 'lille') {
             this.createGaaraPokeballPickup({ id: 'pickup_gaara_18_63', tileX: 18, tileY: 63});
         }
+        if (mapKey === 'metroInterieur') {
+            this.createFlokiPokeballPickup({ id: 'pickup_floki_42_7', tileX: 42, tileY: 7});
+        }
+        if (mapKey === 'marin') {
+            this.createTanukiPokeballPickup({ id: 'pickup_tanuki_1_2', tileX: 1, tileY: 2 });
+        }
 
         // Quêtes (spawn/cleanup) pour la map courante
         if (this.questRouter) {
@@ -1654,10 +1660,60 @@ export class MapEventManager {
     }
 
     createGaaraPokeballPickup({ id, tileX, tileY }) {
+        this.createPokeballPokemonPickup({ id, tileX, tileY, kind: 'gaara_pokemon' }, '[MapEventManager] createGaaraPokeballPickup failed:');
+    }
+
+    createFlokiPokeballPickup({ id, tileX, tileY }) {
+        this.createPokeballPokemonPickup({ id, tileX, tileY, kind: 'floki_pokemon' }, '[MapEventManager] createFlokiPokeballPickup failed:');
+    }
+
+    createTanukiPokeballPickup({ id, tileX, tileY }) {
+        this.createPokeballPokemonPickup({ id, tileX, tileY, kind: 'tanuki_pokemon' }, '[MapEventManager] createTanukiPokeballPickup failed:');
+    }
+
+    getPokeballPickupConfig(kind) {
+        const k = String(kind || '').toLowerCase();
+
+        const configs = {
+            gaara_pokemon: {
+                speciesId: 552,
+                nickname: 'Gaara',
+                prompt: 'Gaara ??',
+                failMessage: "Impossible d'ajouter Gaara.",
+                successMessage: "Gaara ajouté à l'équipe !"
+            },
+            floki_pokemon: {
+                // clone Givrali
+                speciesId: 471,
+                nickname: 'Floki',
+                prompt: 'Floki ??',
+                failMessage: "Impossible d'ajouter Floki.",
+                successMessage: "Floki ajouté à l'équipe !"
+            },
+            tanuki_pokemon: {
+                // clone Luxray
+                speciesId: 405,
+                nickname: 'Tanuki',
+                prompt: 'Tanuki ??',
+                failMessage: "Impossible d'ajouter Tanuki.",
+                successMessage: "Tanuki ajouté à l'équipe !"
+            }
+        };
+
+        return configs[k] || null;
+    }
+
+    createPokeballPokemonPickup({ id, tileX, tileY, kind }, logPrefix) {
         try {
             const playerData = this.scene.registry.get('playerData');
             const collected = Array.isArray(playerData?.collectedWorldItems) ? playerData.collectedWorldItems : [];
             if (collected.includes(String(id))) return;
+
+            const cfg = this.getPokeballPickupConfig(kind);
+            if (!cfg) {
+                console.warn('[MapEventManager] Unknown pickup kind:', kind);
+                return;
+            }
 
             const x = tileX * 48 + 24;
             const y = tileY * 48 + 24;
@@ -1678,11 +1734,11 @@ export class MapEventManager {
 
             pickup.npcType = 'world_pickup';
             pickup.pickupId = String(id);
-            pickup.pickupKind = 'gaara_pokemon';
+            pickup.pickupKind = String(kind);
 
             this.activeEvents.push(pickup);
         } catch (e) {
-            console.warn('[MapEventManager] createGaaraPokeballPickup failed:', e);
+            console.warn(logPrefix, e);
         }
     }
 
@@ -1701,9 +1757,15 @@ export class MapEventManager {
         pickup.__busy = true;
 
         try {
+            const cfg = this.getPokeballPickupConfig(pickup.pickupKind);
+            if (!cfg) {
+                this.scene.displayMessage("Impossible de récupérer (objet inconnu).", 'Erreur');
+                return;
+            }
+
             // Dialogue joueur
             await new Promise((resolve) => {
-                this.scene.displayMessage('Gaara ??', playerPseudo, resolve);
+                this.scene.displayMessage(cfg.prompt, playerPseudo, resolve);
             });
 
             const createUrl = apiUrl ? `${apiUrl}/api/pokemon/create` : '/api/pokemon/create';
@@ -1712,14 +1774,14 @@ export class MapEventManager {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     playerId,
-                    speciesId: 552,
-                    nickname: 'Gaara'
+                    speciesId: cfg.speciesId,
+                    nickname: cfg.nickname
                 })
             });
 
             const body = await r.json().catch(() => ({}));
             if (!r.ok || body?.success === false) {
-                const msg = body?.message || 'Impossible d\'ajouter Gaara.';
+                const msg = body?.message || cfg.failMessage;
                 this.scene.displayMessage(msg, 'Système');
                 return;
             }
@@ -1748,7 +1810,7 @@ export class MapEventManager {
             }
 
             await new Promise((resolve) => {
-                this.scene.displayMessage("Gaara ajouté à l'équipe !", 'Système', resolve);
+                this.scene.displayMessage(cfg.successMessage, 'Système', resolve);
             });
 
             // Disparition

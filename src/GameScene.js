@@ -522,6 +522,11 @@ export class GameScene extends Phaser.Scene {
         this.load.audio("pkmncenter", "/assets/sounds/pkmncenter.mp3");
         this.load.audio("music1", "/assets/musics/music1.mp3");
         this.load.audio("qwest", "/assets/musics/qwest.mp3");
+        this.load.audio("lille", "/assets/musics/lille.mp3");
+        this.load.audio("douai", "/assets/musics/douai.mp3");
+        this.load.audio("metro", "/assets/musics/metro.mp3");
+        this.load.audio("metroInterieur", "/assets/musics/metroInterieur.mp3");
+        this.load.audio("marin", "/assets/musics/marin.mp3");
         // Preload battle music
         this.load.audio("battle-wild", "/assets/musics/pkm/battle-wild.mp3");
         this.load.audio("battle-trainer", "/assets/musics/pkm/battle-trainer.mp3");

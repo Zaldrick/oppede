@@ -105,27 +105,10 @@ export class UIManager {
               this.advanceDialogue();
           } else {
               this.scene.playerManager?.setSpeedBoost(true); 
-            // For the team option, prefer a pokéball image if available (size tuned to card)
-            if (option.label && option.label.toString().toLowerCase().includes('équipe') && this.scene.textures && this.scene.textures.exists && this.scene.textures.exists('overworld_pokeball')) {
-              try {
-                const img = this.scene.add.image(x, y - cardSize * 0.15, 'overworld_pokeball').setOrigin(0.5).setScrollFactor(0);
-                // size the icon to fit the card without overflowing
-                img.setDisplaySize(cardSize * 0.38, cardSize * 0.38);
-                this.startMenu.add(img);
-              } catch (e) {
-                const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
-                  font: `${Math.round(cardSize * 0.4)}px Arial`,
-                  fill: '#ffffff'
-                }).setOrigin(0.5).setScrollFactor(0);
-                this.startMenu.add(iconText);
-              }
-            } else {
-              const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
-                font: `${Math.round(cardSize * 0.4)}px Arial`,
-                fill: '#ffffff'
-              }).setOrigin(0.5).setScrollFactor(0);
-              this.startMenu.add(iconText);
-            }
+          }
+      })
+      .on('pointerup', () => { this.scene.playerManager?.setSpeedBoost(false); })
+      .on('pointerout', () => { this.scene.playerManager?.setSpeedBoost(false); });
     this.buttonBText = this.scene.add.text(gameWidth * 0.74, gameHeight * 0.85, "B", {
       font: `${gameWidth * 0.06 / this.zoomFactor}px Arial`,
       fill: "#ffffff",
