@@ -74,7 +74,7 @@ class ItemActionManager {
         }
 
         // Soins : Tout le temps (sauf restrictions spécifiques)
-        if (['healing', 'status-heal', 'revive'].includes(type) || item.nom.toLowerCase().includes('potion')) {
+        if (['healing', 'status-heal', 'revive', 'heal', 'soin'].includes(type) || item.nom.toLowerCase().includes('potion')) {
             return { allowed: true };
         }
 

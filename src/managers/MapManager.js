@@ -69,7 +69,6 @@ export class MapManager {
         { x: 7 * 48 + 24, y: 7 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24 },
       ],
       map3: [
-        { x: 42 * 48 + 24, y: 5 * 48 + 24, targetMap: "qwest", targetX: 3 * 48 + 24, targetY: 4 * 48 + 24 },
         { x: 38 * 48 + 24, y: 5 * 48 + 24, targetMap: "map", targetX: 18*48 + 24, targetY: 42*48+24  }
       ],
       qwest: [

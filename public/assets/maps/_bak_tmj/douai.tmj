@@ -15,7 +15,7 @@
                         {
                          "name":"encounterRate",
                          "type":"string",
-                         "value":"12"
+                         "value":"3"
                         }, 
                         {
                          "name":"encounterTableId",

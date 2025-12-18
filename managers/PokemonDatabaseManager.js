@@ -120,13 +120,13 @@ class PokemonDatabaseManager {
         // ➕ Ajouter un nouveau Pokémon à l'équipe
         app.post('/api/pokemon/create', async (req, res) => {
             try {
-                const { playerId, speciesId, nickname } = req.body;
+                const { playerId, speciesId, nickname, level } = req.body;
                 
                 if (!playerId || !speciesId) {
                     return res.status(400).json({ success: false, error: 'Données invalides' });
                 }
 
-                const newPokemon = await this.createPlayerPokemon(playerId, speciesId, nickname);
+                const newPokemon = await this.createPlayerPokemon(playerId, speciesId, nickname, null, level);
                 res.json({ success: true, pokemon: newPokemon });
             } catch (error) {
                 console.error('Erreur création Pokémon:', error);
@@ -496,13 +496,21 @@ class PokemonDatabaseManager {
      * Crée un nouveau Pokémon pour un joueur
      * Note: species_name est stocké pour la persistance; les données d'espèce sont enrichies côté client
      */
-    async createPlayerPokemon(playerId, speciesId, nickname = null, speciesName = null) {
+    async createPlayerPokemon(playerId, speciesId, nickname = null, speciesName = null, level = null) {
         try {
             const playerObjectId = new ObjectId(playerId);
-            const level = 5; // Niveau par défaut pour les starters
+
+            // Default: keep existing behavior (level 5) unless a valid level is provided.
+            let resolvedLevel = 5;
+            if (level !== null && level !== undefined && level !== '') {
+                const parsed = Number.parseInt(level, 10);
+                if (Number.isFinite(parsed)) {
+                    resolvedLevel = Math.max(1, Math.min(100, parsed));
+                }
+            }
 
             // Utiliser la méthode centralisée
-            const pokemonData = await this.generatePokemonData(speciesId, level, playerId, nickname);
+            const pokemonData = await this.generatePokemonData(speciesId, resolvedLevel, playerId, nickname);
 
             // Déterminer la position dans l'équipe
             const count = await this.pokemonPlayerCollection.countDocuments({
@@ -994,6 +1002,38 @@ class PokemonDatabaseManager {
                     } catch (e) {
                         // Non-blocking: if fetch fails, ignore
                         console.warn('[PokemonDB] Could not fetch bite move for Gaara:', e && e.message ? e.message : e);
+                    }
+                }
+            }else if (normNick === 'floki') {
+                // Check if 'ice-fang' already present
+                // NOTE: Some custom flows may store the FR display name ("Crocs Givre") instead of the API slug.
+                const hasIceFang = moveset.some(m => {
+                    const n = (m && m.name != null) ? String(m.name).trim().toLowerCase() : '';
+                    return n === 'ice-fang' || n === 'crocs givre';
+                });
+                if (!hasIceFang) {
+                    try {
+                        const fetch = (await import('node-fetch')).default;
+                        const mvRes = await fetch('https://pokeapi.co/api/v2/move/ice-fang');
+                        if (mvRes.ok) {
+                            const mv = await mvRes.json();
+                            const iceFangMove = {
+                                name: mv.name || 'ice-fang',
+                                type: mv.type?.name || 'ice',
+                                category: mv.damage_class?.name || 'physical',
+                                power: mv.power || 60,
+                                accuracy: mv.accuracy || 95,
+                                pp: mv.pp || 15,
+                                maxPP: mv.pp || 15,
+                                learnLevel: 0
+                            };
+                            // Prepend and ensure max 4 moves
+                            moveset.unshift(iceFangMove);
+                            if (moveset.length > 4) moveset.splice(4);
+                        }
+                    } catch (e) {
+                        // Non-blocking: if fetch fails, ignore
+                        console.warn('[PokemonDB] Could not fetch iceFangMove move for Floki:', e && e.message ? e.message : e);
                     }
                 }
             }

@@ -134,6 +134,14 @@ export class UIManager {
   }
 
   handleButtonA() {
+    // If GameScene has its own dialogue box open (typewriter dialogue),
+    // don't let the global interaction key (ENTER/SPACE) trigger interactions
+    // or UIManager's own dialogue flow.
+    // GameScene already handles skipping/advancing its dialogue.
+    if (this.scene && this.scene.currentDialogueBox) {
+      return;
+    }
+
     if (this.isDialogueActive) {
         this.advanceDialogue();
         return;
@@ -396,10 +404,33 @@ export class UIManager {
                 .setInteractive({ useHandCursor: true })
                 .setScrollFactor(0);
 
-            const iconText = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
+            // Icon: for "Équipe", use a pokeball image instead of the ⚾ emoji.
+            // Fallback to the already-loaded overworld key if a dedicated key isn't available.
+            let iconObj = null;
+            if (option.label === 'Équipe') {
+              try {
+                const textureKey = (this.scene.textures?.exists?.('pokeball') && 'pokeball')
+                  || (this.scene.textures?.exists?.('overworld_pokeball') && 'overworld_pokeball')
+                  || null;
+
+                if (textureKey) {
+                  const iconSize = Math.round(cardSize * 0.34);
+                  iconObj = this.scene.add.image(x, y - cardSize * 0.15, textureKey)
+                    .setOrigin(0.5)
+                    .setScrollFactor(0);
+                  iconObj.setDisplaySize(iconSize, iconSize);
+                }
+              } catch (e) {
+                iconObj = null;
+              }
+            }
+
+            if (!iconObj) {
+              iconObj = this.scene.add.text(x, y - cardSize * 0.15, option.icon, {
                 font: `${Math.round(cardSize * 0.4)}px Arial`,
                 align: "center"
-            }).setOrigin(0.5).setScrollFactor(0);
+              }).setOrigin(0.5).setScrollFactor(0);
+            }
 
             const labelText = this.scene.add.text(x, y + cardSize * 0.15, option.label, {
                 font: `bold ${Math.round(cardSize * 0.16)}px Arial`,
@@ -418,7 +449,7 @@ export class UIManager {
                 option.action();
             });
 
-            this.startMenu.add([cardBorder, cardBg, iconText, labelText, descText]);
+            this.startMenu.add([cardBorder, cardBg, iconObj, labelText, descText]);
         });
 
         this.startMenu.setScrollFactor(0);
@@ -614,7 +645,12 @@ export class UIManager {
 
     // Global click for dialogue
     this.scene.input.on('pointerdown', (pointer) => {
-        if (this.isDialogueActive) {
+      // If the active dialogue UI is GameScene's (currentDialogueBox), it owns click-to-advance.
+      if (this.scene && this.scene.currentDialogueBox) {
+        return;
+      }
+
+      if (this.isDialogueActive) {
             this.advanceDialogue();
         }
     });

@@ -461,7 +461,7 @@ export default class BattleUIManager {
         const buttons = [
             { label: 'COMBATTRE', x: 0, y: 0, color: 0xE74C3C, action: () => this.scene.menuManager.showMoveSelector() },
             { label: 'SAC', x: 1, y: 0, color: 0x3498DB, action: () => this.scene.menuManager.showBagMenu() },
-            { label: 'POKÉMON', x: 0, y: 1, color: 0x2ECC71, action: () => this.scene.menuManager.showPokemonMenu() },
+            { label: 'ÉQUIPE', x: 0, y: 1, color: 0x2ECC71, action: () => this.scene.menuManager.showPokemonMenu() },
             { label: 'FUIR', x: 1, y: 1, color: 0x95A5A6, action: () => this.scene.flee() }
         ];
 
@@ -510,23 +510,6 @@ export default class BattleUIManager {
                 stroke: '#000000',
                 strokeThickness: 3
             }).setOrigin(0.5);
-            
-            // If this is the POKÉMON button, add a pokeball icon to the left and shift text
-            try {
-                if (String(btn.label || '').toUpperCase().includes('POKÉMON')) {
-                    const iconKey = this.scene.textures.exists('pokeball') ? 'pokeball' : (this.scene.textures.exists('overworld_pokeball') ? 'overworld_pokeball' : null);
-                    if (iconKey) {
-                        const iconSize = Math.min(buttonHeight * 0.6, 48);
-                        const icon = this.scene.add.image(buttonWidth * 0.18, buttonHeight / 2, iconKey).setOrigin(0.5);
-                        icon.setDisplaySize(iconSize, iconSize);
-                        btnContainer.add(icon);
-
-                        // Shift text to accommodate icon
-                        buttonText.x = buttonWidth * 0.60;
-                        buttonText.setOrigin(0.5);
-                    }
-                }
-            } catch (e) {}
 
             btnContainer.add(buttonText);
 

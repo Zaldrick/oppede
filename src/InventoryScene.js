@@ -539,7 +539,9 @@ export class InventoryScene extends Phaser.Scene {
         if (item.type === 'booster') {
             useBtn = this.createActionButton('OUVRIR', '#27AE60', () => this.openBooster(item));
         } else if (item.actions && item.actions.length > 0) {
-            useBtn = this.createActionButton(item.actions[0].action_name || 'UTILISER', '#27AE60', () => this.executeAction(item.actions[0]));
+            // Legacy items (seeded DB) may still expose an `actions[]` array.
+            // Route through the unified item flow so healing opens the Pokémon selector.
+            useBtn = this.createActionButton(item.actions[0].action_name || 'UTILISER', '#27AE60', () => this.useItem(item));
         } else if (item.utiliser) {
             useBtn = this.createActionButton('UTILISER', '#27AE60', () => this.useItem(item));
         } else if (this.inBattle && ['healing', 'status-heal', 'pokeball'].includes(item.type)) {
@@ -596,7 +598,9 @@ export class InventoryScene extends Phaser.Scene {
                 const battleScene = this.scene.get('PokemonBattleScene');
                 if (battleScene && battleScene.useItemInBattle) {
                     const battleItem = {
-                        item_id: item._id || item.item_id,
+                        // IMPORTANT: in `/api/inventory/:playerId`, `_id` is the inventory entry id.
+                        // Battle endpoints expect the *items* collection id stored in `item_id`.
+                        item_id: item.item_id || item._id,
                         itemData: {
                             name_fr: item.nom,
                             type: this.categorizeItem(item) === 'pokeballs' ? 'pokeball' : 'healing'
@@ -620,10 +624,15 @@ export class InventoryScene extends Phaser.Scene {
         this.actionManager.executeAction(item, ITEM_CONTEXTS.MENU);
     }
 
-    executeAction(action) {
-        // Legacy support pour les items avec "actions" définies en JSON
-        // On essaie de mapper vers le nouveau système si possible
-        this.displayMessage("Action legacy exécutée");
+    executeAction(action, item = null) {
+        // Legacy support for items with "actions" defined in JSON.
+        // Prefer the unified flow so heal items open the Pokémon selector.
+        const targetItem = item || this.selectedItem;
+        if (targetItem) {
+            return this.useItem(targetItem);
+        }
+        this.displayMessage("Objet invalide.");
+        return false;
     }
 
     async removeItemFromInventory(item) {

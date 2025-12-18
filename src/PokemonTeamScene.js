@@ -104,18 +104,24 @@ export class PokemonTeamScene extends Phaser.Scene {
             // ignore
         }
 
-        // Bouton Combat Sauvage (en haut à droite)
-        this.createBattleButton();
+        // 🐛 Boutons réservés aux admins
+        const playerData = this.registry.get('playerData');
+        const isAdmin = !!playerData?.isAdmin;
+
+        // Bouton Combat Sauvage (en haut à droite) - admin only
+        if (isAdmin) {
+            this.createBattleButton();
+        }
 
         // 🆕 Bouton toggle sprites GIF (en haut à droite, sous le bouton Combat)
         this.createGifToggleButton();
 
-        // 🆕 Bouton toggle rencontres aléatoires (global)
-        this.createEncounterToggleButton();
+        // 🆕 Bouton toggle rencontres aléatoires (global) - admin only
+        if (isAdmin) {
+            this.createEncounterToggleButton();
+        }
 
         // 🐛 Boutons DEBUG (admin only)
-        const playerData = this.registry.get('playerData');
-        const isAdmin = !!playerData?.isAdmin;
         if (isAdmin) {
             this.createDebugButtons();
         }

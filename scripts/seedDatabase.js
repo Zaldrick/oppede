@@ -60,7 +60,7 @@ async function seedDatabase() {
             { pseudo: "Admin", dailyTeam: "1", dailyScore: 10, totalScore: 1000, posX: 38* 48+21, posY: 73* 48+24, mapId: 7, isActif: false, isAdmin: true, updatedAt: new Date() },
             { pseudo: "Arthur", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, isAdmin: false, updatedAt: new Date() },
             { pseudo: "Marie", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, isAdmin: false, updatedAt: new Date() },
-            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:false, isAdmin: false, updatedAt: new Date() },
+            { pseudo: "Marin", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2360.0, posY: 360.0, mapId: 2,isActif:false, isAdmin: false, updatedAt: new Date() },
             { pseudo: "Jo", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, isAdmin: false, updatedAt: new Date() },
             { pseudo: "Soso", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, isAdmin: false, updatedAt: new Date() },
             { pseudo: "Caro", dailyTeam: "2", dailyScore: 15, totalScore: 0, posX: 2424.0, posY: 360.0, mapId: 2,isActif:true, isAdmin: false, updatedAt: new Date() },

@@ -66,9 +66,9 @@ export class PinCodeScene extends Phaser.Scene {
         this.container.add(this.codeText);
 
         // --- Keypad ---
-        const keypadStartY = -containerHeight * 0.1;
+        const keypadStartY = -containerHeight * 0.13;
         const buttonSize = containerWidth * 0.2;
-        const gap = containerWidth * 0.05;
+        const gap = containerWidth * 0.02;
 
         const keys = [
             '1', '2', '3',
@@ -95,9 +95,13 @@ export class PinCodeScene extends Phaser.Scene {
         const controlBtnHeight = containerHeight * 0.08;
 
         // Retour
-        this.createControlButton(-containerWidth * 0.3, controlsY, controlBtnWidth, controlBtnHeight, 'Retour', 0xff0000, () => {
-            if (this.onFailure) this.onFailure();
+        const doReturn = () => {
+            try { if (this.onFailure) this.onFailure(); } catch (e) {}
             this.scene.stop();
+        };
+
+        this.createControlButton(-containerWidth * 0.3, controlsY, controlBtnWidth, controlBtnHeight, 'Retour', 0xff0000, () => {
+            doReturn();
         });
 
         // Effacer
@@ -108,6 +112,78 @@ export class PinCodeScene extends Phaser.Scene {
         // Valider
         this.createControlButton(containerWidth * 0.3, controlsY, controlBtnWidth, controlBtnHeight, 'Valider', 0x00aa00, () => {
             this.handleValidate();
+        });
+
+        // --- Keyboard controls ---
+        // ESC = Retour, Backspace/Delete = Effacer, Enter = Valider,
+        // Digits: top row + numpad.
+        const KeyCodes = Phaser.Input.Keyboard.KeyCodes;
+
+        const escKey = this.input.keyboard.addKey(KeyCodes.ESC);
+        const enterKey = this.input.keyboard.addKey(KeyCodes.ENTER);
+        const backspaceKey = this.input.keyboard.addKey(KeyCodes.BACKSPACE);
+        const deleteKey = this.input.keyboard.addKey(KeyCodes.DELETE);
+
+        const digitKeyCodes = [
+            KeyCodes.ZERO, KeyCodes.ONE, KeyCodes.TWO, KeyCodes.THREE, KeyCodes.FOUR,
+            KeyCodes.FIVE, KeyCodes.SIX, KeyCodes.SEVEN, KeyCodes.EIGHT, KeyCodes.NINE,
+            KeyCodes.NUMPAD_ZERO, KeyCodes.NUMPAD_ONE, KeyCodes.NUMPAD_TWO, KeyCodes.NUMPAD_THREE, KeyCodes.NUMPAD_FOUR,
+            KeyCodes.NUMPAD_FIVE, KeyCodes.NUMPAD_SIX, KeyCodes.NUMPAD_SEVEN, KeyCodes.NUMPAD_EIGHT, KeyCodes.NUMPAD_NINE
+        ];
+
+        const digitKeys = digitKeyCodes.map((kc) => this.input.keyboard.addKey(kc));
+
+        const consume = (evt) => {
+            try { if (evt && typeof evt.preventDefault === 'function') evt.preventDefault(); } catch (e) {}
+            try { if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation(); } catch (e) {}
+        };
+
+        escKey.on('down', (evt) => {
+            consume(evt);
+            doReturn();
+        });
+
+        enterKey.on('down', (evt) => {
+            consume(evt);
+            this.handleValidate();
+        });
+
+        backspaceKey.on('down', (evt) => {
+            consume(evt);
+            this.handleDelete();
+        });
+
+        deleteKey.on('down', (evt) => {
+            consume(evt);
+            this.handleDelete();
+        });
+
+        digitKeys.forEach((k) => {
+            k.on('down', (evt) => {
+                consume(evt);
+                // Phaser key provides the keyCode; convert to digit.
+                const code = k.keyCode;
+                let digit = null;
+
+                if (code >= KeyCodes.ZERO && code <= KeyCodes.NINE) {
+                    digit = String(code - KeyCodes.ZERO);
+                } else if (code >= KeyCodes.NUMPAD_ZERO && code <= KeyCodes.NUMPAD_NINE) {
+                    digit = String(code - KeyCodes.NUMPAD_ZERO);
+                }
+
+                if (digit !== null) {
+                    this.handleInput(digit);
+                }
+            });
+        });
+
+        // Cleanup to avoid duplicate handlers if the scene is reopened.
+        this.events.once('shutdown', () => {
+            try { escKey?.removeAllListeners?.(); } catch (e) {}
+            try { enterKey?.removeAllListeners?.(); } catch (e) {}
+            try { backspaceKey?.removeAllListeners?.(); } catch (e) {}
+            try { deleteKey?.removeAllListeners?.(); } catch (e) {}
+            try { digitKeys?.forEach?.((k) => { try { k?.removeAllListeners?.(); } catch (e) {} }); } catch (e) {}
         });
     }
 

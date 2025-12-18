@@ -5,7 +5,7 @@ export class BesoinDunTicketQuest extends BaseQuest {
     super({ scene, mapManager, eventManager, questId: "Besoin d'un ticket" });
 
     // Runtime objects
-    this.machineNpc = null;
+    this.machineNpcs = [];
     this.gateBlocker = null;
     this.gateCollider = null;
 
@@ -45,14 +45,16 @@ export class BesoinDunTicketQuest extends BaseQuest {
     } catch (e) {}
     this.gateBlocker = null;
 
-    // machineNpc is in activeEvents and will also be cleared there,
-    // but destroy it here as well to avoid duplicates.
+    // machineNpcs are in activeEvents and will also be cleared there,
+    // but destroy them here as well to avoid duplicates.
     try {
-      if (this.machineNpc) {
-        this.machineNpc.destroy();
+      if (Array.isArray(this.machineNpcs)) {
+        this.machineNpcs.forEach((z) => {
+          try { if (z) z.destroy(); } catch (e) {}
+        });
       }
     } catch (e) {}
-    this.machineNpc = null;
+    this.machineNpcs = [];
 
     this.lastSafePos = null;
     this.isPinCodeActive = false;
@@ -113,20 +115,24 @@ export class BesoinDunTicketQuest extends BaseQuest {
     if (!player || !this.scene.physics) return;
 
     // --- Machine à ticket (interaction) ---
-    // Machine sur 27:21 et déborde sur 28:21 => zone 96x48 centrée.
-    const machineX = 27 * 48 + 48;
-    const machineY = 21 * 48 + 24;
+    // Rendre l'interaction possible depuis les cases 25:21, 26:21, 27:21, 28:21.
+    // Le système de détection (proximité) marche mieux avec des zones centrées par tuile.
+    const machineTileY = 21;
+    const machineTileXs = [25, 26, 27, 28];
+    const machineY = machineTileY * 48 + 24;
 
-    const machine = this.scene.add.zone(machineX, machineY, 96, 48);
-    machine.setOrigin(0.5);
-    machine.npcType = 'ticket_machine';
-    machine.npcName = 'Machine';
-    machine.facePlayerOnInteract = false;
-    machine.setInteractive();
-
-    this.machineNpc = machine;
-    // Needed for getNearbyEventObject
-    this.eventManager.activeEvents.push(machine);
+    this.machineNpcs = machineTileXs.map((tx) => {
+      const machineX = tx * 48 + 24;
+      const z = this.scene.add.zone(machineX, machineY, 48, 48);
+      z.setOrigin(0.5);
+      z.npcType = 'ticket_machine';
+      z.npcName = 'Machine';
+      z.facePlayerOnInteract = false;
+      z.setInteractive();
+      // Needed for getNearbyEventObject
+      this.eventManager.activeEvents.push(z);
+      return z;
+    });
 
     // --- Portique (collision gate) ---
     const gateX = 21 * 48 + 24;
@@ -229,12 +235,16 @@ export class BesoinDunTicketQuest extends BaseQuest {
         // Donne le ticket
         this.scene.addItemToInventory({ nom: 'ticket de métro', quantite: 1, isKeyItem: true, type: 'key_items' });
 
-        // Si quête à l'étape 3 (index 2), terminer la quête
-        const latestPlayerData = this.scene.registry.get('playerData');
-        const latestStep = latestPlayerData?.quests?.[this.questId];
-        if (latestStep === 2) {
+        // La quête doit progresser jusqu'à l'étape finale et se terminer
+        // dès que la machine est déverrouillée et que le ticket est récupéré.
+        const latestPlayerData = this.scene.registry.get('playerData') || playerData;
+        try {
+          await this.startQuestIfMissing({ playerData: latestPlayerData, playerId });
+        } catch (e) {}
+
+        try {
           await this.completeQuest({ playerId, playerData: latestPlayerData });
-        }
+        } catch (e) {}
       },
       onFailure: () => {
         this.isPinCodeActive = false;

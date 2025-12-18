@@ -5,6 +5,19 @@ export default class MusicManager {
     static previousKey = null;
 
     static play(scene, key, config = { loop: true, volume: 0.5 }) {
+        if (!scene || !scene.sound) return;
+
+        // If audio failed to decode or failed to load, Phaser won't put it in the cache.
+        // Guard to avoid crashing the whole scene.
+        try {
+            if (!scene.cache?.audio?.exists?.(key)) {
+                console.warn(`[MusicManager] Audio key "${key}" not in cache (decode/load failure?). Skipping play.`);
+                return;
+            }
+        } catch (e) {
+            // If cache checks fail for any reason, continue but keep the try/catch around add/play.
+        }
+
         if (MusicManager.currentMusic && MusicManager.currentKey === key) {
             if (MusicManager.currentMusic.isPaused) MusicManager.currentMusic.resume();
             return;
@@ -15,9 +28,16 @@ export default class MusicManager {
             MusicManager.currentMusic = null;
             MusicManager.currentKey = null;
         }
-        MusicManager.currentMusic = scene.sound.add(key, config);
-        MusicManager.currentMusic.play();
-        MusicManager.currentKey = key;
+        try {
+            MusicManager.currentMusic = scene.sound.add(key, config);
+            MusicManager.currentMusic.play();
+            MusicManager.currentKey = key;
+        } catch (e) {
+            console.warn(`[MusicManager] Failed to play audio key "${key}":`, e);
+            try { MusicManager.currentMusic?.destroy?.(); } catch (err) {}
+            MusicManager.currentMusic = null;
+            MusicManager.currentKey = null;
+        }
     }
 
     static pause() {
@@ -39,6 +59,17 @@ export default class MusicManager {
 
     // Play a temporary overlaying music: pause current, save it, then play the new one
     static playOver(scene, key, config = { loop: true, volume: 0.5 }) {
+        if (!scene || !scene.sound) return;
+
+        try {
+            if (!scene.cache?.audio?.exists?.(key)) {
+                console.warn(`[MusicManager] Audio key "${key}" not in cache (decode/load failure?). Skipping playOver.`);
+                return;
+            }
+        } catch (e) {
+            // ignore
+        }
+
         // If there's an existing currentMusic and it's a different key, save and pause it
         if (MusicManager.currentMusic && MusicManager.currentKey !== key) {
             try {
@@ -59,9 +90,16 @@ export default class MusicManager {
             MusicManager.currentMusic.destroy();
         }
 
-        MusicManager.currentMusic = scene.sound.add(key, config);
-        MusicManager.currentMusic.play();
-        MusicManager.currentKey = key;
+        try {
+            MusicManager.currentMusic = scene.sound.add(key, config);
+            MusicManager.currentMusic.play();
+            MusicManager.currentKey = key;
+        } catch (e) {
+            console.warn(`[MusicManager] Failed to playOver audio key "${key}":`, e);
+            try { MusicManager.currentMusic?.destroy?.(); } catch (err) {}
+            MusicManager.currentMusic = null;
+            MusicManager.currentKey = null;
+        }
     }
 
     // Stop the current overlay music and restore the previous music if any

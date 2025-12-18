@@ -135,7 +135,7 @@ class PokemonManager {
     /**
      * Crée un nouveau Pokémon pour le joueur
      */
-    async createPokemon(playerId, speciesId, nickname = null) {
+    async createPokemon(playerId, speciesId, nickname = null, level = null) {
         try {
             this.isLoading = true;
             
@@ -145,7 +145,8 @@ class PokemonManager {
                 body: JSON.stringify({
                     playerId,
                     speciesId,
-                    nickname: nickname || null
+                    nickname: nickname || null,
+                    level: level ?? null
                 })
             });
 

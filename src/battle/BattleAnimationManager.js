@@ -541,6 +541,8 @@ export default class BattleAnimationManager {
     async animateHPDrain(hpBar, hpText, newHP, maxHP) {
         if (!hpBar) return;
 
+        const previousDepth = hpBar.depth;
+
         const hpPercent = Math.max(0, (newHP / maxHP) * 100);
         const props = hpBar === this.scene.playerHPBar ? this.scene.playerHPBarProps : this.scene.opponentHPBarProps;
         
@@ -582,7 +584,8 @@ export default class BattleAnimationManager {
                     props.height - 4,
                     4
                 );
-                hpBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+                // Keep existing draw order (clear() doesn't change depth)
+                if (typeof previousDepth === 'number') hpBar.setDepth(previousDepth);
 
                 if (hpText) {
                     hpText.setText(`${Math.max(0, Math.floor(newHP))}/${maxHP}`);
@@ -770,6 +773,7 @@ export default class BattleAnimationManager {
             const props = this.scene.playerXPBarProps;
             const duration = xpSlice && xpSlice.duration ? Math.max(50, xpSlice.duration * 1000) : 800;
             const startTime = Date.now();
+            const previousDepth = this.scene.playerXPBar?.depth;
 
             const updateXP = () => {
                 const elapsed = Date.now() - startTime;
@@ -785,7 +789,8 @@ export default class BattleAnimationManager {
                     props.height - 2,
                     3
                 );
-                this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+                // Keep existing draw order (clear() doesn't change depth)
+                if (typeof previousDepth === 'number') this.scene.playerXPBar.setDepth(previousDepth);
 
                 if (progress < 1) {
                     requestAnimationFrame(updateXP);
@@ -810,6 +815,7 @@ export default class BattleAnimationManager {
 
         for (const flash of flashColors) {
             // Flash sur la barre XP
+            const previousDepth = this.scene.playerXPBar?.depth;
             this.scene.playerXPBar.clear();
             this.scene.playerXPBar.fillStyle(flash.color, 1);
             this.scene.playerXPBar.fillRoundedRect(
@@ -819,7 +825,8 @@ export default class BattleAnimationManager {
                 this.scene.playerXPBarProps.height - 2,
                 3
             );
-            this.scene.playerXPBar.setDepth(3); // 🔧 FIXE: Réappliquer depth après clear()
+            // Keep existing draw order (clear() doesn't change depth)
+            if (typeof previousDepth === 'number') this.scene.playerXPBar.setDepth(previousDepth);
             
             await this.scene.wait(flash.duration);
         }

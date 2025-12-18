@@ -18,6 +18,8 @@ export class MainMenuScene extends Phaser.Scene {
     preload() {
         this.load.image("mainMenuBackground", "/assets/mainMenuBackground.png"); // Load the background image
         this.load.audio("silentSound", "/assets/musics/silent.mp3");
+        // NOTE: if this ever 404s (SPA fallback returning HTML), audio decode will fail.
+        // We guard playback in create() and re-try on user gesture.
         this.load.audio("mainMenuMusic", "/assets/musics/mainMenuMusic.mp3?v=1"); // Load background music with cache buster
         this.load.image("logo", "/assets/logo.png"); // Load the logo image
     }
@@ -146,17 +148,53 @@ export class MainMenuScene extends Phaser.Scene {
             padding: { x: 10, y: 5 },
         }).setOrigin(0.5).setInteractive().setVisible(false);
 
-        // Play background music
-        MusicManager.play(this, 'mainMenuMusic', { loop: true, volume: 0.5 });
+        // --- Music startup (resilient to occasional decode/load failures) ---
+        const MENU_MUSIC_KEY = 'mainMenuMusic';
+        const MENU_MUSIC_URL = '/assets/musics/mainMenuMusic.mp3?v=1';
+        const tryStartMenuMusic = () => {
+            try {
+                if (MusicManager.isPlaying(MENU_MUSIC_KEY)) return;
+
+                // If the key isn't in cache (decode error / load error), don't crash.
+                if (!this.cache?.audio?.exists?.(MENU_MUSIC_KEY)) {
+                    // Try re-queueing a load once; it will silently no-op if already queued.
+                    try {
+                        // Add a one-time hook to start music after loader completes.
+                        if (!this.__menuMusicRetryHooked) {
+                            this.__menuMusicRetryHooked = true;
+                            this.load.once('complete', () => {
+                                try {
+                                    if (this.cache?.audio?.exists?.(MENU_MUSIC_KEY)) {
+                                        MusicManager.play(this, MENU_MUSIC_KEY, { loop: true, volume: 0.5 });
+                                    }
+                                } catch (e) {}
+                            });
+                        }
+                        this.load.audio(MENU_MUSIC_KEY, MENU_MUSIC_URL);
+                        // Only start the loader if it's not already running.
+                        if (!this.load.isLoading()) {
+                            this.load.start();
+                        }
+                    } catch (e) {}
+                    return;
+                }
+
+                MusicManager.play(this, MENU_MUSIC_KEY, { loop: true, volume: 0.5 });
+            } catch (e) {
+                // never crash the menu for music
+                console.warn('[MainMenuScene] Could not start menu music:', e);
+            }
+        };
+
+        // Try once at create-time (won't crash), but also retry on user gesture.
+        tryStartMenuMusic();
 
         // Unlock AudioContext with a silent sound
         const silentSound = this.sound.add("silentSound", { volume: 0 });
         silentSound.play();
         silentSound.once("complete", () => {
             silentSound.destroy(); // Clean up the silent sound
-            if (this.backgroundMusic && !this.backgroundMusic.isPlaying) {
-                this.backgroundMusic.play();
-            }
+            // If autoplay was blocked earlier, user gesture will retry via handlers below.
         });
 
         // Add the logo to the scene
@@ -176,6 +214,8 @@ export class MainMenuScene extends Phaser.Scene {
 
         // Show connection UI on click anywhere
         fullScreenZone.on("pointerdown", () => {
+            // Ensure music starts on a user gesture (helps unlock audio + retries after decode/load flakiness)
+            tryStartMenuMusic();
 //            if (savedPseudo) {setTimeout(() => {submitButton.emit("pointerdown");}, 500);}
             if (savedPseudo) {submitButton.emit("pointerdown");}
             else {
@@ -208,6 +248,8 @@ export class MainMenuScene extends Phaser.Scene {
         });
 
         submitButton.on("pointerdown", async () => {
+            // Retry starting music on an explicit user action
+            tryStartMenuMusic();
             // Start background music on user gesture
             if (this.backgroundMusic && !this.backgroundMusic.isPlaying) {
                 this.backgroundMusic.play();

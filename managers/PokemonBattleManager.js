@@ -37,7 +37,11 @@ class PokemonBattleManager {
         return {
             _id: pokemon._id || 'wild',
             species_id: pokemon.species_id,
-            name: pokemon.nickname || pokemon.speciesData?.name_fr || pokemon.speciesData?.name,
+            // Keep both: `nickname` (source of truth for custom clones) and `name` (legacy display)
+            nickname: pokemon.nickname ?? null,
+            species_name_fr: pokemon.species_name_fr ?? pokemon.speciesData?.name_fr ?? null,
+            species_name: pokemon.species_name ?? pokemon.speciesData?.name ?? null,
+            name: pokemon.nickname || pokemon.speciesData?.name_fr || pokemon.species_name_fr || pokemon.speciesData?.name || pokemon.species_name,
             level: resolvedLevel,
             experience: pokemon.experience || 0,
             currentHP: pokemon.currentHP,
@@ -183,6 +187,47 @@ class PokemonBattleManager {
                     const speciesData = await this.getSpeciesData(pokemon.species_id);
                     pokemon.speciesData = speciesData;
                     pokemon.stats = this.calculateStats(pokemon, speciesData);
+
+                    // Normalize HP values (avoid undefined/null breaking KO checks)
+                    if (pokemon.currentHP === undefined || pokemon.currentHP === null) {
+                        pokemon.currentHP = pokemon.stats?.maxHP;
+                    }
+                }
+
+                // ✅ Fix: ne jamais envoyer un Pokémon K.O. en premier.
+                // On choisit le premier Pokémon vivant (currentHP > 0) et on le met en tête.
+                // On swap aussi les champs position/teamPosition pour garder un ordre cohérent côté UI.
+                const firstAliveIndex = Array.isArray(playerTeam)
+                    ? playerTeam.findIndex(p => Number(p?.currentHP) > 0)
+                    : -1;
+
+                if (firstAliveIndex < 0) {
+                    return res.status(400).json({ error: 'Tous vos Pokémon sont K.O.' });
+                }
+
+                if (firstAliveIndex > 0) {
+                    const lead = playerTeam[firstAliveIndex];
+                    const first = playerTeam[0];
+
+                    // swap array order
+                    playerTeam[0] = lead;
+                    playerTeam[firstAliveIndex] = first;
+
+                    // swap teamPosition if present (0..5)
+                    const leadTeamPos = Number.isFinite(Number(lead?.teamPosition)) ? Number(lead.teamPosition) : null;
+                    const firstTeamPos = Number.isFinite(Number(first?.teamPosition)) ? Number(first.teamPosition) : null;
+                    if (leadTeamPos !== null || firstTeamPos !== null) {
+                        lead.teamPosition = firstTeamPos;
+                        first.teamPosition = leadTeamPos;
+                    }
+
+                    // swap legacy position if present (1..6)
+                    const leadPos = Number.isFinite(Number(lead?.position)) ? Number(lead.position) : null;
+                    const firstPos = Number.isFinite(Number(first?.position)) ? Number(first.position) : null;
+                    if (leadPos !== null || firstPos !== null) {
+                        lead.position = firstPos;
+                        first.position = leadPos;
+                    }
                 }
 
                 let opponentTeam;
@@ -271,7 +316,10 @@ class PokemonBattleManager {
                     playerTeam: playerTeam.map(p => ({
                         _id: p._id,
                         species_id: p.species_id,
-                        name: p.nickname || p.speciesData?.name_fr || p.speciesData?.name,
+                        nickname: p.nickname ?? null,
+                        species_name_fr: p.species_name_fr ?? p.speciesData?.name_fr ?? null,
+                        species_name: p.species_name ?? p.speciesData?.name ?? null,
+                        name: p.nickname || p.speciesData?.name_fr || p.species_name_fr || p.speciesData?.name || p.species_name,
                         // Normalize level from experience to avoid mismatch issues
                         level: (p.experience !== undefined && p.experience !== null) ? this.calculateLevel(p.experience) : (p.level || 1),
                         experience: p.experience, // 🆕 ESSENTIEL pour calcul XP bar
@@ -285,7 +333,10 @@ class PokemonBattleManager {
                     opponentTeam: opponentTeam.map(p => ({
                         _id: p._id || 'wild',
                         species_id: p.species_id,
-                        name: p.nickname || p.speciesData?.name_fr || p.speciesData?.name,
+                        nickname: p.nickname ?? null,
+                        species_name_fr: p.species_name_fr ?? p.speciesData?.name_fr ?? null,
+                        species_name: p.species_name ?? p.speciesData?.name ?? null,
+                        name: p.nickname || p.speciesData?.name_fr || p.species_name_fr || p.speciesData?.name || p.species_name,
                         // ✅ Ne pas dériver le niveau des adversaires (wild/trainer) depuis experience=0
                         level: (battleType === 'pvp' && p.experience !== undefined && p.experience !== null)
                             ? this.calculateLevel(p.experience)

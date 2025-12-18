@@ -122,12 +122,22 @@ export class AHauteurDeBetteuQuest extends BaseQuest {
           try { npc.setFrame(3); } catch (err) {}
         }
 
-        // Add quest (if missing) then mark completed at step 1
+        // Add quest (if missing) then advance to step 1 on server (important: QuestScene sync uses server stepIndex)
+        // then mark completed.
         try {
-          if (!hasQuest) {
-            await this.startQuestIfMissing({ playerData, playerId, questId: this.questId, showSystemMessage: false, logPrefix: 'AHauteurDeBetteuQuest' });
+          const latestPlayerData = this.scene.registry.get('playerData') || playerData;
+          const latestStep = Number(latestPlayerData?.quests?.[this.questId] ?? 0) || 0;
+
+          if (latestPlayerData?.quests?.[this.questId] === undefined) {
+            await this.startQuestIfMissing({ playerData: latestPlayerData, playerId, questId: this.questId, showSystemMessage: false, logPrefix: 'AHauteurDeBetteuQuest' });
           }
-          await this.completeQuest({ playerId, playerData, questId: this.questId, step: 1, logPrefix: 'AHauteurDeBetteuQuest' });
+
+          // Ensure stepIndex >= 1 server-side so chest stays open after Quest sync.
+          if (latestStep < 1) {
+            await this.advanceQuest({ playerId, playerData: latestPlayerData, questId: this.questId, step: 1, logPrefix: 'AHauteurDeBetteuQuest' });
+          }
+
+          await this.completeQuest({ playerId, playerData: latestPlayerData, questId: this.questId, step: 1, logPrefix: 'AHauteurDeBetteuQuest' });
         } catch (e) {
           // ignore
         }

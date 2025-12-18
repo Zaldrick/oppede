@@ -59234,7 +59234,7 @@
       {
        "name": "encounterRate",
        "type": "string",
-       "value": "6"
+       "value": "3"
       },
       {
        "name": "encounterTableId",

@@ -7,6 +7,7 @@ import { RentrerALaMaisonQuest } from "../quests/RentrerALaMaisonQuest";
 import { SePreparerQuest } from "../quests/SePreparerQuest";
 import { QwestEvents } from "../quests/QwestEvents";
 import { LeMessageManquantQuest } from "../quests/LeMessageManquantQuest";
+import { LushMaisPasTropQuest } from "../quests/LushMaisPasTropQuest";
 import { AHauteurDeBetteuQuest } from "../quests/AHauteurDeBetteuQuest";
 
 export class MapEventManager {
@@ -37,6 +38,7 @@ export class MapEventManager {
                 new SePreparerQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
                 new QwestEvents({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
                 new LeMessageManquantQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
+                new LushMaisPasTropQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this }),
                 new AHauteurDeBetteuQuest({ scene: this.scene, mapManager: this.mapManager, eventManager: this })
             ]
         });
@@ -307,7 +309,7 @@ export class MapEventManager {
             this.createPokeCenterZone({
                 id: 'pokecenter_metro_17_21',
                 mapKey: 'metro',
-                tileX: 17,
+                tileX: 17.5,
                 tileY: 21
             });
         }
@@ -791,7 +793,7 @@ export class MapEventManager {
 
             // Placement manuel des PNJ (coordonnées en tuiles + direction du regard + dialogue)
             const placements = [
-                { tileX: 24, tileY: 21, facing: 'down', dialogue: '...' },
+                { tileX: 22, tileY: 22, facing: 'left', dialogue: 'Je suis coincé dans le portique snif' },
                 { tileX: 10, tileY: 21, facing: 'up', dialogue: '...' },
                 { tileX: 20, tileY: 15.4, facing: 'down', dialogue: '...' },
                 { tileX: 8, tileY: 12, facing: 'up', dialogue: '...' },
@@ -1411,24 +1413,11 @@ export class MapEventManager {
                     icon.fillCircle(x, y - 8, 6);
                 }
                 if (icon) {
-                    icon.setDepth(1000);
+                    icon.setDepth(0);
                     zone.pokeCenterIcon = icon;
-                }
-            } catch (e) {}
-
-            // Add a pulsing ring effect behind the icon to improve visibility
-            try {
-                const ring = this.scene.add.graphics();
-                ring.lineStyle(2, 0xffe066, 0.95);
-                // draw around the icon slightly above ground
-                ring.strokeCircle(x, y - 8, 14);
-                ring.setDepth(999);
-                // animate pulse
-                try {
+                     try {
                     this.scene.tweens.add({
-                        targets: ring,
-                        scaleX: { from: 1, to: 1.25 },
-                        scaleY: { from: 1, to: 1.25 },
+                        targets: icon,
                         alpha: { from: 1, to: 0.25 },
                         duration: 1000,
                         yoyo: true,
@@ -1436,8 +1425,12 @@ export class MapEventManager {
                         ease: 'Sine.easeInOut'
                     });
                 } catch (e) {}
-                zone.pokeCenterEffect = ring;
+                zone.pokeCenterEffect = icon;
+                }
             } catch (e) {}
+
+            // Add a pulsing ring effect behind the icon to improve visibility
+
 
             this.activeEvents.push(zone);
         } catch (e) {
@@ -1562,9 +1555,9 @@ export class MapEventManager {
             chest.lootQty = Number(lootQty) || 1;
 
             // Hitbox
-            chest.body.setSize(32, 32);
+            chest.body.setSize(40, 40);
             chest.body.setOffset(8, 16);
-
+            chest.facePlayerOnInteract = false;
             // Animation ouverture
             if (!this.scene.anims.exists('coffre_open')) {
                 this.scene.anims.create({
@@ -1678,6 +1671,7 @@ export class MapEventManager {
             gaara_pokemon: {
                 speciesId: 552,
                 nickname: 'Gaara',
+                level: 7,
                 prompt: 'Gaara ??',
                 failMessage: "Impossible d'ajouter Gaara.",
                 successMessage: "Gaara ajouté à l'équipe !"
@@ -1686,6 +1680,7 @@ export class MapEventManager {
                 // clone Givrali
                 speciesId: 471,
                 nickname: 'Floki',
+                level: 10,
                 prompt: 'Floki ??',
                 failMessage: "Impossible d'ajouter Floki.",
                 successMessage: "Floki ajouté à l'équipe !"
@@ -1694,6 +1689,7 @@ export class MapEventManager {
                 // clone Luxray
                 speciesId: 405,
                 nickname: 'Tanuki',
+                level: 12,
                 prompt: 'Tanuki ??',
                 failMessage: "Impossible d'ajouter Tanuki.",
                 successMessage: "Tanuki ajouté à l'équipe !"
@@ -1775,7 +1771,8 @@ export class MapEventManager {
                 body: JSON.stringify({
                     playerId,
                     speciesId: cfg.speciesId,
-                    nickname: cfg.nickname
+                    nickname: cfg.nickname,
+                    level: cfg.level
                 })
             });
 

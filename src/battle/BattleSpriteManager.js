@@ -18,6 +18,75 @@ export default class BattleSpriteManager {
         this.scene = scene;
     }
 
+    _getShadowMetrics(displayWidth, displayHeight, role = 'player') {
+        const widthFactor = role === 'opponent' ? 0.8 : 0.85;
+        return {
+            width: displayWidth * widthFactor,
+            height: displayHeight * 0.15,
+            offsetY: displayHeight * 0.45
+        };
+    }
+
+    _drawShadowEllipse(shadow, baseX, baseY, displayWidth, displayHeight, role = 'player') {
+        if (!shadow) return;
+        shadow.clear();
+        shadow.fillStyle(0x000000, 0.6);
+        const shadowSize = this._getShadowMetrics(displayWidth, displayHeight, role);
+        shadow.fillEllipse(baseX, baseY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
+        shadow.setDepth(0);
+    }
+
+    _measureGifDisplaySizeInGameUnits(gifContainer) {
+        try {
+            if (!gifContainer || !this.scene?.game?.canvas) return null;
+
+            const canvasRect = this.scene.game.canvas.getBoundingClientRect();
+            const gifRect = gifContainer.getBoundingClientRect();
+            if (!canvasRect.width || !canvasRect.height) return null;
+
+            const scaleX = canvasRect.width / this.scene.scale.width;
+            const scaleY = canvasRect.height / this.scene.scale.height;
+
+            // Convert DOM pixels back to game units
+            const w = gifRect.width / scaleX;
+            const h = gifRect.height / scaleY;
+
+            if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+            return { width: w, height: h };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    _syncShadowToSprite(spriteData, shadow, baseX, baseY, role = 'player', fallbackSize = { width: 96, height: 96 }) {
+        if (!spriteData || !shadow) return;
+
+        // Phaser sprite: dimensions are reliable immediately.
+        if (spriteData.type === 'phaser' && spriteData.sprite) {
+            this._drawShadowEllipse(
+                shadow,
+                baseX,
+                baseY,
+                spriteData.sprite.displayWidth || fallbackSize.width,
+                spriteData.sprite.displayHeight || fallbackSize.height,
+                role
+            );
+            return;
+        }
+
+        // GIF sprite: need a post-render measurement (DOM).
+        if (spriteData.type === 'gif' && spriteData.gifContainer) {
+            // Draw an initial fallback to avoid missing shadow, then refine next tick.
+            this._drawShadowEllipse(shadow, baseX, baseY, fallbackSize.width, fallbackSize.height, role);
+            this.scene.time.delayedCall(0, () => {
+                const measured = this._measureGifDisplaySizeInGameUnits(spriteData.gifContainer);
+                if (measured) {
+                    this._drawShadowEllipse(shadow, baseX, baseY, measured.width, measured.height, role);
+                }
+            });
+        }
+    }
+
     /**
      * 🆕 Détruit un sprite (GÉNÉRIQUE - GIF ou PNG)
      */
@@ -241,29 +310,11 @@ export default class BattleSpriteManager {
                     result.gifContainer.style.transformOrigin = 'center center';
                 }
 
-                // 🆕 CALCUL DE L'OMBRE APRÈS REDIMENSIONNEMENT
-                // On récupère les dimensions réelles affichées
-                let displayWidth = 96;
-                let displayHeight = 96;
-
-                if (result.type === 'phaser' && result.sprite) {
-                    displayWidth = result.sprite.displayWidth;
-                    displayHeight = result.sprite.displayHeight;
-                } else if (result.type === 'gif' && result.gifContainer) {
-                    // Estimation pour le GIF (car le DOM n'est pas encore rendu)
-                    // On utilise la taille max comme référence si on ne peut pas mesurer
-                    displayWidth = Math.min(spriteWidth, maxWidth);
-                    displayHeight = Math.min(spriteHeight, maxHeight);
-                }
-
-                const shadowSize = {
-                    width: displayWidth * 0.8,
-                    height: displayHeight * 0.15,
-                    offsetY: displayHeight * 0.45
-                };
-                
-                shadow.fillEllipse(opponentSpriteX, opponentSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
-                shadow.setDepth(0);
+                // Sync shadow to displayed sprite size (custom GIF/PNG included)
+                this._syncShadowToSprite(result, shadow, opponentSpriteX, opponentSpriteY, 'opponent', {
+                    width: Math.min(spriteWidth, maxWidth),
+                    height: Math.min(spriteHeight, maxHeight)
+                });
                 this.scene.opponentShadow = shadow;
 
                 // No animation or cry here; animations are handled by BattleAnimationManager to avoid duplicates.
@@ -363,26 +414,11 @@ export default class BattleSpriteManager {
                     result.gifContainer.style.minHeight = `${height * 0.25}px`;
                 }
 
-                // 🆕 CALCUL DE L'OMBRE APRÈS REDIMENSIONNEMENT
-                let displayWidth = 96;
-                let displayHeight = 96;
-
-                if (result.type === 'phaser' && result.sprite) {
-                    displayWidth = result.sprite.displayWidth;
-                    displayHeight = result.sprite.displayHeight;
-                } else if (result.type === 'gif' && result.gifContainer) {
-                    displayWidth = Math.min(spriteWidth, maxWidth);
-                    displayHeight = Math.min(spriteHeight, maxHeight);
-                }
-
-                const shadowSize = {
-                    width: displayWidth * 0.85,
-                    height: displayHeight * 0.15,
-                    offsetY: displayHeight * 0.45
-                };
-                
-                shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
-                shadow.setDepth(0);
+                // Sync shadow to displayed sprite size (custom GIF/PNG included)
+                this._syncShadowToSprite(result, shadow, playerSpriteX, playerSpriteY, 'player', {
+                    width: Math.min(spriteWidth, maxWidth),
+                    height: Math.min(spriteHeight, maxHeight)
+                });
                 this.scene.playerShadow = shadow;
                 // Do not animate or play cry here; animations are centralized in BattleAnimationManager to avoid duplicates.
             } catch (error) {
@@ -507,11 +543,8 @@ export default class BattleSpriteManager {
                     result.gifContainer.style.transformOrigin = 'center center';
                 }
 
-                const shadowSize = result.type === 'phaser' && result.sprite 
-                    ? { width: result.sprite.displayWidth * 0.85, height: result.sprite.displayHeight * 0.15, offsetY: result.sprite.displayHeight * 0.45 }
-                    : { width: 90, height: 15, offsetY: 50 };
-                shadow.fillEllipse(playerSpriteX, playerSpriteY + shadowSize.offsetY, shadowSize.width, shadowSize.height);
-                shadow.setDepth(0);
+                // Sync shadow to displayed sprite size (important for custom/GIF sprites)
+                this._syncShadowToSprite(result, shadow, playerSpriteX, playerSpriteY, 'player', { width: 96, height: 96 });
                 this.scene.playerShadow = shadow;
                 shadow.setAlpha(animate ? 0 : 1);
                 
