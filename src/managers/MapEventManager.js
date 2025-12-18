@@ -855,20 +855,17 @@ export class MapEventManager {
                 this.createAmbientNPC(npcName, x, y, facing, p.dialogue, p.displayName);
             });
 
-            // Garder l'ancien comportement d'ajout d'autres PNJ si besoin:
-            // on spawn le reste en zone dédiée pour éviter les chevauchements.
-            npcsToSpawn = npcListDouai.filter((n) => !used.has(String(n).toLowerCase()));
-            startX = 110;
-            startY = 32;
+            // Douai: uniquement les placements manuels (pas de spawn en grille en bas de la fonction)
+            return;
         } else if (mapKey === "metro") {
             npcsToSpawn = [...npcListLille, ...npcListDouai];
 
             // Placement manuel des PNJ (coordonnées en tuiles + direction du regard + dialogue)
             const placements = [
                 { tileX: 22, tileY: 22, facing: 'left', dialogue: 'Je suis coincé dans le portique snif' },
-                { tileX: 10, tileY: 21, facing: 'up', dialogue: '...' },
-                { tileX: 20, tileY: 15.4, facing: 'down', dialogue: '...' },
-                { tileX: 8, tileY: 12, facing: 'up', dialogue: '...' },
+                { tileX: 10, tileY: 21, facing: 'up', dialogue: 'Y\'a plus que du coca, nik !' },
+                { tileX: 20, tileY: 15.4, facing: 'down', dialogue: 'Pratique ce banc avec vue sur mur.' },
+                { tileX: 8, tileY: 12, facing: 'up', dialogue: 'Ca c\'est du tag stylay ~' },
                 { tileX: 19, tileY: 5, facing: 'down', dialogue: '...' },
                 { tileX: 22, tileY: 2, facing: 'left', dialogue: '...' },
                 { tileX: 26, tileY: 2, facing: 'down', dialogue: '...' }
