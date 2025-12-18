@@ -51,6 +51,7 @@ export default class SoundManager {
             'pokecaught': 'Poke_Caught',
             // Simplified: only one canonical asset is expected: levelup.mp3
             'levelup': 'levelup',
+            'level_up': 'levelup',
             'keyitem_get': 'KeyItem_Get',
             'key_item_get': 'KeyItem_Get',
             'pokecenter_heal': 'PokeCenter_Heal',
@@ -473,6 +474,40 @@ export default class SoundManager {
             this.scene.sound.play(key, { volume, rate, loop });
             return true;
         } catch (e) {
+            // Special-case: never replace LevelUp by another SFX.
+            // On some mobile browsers (e.g. Brave/Chromium), Phaser/WebAudio decode/play can fail while
+            // HTMLAudio playback still works. Try levelup.mp3 via HTMLAudio, then give up.
+            try {
+                const requestedLower = String(requested || '').toLowerCase();
+                if (requestedLower === 'levelup') {
+                    const urls = [
+                        `${this.sfxPath}${encodeURIComponent('levelup')}.mp3`,
+                        `/public${this.sfxPath}${encodeURIComponent('levelup')}.mp3`
+                    ];
+                    for (const url of urls) {
+                        try {
+                            const audio = new Audio(url);
+                            audio.volume = Math.max(0, Math.min(1, volume));
+                            try { audio.playbackRate = rate; } catch (rateErr) {}
+                            audio.loop = !!loop;
+                            const p = audio.play();
+                            if (p && typeof p.then === 'function') {
+                                await p;
+                                console.warn('[SoundManager] Played LevelUp via HTMLAudio fallback:', url);
+                                return true;
+                            }
+                        } catch (htmlErr) {
+                            continue;
+                        }
+                    }
+
+                    console.warn('[SoundManager] LevelUp failed to play (no fallback to Tackle).', e && e.message ? e.message : e);
+                    return false;
+                }
+            } catch (levelUpGuardErr) {
+                // ignore and continue to generic fallbacks
+            }
+
             // fallback: play generic move sound if exists
             // Try explicit fallback: attempt to load and play 'Tackle' sound
             try {
